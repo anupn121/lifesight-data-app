@@ -56,15 +56,15 @@ export default function DataPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-black">
+    <div className="flex min-h-screen bg-[var(--bg-primary)]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-h-screen">
         <TopNav />
         <main className="flex-1 overflow-y-auto px-4 pt-4">
           {/* Page Title */}
           <div className="mb-3">
-            <h1 className="text-white text-xl font-semibold tracking-[-0.5px]">Data</h1>
-            <p className="text-[#9ca3af] text-sm mt-1">Track connection status, sync progress, and data completeness across all connected sources</p>
+            <h1 className="text-[var(--text-primary)] text-xl font-semibold tracking-[-0.5px]">Data</h1>
+            <p className="text-[var(--text-muted)] text-sm mt-1">Track connection status, sync progress, and data completeness across all connected sources</p>
           </div>
 
           {/* Tab Bar */}

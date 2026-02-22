@@ -304,7 +304,7 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a2a2d] bg-[#0f0f10] text-sm text-[#d1d5dc] hover:border-[#444] transition-colors min-w-[140px] justify-between"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card)] text-sm text-[var(--text-secondary)] hover:border-[var(--border-secondary)] transition-colors min-w-[140px] justify-between"
       >
         <span>{value}</span>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
@@ -312,10 +312,10 @@ function FilterDropdown({
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[#1a1a1c] border border-[#333] rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+        <div className="absolute top-full left-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-xl z-50 min-w-[180px] py-1">
           <button
             onClick={() => { onChange(`All ${label}`); setOpen(false); }}
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors ${value === `All ${label}` ? "text-white font-medium" : "text-[#9ca3af]"}`}
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--hover-item)] transition-colors ${value === `All ${label}` ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}
           >
             All {label}
           </button>
@@ -323,7 +323,7 @@ function FilterDropdown({
             <button
               key={opt}
               onClick={() => { onChange(opt); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors ${value === opt ? "text-white font-medium" : "text-[#9ca3af]"}`}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--hover-item)] transition-colors ${value === opt ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}
             >
               {opt}
             </button>
@@ -337,7 +337,7 @@ function FilterDropdown({
 // ─── Three-Dot Menu ───────────────────────────────────────────────────────────
 function ThreeDotMenu() {
   return (
-    <button className="p-1 rounded hover:bg-white/5 transition-colors text-[#71717a] hover:text-[#d1d5dc]">
+    <button className="p-1 rounded hover:bg-[var(--hover-item)] transition-colors text-[var(--text-dim)] hover:text-[var(--text-secondary)]">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="3.5" r="1" fill="currentColor" />
         <circle cx="8" cy="8" r="1" fill="currentColor" />
@@ -354,17 +354,17 @@ function IntegrationCard({ integration }: { integration: Integration }) {
     || `${integration.accounts} Connected Account${integration.accounts !== 1 ? "s" : ""}`;
 
   return (
-    <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl flex flex-col hover:border-[#333] transition-colors">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl flex flex-col hover:border-[var(--border-secondary)] transition-colors">
       <div className="px-5 pt-5 pb-4 flex-1">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
             <IntegrationIcon integration={integration} />
             <div className="min-w-0 pt-0.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-white text-sm font-medium">{integration.name}</span>
+                <span className="text-[var(--text-primary)] text-sm font-medium">{integration.name}</span>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor[integration.status]}`} />
               </div>
-              <p className="text-[#71717a] text-xs mt-0.5 leading-relaxed">{integration.description}</p>
+              <p className="text-[var(--text-dim)] text-xs mt-0.5 leading-relaxed">{integration.description}</p>
             </div>
           </div>
           <ThreeDotMenu />
@@ -372,8 +372,8 @@ function IntegrationCard({ integration }: { integration: Integration }) {
       </div>
 
       {hasFooter && (
-        <div className="border-t border-[#1f1f21] px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#9ca3af] text-xs">
+        <div className="border-t border-[var(--border-primary)] px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M5.83 8.17L3.5 5.83L1.17 8.17" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M3.5 5.83V10.5C3.5 11.05 3.72 11.58 4.11 11.97C4.5 12.36 5.03 12.58 5.58 12.58" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
@@ -382,7 +382,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
             </svg>
             <span>{footerText}</span>
           </div>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[#71717a]">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--text-dim)]">
             <path d="M5.25 3.5L8.75 7L5.25 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
@@ -407,10 +407,10 @@ function SectionHeader({
     <div className="flex items-center gap-3 mb-3">
       <div className="flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-        <h3 className="text-white text-base font-semibold">{title}</h3>
-        <span className="bg-[#1f1f21] text-[#9ca3af] text-xs font-semibold px-2 py-0.5 rounded-md">{count}</span>
+        <h3 className="text-[var(--text-primary)] text-base font-semibold">{title}</h3>
+        <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-xs font-semibold px-2 py-0.5 rounded-md">{count}</span>
       </div>
-      <span className="text-[#475467] text-xs">{description}</span>
+      <span className="text-[var(--text-label)] text-xs">{description}</span>
     </div>
   );
 }
@@ -447,7 +447,7 @@ export default function IntegrationsTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
               <circle cx="7.33" cy="7.33" r="5.33" stroke="currentColor" strokeWidth="1.2" />
               <path d="M14 14L11.1 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
@@ -456,7 +456,7 @@ export default function IntegrationsTab() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search"
-              className="bg-[#0f0f10] border border-[#2a2a2d] rounded-lg text-sm text-[#d1d5dc] pl-9 pr-3 py-2 w-60 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+              className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-60 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
             />
           </div>
           <FilterDropdown label="Statuses" value={statusFilter} options={allStatuses} onChange={setStatusFilter} />
@@ -466,7 +466,7 @@ export default function IntegrationsTab() {
         {hasActiveFilters && (
           <button
             onClick={resetFilters}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a2a2d] text-sm text-[#9ca3af] hover:text-white hover:border-[#444] transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M1.75 1.75L12.25 12.25M12.25 1.75L1.75 12.25" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -528,7 +528,7 @@ export default function IntegrationsTab() {
             <circle cx="18" cy="18" r="12" stroke="currentColor" strokeWidth="2" />
             <path d="M35 35L26.5 26.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <p className="text-[#9ca3af] text-sm">No integrations match your filters</p>
+          <p className="text-[var(--text-muted)] text-sm">No integrations match your filters</p>
           <button onClick={resetFilters} className="text-[#6941c6] text-sm font-medium mt-2 hover:underline">
             Reset filters
           </button>

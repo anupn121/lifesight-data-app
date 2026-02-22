@@ -1,7 +1,8 @@
 // Monitoring data and types
 // Used by MonitoringTab.tsx
 
-export type IntegrationStatus = "Active" | "Warning" | "Reconnect" | "Failed";
+export type IntegrationStatus =
+  | "Active" | "Warning" | "Reconnect" | "Failed" | "Partial" | "Sync-in-Progress";
 export type ConnectionType = "Source" | "Destination";
 export type IntegrationCategory =
   | "Advertising"
@@ -15,8 +16,8 @@ export type IntegrationCategory =
   | "Payments"
   | "Data Warehouse"
   | "Custom";
-export type AccountStatus = "Active" | "Stale" | "Error" | "Inactive";
-export type SyncHealthStatus = "healthy" | "warning" | "failed";
+export type AccountStatus = "Active" | "Warning" | "Reconnect" | "Failed" | "Partial" | "Inactive";
+export type SyncHealthStatus = "healthy" | "warning" | "failed" | "pending";
 
 export interface OverviewMetric {
   label: string;
@@ -49,6 +50,12 @@ export interface Integration {
   accounts: Account[];
   accountColumns: string[];
   syncHealthDays: SyncHealthStatus[];
+  refreshFrequency: string;
+  timezone: string;
+  syncHealthDetail: string[];
+  metricsDateRange: string;
+  connectedDate?: string;
+  estimatedCompletionDate?: string;
 }
 
 // ─── All Categories ─────────────────────────────────────────────────────────
@@ -71,6 +78,8 @@ export const ALL_STATUSES: IntegrationStatus[] = [
   "Warning",
   "Reconnect",
   "Failed",
+  "Partial",
+  "Sync-in-Progress",
 ];
 
 // ─── Sample Integrations ────────────────────────────────────────────────────
@@ -83,7 +92,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "Advertising",
     status: "Warning",
-    subtitle: "4 accounts \u00b7 Last sync 2 min ago",
+    subtitle: "4 accounts · Last sync 2 min ago",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "4/4 accounts synced",
+      "4/4 accounts synced",
+      "4/4 accounts synced",
+      "3/4 accounts synced — Global Retargeting stale",
+      "3/4 accounts synced — Global Retargeting stale",
+      "4/4 accounts synced",
+      "4/4 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29 (2 days incomplete)",
     overviewMetrics: [
       { label: "Spend", value: "$124.5K" },
       { label: "Impressions", value: "8.2M" },
@@ -97,7 +118,7 @@ export const allIntegrations: Integration[] = [
     alertType: "warning",
     accounts: [
       { name: "US Brand Awareness", status: "Active", lastRefreshed: "Jan 29, 2025, 08:32 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$45.2K", Impressions: "3.1M", Clicks: "128K", "Attrib. Rev": "$312K" } },
-      { name: "Global Retargeting", status: "Stale", lastRefreshed: "Jan 27, 2025, 08:30 AM", dataUntil: "Jan 27, 2025", metrics: { Spend: "$32.1K", Impressions: "2.4M", Clicks: "95K", "Attrib. Rev": "$245K" } },
+      { name: "Global Retargeting", status: "Warning", lastRefreshed: "Jan 27, 2025, 08:30 AM", dataUntil: "Jan 27, 2025", metrics: { Spend: "$32.1K", Impressions: "2.4M", Clicks: "95K", "Attrib. Rev": "$245K" } },
       { name: "EU Prospecting", status: "Active", lastRefreshed: "Jan 29, 2025, 08:28 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$28.8K", Impressions: "1.6M", Clicks: "72K", "Attrib. Rev": "$198K" } },
       { name: "APAC Campaigns", status: "Active", lastRefreshed: "Jan 29, 2025, 08:25 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$18.4K", Impressions: "1.1M", Clicks: "47K", "Attrib. Rev": "$137K" } },
     ],
@@ -113,7 +134,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "Advertising",
     status: "Active",
-    subtitle: "7 accounts \u00b7 Last sync 5 min ago",
+    subtitle: "7 accounts · Last sync 5 min ago",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+      "7/7 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29",
     overviewMetrics: [
       { label: "Spend", value: "$98.3K" },
       { label: "Impressions", value: "12.1M" },
@@ -144,7 +177,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "Advertising",
     status: "Reconnect",
-    subtitle: "2 accounts \u00b7 Last sync 1 day ago",
+    subtitle: "2 accounts · Last sync 1 day ago",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "2/2 accounts synced",
+      "2/2 accounts synced",
+      "2/2 accounts synced",
+      "2/2 accounts synced",
+      "2/2 accounts synced",
+      "Auth token expired",
+      "Sync failed — auth expired",
+    ],
+    metricsDateRange: "Jan 22 – Jan 28 (connection expired Jan 28)",
     overviewMetrics: [
       { label: "Spend", value: "$42.1K" },
       { label: "Impressions", value: "5.6M" },
@@ -172,7 +217,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "Advertising",
     status: "Failed",
-    subtitle: "1 account \u00b7 Last sync 5 days ago",
+    subtitle: "1 account · Last sync 5 days ago",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+    ],
+    metricsDateRange: "Data frozen since Jan 24",
     overviewMetrics: [
       { label: "Spend", value: "$18.2K" },
       { label: "Impressions", value: "1.1M" },
@@ -185,7 +242,7 @@ export const allIntegrations: Integration[] = [
     alertMessage: "API authentication failed. All syncs have been failing for 5 days.",
     alertType: "error",
     accounts: [
-      { name: "LinkedIn B2B Campaigns", status: "Error", lastRefreshed: "Jan 24, 2025, 02:15 PM", dataUntil: "Jan 24, 2025", metrics: { Spend: "$18.2K", Impressions: "1.1M", Clicks: "42K", "Attrib. Rev": "$85K" } },
+      { name: "LinkedIn B2B Campaigns", status: "Failed", lastRefreshed: "Jan 24, 2025, 02:15 PM", dataUntil: "Jan 24, 2025", metrics: { Spend: "$18.2K", Impressions: "1.1M", Clicks: "42K", "Attrib. Rev": "$85K" } },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["failed", "failed", "failed", "failed", "failed", "failed", "failed"],
@@ -199,7 +256,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "MMP",
     status: "Active",
-    subtitle: "1 account \u00b7 Last sync 8 min ago",
+    subtitle: "1 account · Last sync 8 min ago",
+    refreshFrequency: "Real-time",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29",
     overviewMetrics: [
       { label: "Installs", value: "145K" },
       { label: "Sessions", value: "2.3M" },
@@ -224,7 +293,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "CRM",
     status: "Active",
-    subtitle: "1 account \u00b7 Last sync 5 min ago",
+    subtitle: "1 account · Last sync 5 min ago",
+    refreshFrequency: "Every 6h",
+    timezone: "America/New_York",
+    syncHealthDetail: [
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29",
     overviewMetrics: [
       { label: "Total Contacts", value: "52.3K" },
       { label: "New Leads", value: "1,847" },
@@ -249,7 +330,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "CRM",
     status: "Failed",
-    subtitle: "1 account \u00b7 Last sync 3 days ago",
+    subtitle: "1 account · Last sync 3 days ago",
+    refreshFrequency: "Every 6h",
+    timezone: "America/New_York",
+    syncHealthDetail: [
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+      "Sync failed — rate limit",
+    ],
+    metricsDateRange: "Data frozen since Jan 26",
     overviewMetrics: [
       { label: "Total Contacts", value: "78.1K" },
       { label: "New Leads", value: "2,341" },
@@ -262,7 +355,7 @@ export const allIntegrations: Integration[] = [
     alertMessage: "API rate limit exceeded. Data has been frozen since Jan 26, 2025.",
     alertType: "error",
     accounts: [
-      { name: "Salesforce Production", status: "Error", lastRefreshed: "Jan 26, 2025, 11:30 AM", dataUntil: "Jan 26, 2025", metrics: { "Total Contacts": "78.1K", "New Leads": "2,341", "Deals Won": "189", Activities: "8.9K" } },
+      { name: "Salesforce Production", status: "Failed", lastRefreshed: "Jan 26, 2025, 11:30 AM", dataUntil: "Jan 26, 2025", metrics: { "Total Contacts": "78.1K", "New Leads": "2,341", "Deals Won": "189", Activities: "8.9K" } },
     ],
     accountColumns: ["Total Contacts", "New Leads", "Deals Won", "Activities"],
     syncHealthDays: ["healthy", "healthy", "healthy", "failed", "failed", "failed", "failed"],
@@ -276,7 +369,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Destination",
     category: "Data Warehouse",
     status: "Active",
-    subtitle: "1 account \u00b7 Last sync 1 min ago",
+    subtitle: "1 account · Last sync 1 min ago",
+    refreshFrequency: "Scheduled",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+      "1/1 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29",
     overviewMetrics: [
       { label: "Tables Synced", value: "24" },
       { label: "Total Rows", value: "148M" },
@@ -301,7 +406,19 @@ export const allIntegrations: Integration[] = [
     connectionType: "Source",
     category: "Data Warehouse",
     status: "Active",
-    subtitle: "3 sheets \u00b7 Last sync 15 min ago",
+    subtitle: "3 sheets · Last sync 15 min ago",
+    refreshFrequency: "Hourly",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+      "3/3 sheets synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29",
     overviewMetrics: [
       { label: "Sheets", value: "3" },
       { label: "Total Rows", value: "12.4K" },
@@ -318,6 +435,82 @@ export const allIntegrations: Integration[] = [
     ],
     accountColumns: ["Sheets", "Total Rows", "Frequency", "Last Update"],
     syncHealthDays: ["healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy"],
+  },
+
+  // 10. Snapchat Ads — Source, Advertising, Partial
+  {
+    name: "Snapchat Ads",
+    icon: "S",
+    color: "#FFFC00",
+    connectionType: "Source",
+    category: "Advertising",
+    status: "Partial",
+    subtitle: "1 of 3 accounts selected · Last sync 1h ago",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    syncHealthDetail: [
+      "1/3 accounts synced",
+      "1/3 accounts synced",
+      "1/3 accounts synced",
+      "1/3 accounts synced — 2 not selected",
+      "1/3 accounts synced — 2 not selected",
+      "1/3 accounts synced",
+      "1/3 accounts synced",
+    ],
+    metricsDateRange: "Jan 22 – Jan 29 (partial — 2 accounts not selected)",
+    overviewMetrics: [
+      { label: "Spend", value: "$8.4K" },
+      { label: "Impressions", value: "1.2M" },
+      { label: "Clicks", value: "45K" },
+      { label: "Attrib. Rev", value: "$62K" },
+    ],
+    earliestDate: "Oct 1, 2024",
+    latestDate: "Jan 29, 2025",
+    reliableThrough: "Jan 28, 2025",
+    alertMessage: "2 accounts have not been selected for data pull.",
+    alertType: "warning",
+    accounts: [
+      { name: "Snapchat US Brand", status: "Active", lastRefreshed: "Jan 29, 2025, 07:30 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$8.4K", Impressions: "1.2M", Clicks: "45K", "Attrib. Rev": "$62K" } },
+      { name: "Snapchat EU Growth", status: "Partial", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" } },
+      { name: "Snapchat APAC Test", status: "Partial", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" } },
+    ],
+    accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
+    syncHealthDays: ["healthy", "healthy", "healthy", "warning", "warning", "healthy", "healthy"],
+  },
+
+  // 11. Klaviyo — Source, CRM, Sync-in-Progress
+  {
+    name: "Klaviyo",
+    icon: "K",
+    color: "#2D2D2D",
+    connectionType: "Source",
+    category: "CRM",
+    status: "Sync-in-Progress",
+    subtitle: "Initial sync in progress · Connected Jan 24",
+    refreshFrequency: "Every 6h",
+    timezone: "UTC",
+    connectedDate: "Jan 24, 2025",
+    estimatedCompletionDate: "Jan 31, 2025",
+    syncHealthDetail: [
+      "Initial sync — pending",
+      "Initial sync — pending",
+      "Initial sync — pending",
+      "Initial sync — pending",
+      "Initial sync — in progress",
+      "Initial sync — in progress",
+      "Initial sync — in progress",
+    ],
+    metricsDateRange: "—",
+    overviewMetrics: [],
+    earliestDate: "—",
+    latestDate: "—",
+    reliableThrough: "—",
+    accounts: [
+      { name: "Klaviyo Production", status: "Active", lastRefreshed: "Syncing...", dataUntil: "—", metrics: {} },
+      { name: "Klaviyo Staging", status: "Active", lastRefreshed: "Syncing...", dataUntil: "—", metrics: {} },
+    ],
+    accountColumns: ["Total Contacts", "New Leads", "Deals Won", "Activities"],
+    syncHealthDays: ["pending", "pending", "pending", "pending", "healthy", "healthy", "healthy"],
   },
 ];
 

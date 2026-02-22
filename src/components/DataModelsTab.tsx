@@ -10,7 +10,7 @@ const StatusBadge = ({ status }: { status: DataModel["status"] }) => {
   const styles = {
     Draft: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
     Active: "bg-[#00bc7d]/10 text-[#00bc7d] border-[#00bc7d]/20",
-    Archived: "bg-white/5 text-[#667085] border-white/10",
+    Archived: "bg-[var(--hover-item)] text-[var(--text-label)] border-[var(--border-subtle)]",
   };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border ${styles[status]}`}>
@@ -21,7 +21,7 @@ const StatusBadge = ({ status }: { status: DataModel["status"] }) => {
 };
 
 const GranularityBadge = ({ granularity }: { granularity: string }) => (
-  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-[#9ca3af] border border-white/10">
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--hover-item)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
     {granularity}
   </span>
 );
@@ -130,8 +130,8 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-white text-lg font-semibold">Data Models</h2>
-          <p className="text-[#9ca3af] text-sm">Configure reusable dataset definitions for MMM and Geo experiments</p>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Data Models</h2>
+          <p className="text-[var(--text-muted)] text-sm">Configure reusable dataset definitions for MMM and Geo experiments</p>
         </div>
         <button
           onClick={() => { setEditModel(null); setIsModalOpen(true); }}
@@ -144,7 +144,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#6941c6]/10 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="2" width="12" height="12" rx="2" stroke="#6941c6" strokeWidth="1.33" />
@@ -152,22 +152,22 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             </svg>
           </div>
           <div>
-            <p className="text-white text-lg font-semibold leading-tight">{totalModels}</p>
-            <p className="text-[#71717a] text-xs">Total Models</p>
+            <p className="text-[var(--text-primary)] text-lg font-semibold leading-tight">{totalModels}</p>
+            <p className="text-[var(--text-dim)] text-xs">Total Models</p>
           </div>
         </div>
-        <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#00bc7d]/10 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M13.33 4L6 11.33 2.67 8" stroke="#00bc7d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <div>
-            <p className="text-white text-lg font-semibold leading-tight">{activeModels}</p>
-            <p className="text-[#71717a] text-xs">Active</p>
+            <p className="text-[var(--text-primary)] text-lg font-semibold leading-tight">{activeModels}</p>
+            <p className="text-[var(--text-dim)] text-xs">Active</p>
           </div>
         </div>
-        <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#2b7fff]/10 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M14 13.33H2V2.67" stroke="#2b7fff" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
@@ -175,11 +175,11 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             </svg>
           </div>
           <div>
-            <p className="text-white text-lg font-semibold leading-tight">{mmmModels}</p>
-            <p className="text-[#71717a] text-xs">Used in MMM</p>
+            <p className="text-[var(--text-primary)] text-lg font-semibold leading-tight">{mmmModels}</p>
+            <p className="text-[var(--text-dim)] text-xs">Used in MMM</p>
           </div>
         </div>
-        <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#fe9a00]/10 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="5.33" stroke="#fe9a00" strokeWidth="1.33" />
@@ -188,8 +188,8 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             </svg>
           </div>
           <div>
-            <p className="text-white text-lg font-semibold leading-tight">{geoModels}</p>
-            <p className="text-[#71717a] text-xs">Used in Experiments</p>
+            <p className="text-[var(--text-primary)] text-lg font-semibold leading-tight">{geoModels}</p>
+            <p className="text-[var(--text-dim)] text-xs">Used in Experiments</p>
           </div>
         </div>
       </div>
@@ -197,15 +197,15 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
       {/* Models List */}
       {dataModels.length === 0 ? (
         /* Empty State */
-        <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl px-6 py-16 text-center">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-6 py-16 text-center">
           <div className="w-12 h-12 rounded-xl bg-[#6941c6]/10 flex items-center justify-center mx-auto mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="3" width="18" height="18" rx="3" stroke="#6941c6" strokeWidth="1.5" />
               <path d="M8 12H16M12 8V16" stroke="#6941c6" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
-          <h3 className="text-white text-sm font-semibold mb-1">No Data Models Yet</h3>
-          <p className="text-[#667085] text-xs mb-4 max-w-xs mx-auto">
+          <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No Data Models Yet</h3>
+          <p className="text-[var(--text-label)] text-xs mb-4 max-w-xs mx-auto">
             Create your first data model to define KPIs, spend variables, and dimensions for MMM or Geo experiments.
           </p>
           <button
@@ -221,12 +221,12 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
           {dataModels.map((model) => (
             <div
               key={model.id}
-              className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl p-5 hover:border-[#333] transition-colors group"
+              className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-5 hover:border-[var(--border-secondary)] transition-colors group"
             >
               {/* Row 1: Name + Status + Actions */}
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-white text-sm font-semibold">{model.name}</h3>
+                  <h3 className="text-[var(--text-primary)] text-sm font-semibold">{model.name}</h3>
                   <StatusBadge status={model.status} />
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -234,7 +234,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                   <select
                     value={model.status}
                     onChange={(e) => handleStatusChange(model.id, e.target.value as DataModel["status"])}
-                    className="bg-[#1f1f21] border border-[#333] rounded text-[10px] text-[#9ca3af] px-1.5 py-1 focus:outline-none appearance-none mr-1"
+                    className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-muted)] px-1.5 py-1 focus:outline-none appearance-none mr-1"
                   >
                     <option value="Draft">Draft</option>
                     <option value="Active">Active</option>
@@ -242,21 +242,21 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                   </select>
                   <button
                     onClick={() => { setEditModel(model); setIsModalOpen(true); }}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-white/10 transition-all"
+                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
                     title="Edit"
                   >
                     <EditIcon />
                   </button>
                   <button
                     onClick={() => handleDuplicate(model)}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-white/10 transition-all"
+                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
                     title="Duplicate"
                   >
                     <DuplicateIcon />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-white/10 transition-all"
+                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
                     title="Delete"
                   >
                     <TrashIcon />
@@ -265,7 +265,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
               </div>
 
               {/* Row 2: Description */}
-              <p className="text-[#667085] text-xs mb-3">{model.description}</p>
+              <p className="text-[var(--text-label)] text-xs mb-3">{model.description}</p>
 
               {/* Row 3: KPIs + Spend + Dimensions */}
               <div className="flex items-center gap-3 flex-wrap mb-3">
@@ -276,7 +276,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#6941c6]/10 text-[#a78bfa] border border-[#6941c6]/20"
                   >
                     {kpi.category}
-                    {kpi.fieldName && <span className="text-[#667085]">({getFieldDisplayName(kpi.fieldName)})</span>}
+                    {kpi.fieldName && <span className="text-[var(--text-label)]">({getFieldDisplayName(kpi.fieldName)})</span>}
                   </span>
                 ))}
                 {/* Spend count */}
@@ -286,7 +286,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                 </span>
                 {/* Dimension summary */}
                 {model.modelingDimensions.length > 0 && (
-                  <span className="text-[10px] text-[#475467]">
+                  <span className="text-[10px] text-[var(--text-label)]">
                     {model.modelingDimensions.map((d) => `${d.category}: ${d.granularity}`).join(", ")}
                   </span>
                 )}
@@ -299,7 +299,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                   <UsageBadge key={i} usage={usage} />
                 ))}
                 {model.usedIn.length === 0 && (
-                  <span className="text-[10px] text-[#475467] italic">Not used in any model</span>
+                  <span className="text-[10px] text-[var(--text-label)] italic">Not used in any model</span>
                 )}
               </div>
             </div>

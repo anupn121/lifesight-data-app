@@ -82,7 +82,7 @@ const SettingsIcon = () => (
 
 export default function Sidebar() {
   return (
-    <div className="bg-[#0f0f10] border-r border-white/[0.08] w-[57px] min-h-screen flex flex-col items-center shadow-[0px_25px_50px_0px_rgba(0,0,0,0.25)]">
+    <div className="bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] w-[57px] min-h-screen flex flex-col items-center shadow-[0px_25px_50px_0px_rgba(0,0,0,0.25)]">
       {/* Logo */}
       <div className="mt-6 mb-9">
         <div className="w-7 h-7 bg-gradient-to-b from-[#6932ef] to-[#1f0758] rounded-[6px] flex items-center justify-center">
@@ -96,41 +96,41 @@ export default function Sidebar() {
 
       {/* Nav Items */}
       <nav className="flex flex-col items-center w-full gap-0">
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center bg-white/10">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center bg-[var(--sidebar-active)]">
           <HomeIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <FlaskIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <ChartIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <AttributionIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <VisitsIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <PlannerIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <DeployIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <ProfilesIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <SegmentsIcon />
         </div>
       </nav>
 
       {/* Bottom Icons */}
       <div className="mt-auto mb-6 flex flex-col items-center gap-0">
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <LinkIcon />
         </div>
-        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-white/5 transition-colors">
+        <div className="w-[41px] h-9 rounded-[14px] flex items-center justify-center hover:bg-[var(--sidebar-hover)] transition-colors">
           <SettingsIcon />
         </div>
       </div>

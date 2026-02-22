@@ -79,14 +79,14 @@ function Dropdown({
 
   const canCreate = searchable && onCreateNew && search.trim() && !options.some((o) => o.toLowerCase() === search.toLowerCase());
 
-  const borderColor = color === "purple" ? "border-[#6941c6]" : "border-[#333]";
-  const textColor = color === "purple" ? "text-[#6941c6]" : value ? "text-white" : "text-[#667085]";
+  const borderColor = color === "purple" ? "border-[#6941c6]" : "border-[var(--border-secondary)]";
+  const textColor = color === "purple" ? "text-[#6941c6]" : value ? "text-[var(--text-primary)]" : "text-[var(--text-label)]";
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`bg-[#1f1f21] border ${borderColor} rounded-md px-3 py-1.5 text-xs ${textColor} flex items-center gap-2 min-w-[120px] justify-between hover:border-[#475467] transition-colors`}
+        className={`bg-[var(--bg-badge)] border ${borderColor} rounded-md px-3 py-1.5 text-xs ${textColor} flex items-center gap-2 min-w-[120px] justify-between hover:border-[var(--border-secondary)] transition-colors`}
       >
         <span className="truncate">{value || placeholder}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
@@ -96,9 +96,9 @@ function Dropdown({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setSearch(""); }} />
-          <div className="absolute top-full left-0 mt-1 bg-[#1f1f21] border border-[#333] rounded-md shadow-xl z-50 min-w-[180px] max-h-[220px] overflow-hidden flex flex-col">
+          <div className="absolute top-full left-0 mt-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md shadow-xl z-50 min-w-[180px] max-h-[220px] overflow-hidden flex flex-col">
             {searchable && (
-              <div className="p-2 border-b border-[#333]">
+              <div className="p-2 border-b border-[var(--border-secondary)]">
                 <div className="relative">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="absolute left-2.5 top-1/2 -translate-y-1/2">
                     <path d="M5.5 9.5C7.71 9.5 9.5 7.71 9.5 5.5C9.5 3.29 7.71 1.5 5.5 1.5C3.29 1.5 1.5 3.29 1.5 5.5C1.5 7.71 3.29 9.5 5.5 9.5Z" stroke="#667085" strokeWidth="0.8" strokeLinecap="round"/>
@@ -109,7 +109,7 @@ function Dropdown({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search or Create"
-                    className="bg-[#161618] border border-[#333] rounded text-xs text-[#d1d5dc] pl-7 pr-2 py-1.5 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6]"
+                    className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded text-xs text-[var(--text-secondary)] pl-7 pr-2 py-1.5 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6]"
                     autoFocus
                   />
                 </div>
@@ -124,7 +124,7 @@ function Dropdown({
                     setOpen(false);
                     setSearch("");
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-[#00bc7d] hover:bg-[#00bc7d]/10 transition-colors border-b border-[#333]"
+                  className="w-full text-left px-3 py-2 text-xs text-[#00bc7d] hover:bg-[#00bc7d]/10 transition-colors border-b border-[var(--border-secondary)]"
                 >
                   + Create &quot;{search.trim()}&quot;
                 </button>
@@ -133,13 +133,13 @@ function Dropdown({
                 <button
                   key={opt}
                   onClick={() => { onChange(opt); setOpen(false); setSearch(""); }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors ${opt === value ? "text-[#6941c6] bg-[#6941c6]/5" : "text-[#d1d5dc]"}`}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-[var(--hover-item)] transition-colors ${opt === value ? "text-[#6941c6] bg-[#6941c6]/5" : "text-[var(--text-secondary)]"}`}
                 >
                   {opt}
                 </button>
               ))}
               {filtered.length === 0 && !canCreate && (
-                <p className="px-3 py-2 text-xs text-[#475467]">No results</p>
+                <p className="px-3 py-2 text-xs text-[var(--text-label)]">No results</p>
               )}
             </div>
           </div>
@@ -181,14 +181,14 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
           value={ruleName}
           onChange={(e) => setRuleName(e.target.value)}
           placeholder="Enter Rule Name"
-          className="bg-transparent border-b border-[#333] text-sm text-white placeholder-[#475467] w-full pb-2 focus:outline-none focus:border-[#6941c6] transition-colors"
+          className="bg-transparent border-b border-[var(--border-secondary)] text-sm text-[var(--text-primary)] placeholder-[#475467] w-full pb-2 focus:outline-none focus:border-[#6941c6] transition-colors"
         />
       </div>
 
       {/* Condition Builder */}
       <div className="flex flex-col gap-3">
         {/* Quantifier */}
-        <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
+        <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
           <span>When</span>
           <Dropdown value={quantifier} options={quantifiers} onChange={setQuantifier} placeholder="Select" color="purple" />
           <span>occur</span>
@@ -219,7 +219,7 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
             {/* Add / Remove */}
             <button
               onClick={addCondition}
-              className="w-7 h-7 rounded flex items-center justify-center hover:bg-white/5 text-[#667085] hover:text-white transition-colors flex-shrink-0"
+              className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
               title="Add condition"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3.5V10.5M3.5 7H10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
@@ -227,7 +227,7 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
             {conditions.length > 1 && (
               <button
                 onClick={() => removeCondition(idx)}
-                className="w-7 h-7 rounded flex items-center justify-center hover:bg-white/5 text-[#667085] hover:text-[#ff2056] transition-colors flex-shrink-0"
+                className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] text-[var(--text-label)] hover:text-[#ff2056] transition-colors flex-shrink-0"
                 title="Remove condition"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7H10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
@@ -239,7 +239,7 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
 
       {/* Set Tactic */}
       <div className="flex items-center gap-3">
-        <span className="text-sm text-[#9ca3af] whitespace-nowrap">Set tactic to</span>
+        <span className="text-sm text-[var(--text-muted)] whitespace-nowrap">Set tactic to</span>
         <Dropdown
           value={tactic}
           options={availableTactics}
@@ -252,7 +252,7 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
 
       {/* Actions */}
       <div className="flex items-center gap-3 pt-2">
-        <button className="flex-1 bg-[#1f1f21] border border-[#333] rounded-lg py-2.5 text-sm text-[#9ca3af] hover:text-white hover:border-[#475467] transition-colors">
+        <button className="flex-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg py-2.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors">
           Clear all
         </button>
         <button className="flex-1 bg-[#6941c6] hover:bg-[#5b34b5] rounded-lg py-2.5 text-sm text-white font-medium transition-colors">
@@ -261,15 +261,15 @@ function ManualBuilder({ availableTactics, onTacticCreated }: { availableTactics
       </div>
 
       {/* Existing Rules */}
-      <div className="border-t border-[#1f1f21] pt-4 flex flex-col gap-3">
+      <div className="border-t border-[var(--border-primary)] pt-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-[#71717a] uppercase tracking-wider font-semibold">Existing Rules</span>
+          <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider font-semibold">Existing Rules</span>
           <button className="text-xs text-[#6941c6] hover:text-[#5b34b5] font-medium transition-colors">+ Add New Rules</button>
         </div>
         {existingRules.map((rule) => (
-          <div key={rule.name} className="bg-[#161618] border border-[#1f1f21] rounded-lg p-3 hover:border-[#333] transition-colors">
-            <p className="text-white text-xs font-medium mb-1">{rule.name}</p>
-            <p className="text-[#9ca3af] text-[11px] leading-relaxed">
+          <div key={rule.name} className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-lg p-3 hover:border-[var(--border-secondary)] transition-colors">
+            <p className="text-[var(--text-primary)] text-xs font-medium mb-1">{rule.name}</p>
+            <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
               {rule.conditions.split(/(campaign_name|origin|platform|shopping|2D|3D|1D)/).map((part, i) => {
                 if (["campaign_name", "origin", "platform"].includes(part)) {
                   return <span key={i} className="text-[#6941c6] cursor-pointer hover:underline">{part}</span>;
@@ -312,19 +312,19 @@ function AIBuilder({ availableTactics }: { availableTactics: string[] }) {
     <div className="flex flex-col gap-5">
       {/* AI Prompt */}
       <div>
-        <label className="text-xs text-[#9ca3af] mb-2 block">Describe your mapping rules in plain language</label>
+        <label className="text-xs text-[var(--text-muted)] mb-2 block">Describe your mapping rules in plain language</label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="e.g., Map all campaigns with '2D' in the name from Google to 'Google 2D' tactic. Map campaigns containing 'shopping' to 'Google Shopping'..."
           rows={4}
-          className="bg-[#161618] border border-[#333] rounded-lg text-xs text-[#d1d5dc] p-3 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors resize-none"
+          className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-xs text-[var(--text-secondary)] p-3 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors resize-none"
         />
       </div>
 
       {/* Available Context */}
-      <div className="bg-[#161618] border border-[#1f1f21] rounded-lg p-3">
-        <p className="text-[10px] text-[#71717a] uppercase tracking-wider font-semibold mb-2">Available fields from Metrics & Dimensions</p>
+      <div className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-lg p-3">
+        <p className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider font-semibold mb-2">Available fields from Metrics & Dimensions</p>
         <div className="flex flex-wrap gap-1.5">
           {conditionFields.map((f) => (
             <span key={f} className="bg-[#6941c6]/10 text-[#a78bfa] border border-[#6941c6]/20 text-[10px] px-2 py-0.5 rounded font-medium">
@@ -335,8 +335,8 @@ function AIBuilder({ availableTactics }: { availableTactics: string[] }) {
       </div>
 
       {/* Available Tactics */}
-      <div className="bg-[#161618] border border-[#1f1f21] rounded-lg p-3">
-        <p className="text-[10px] text-[#71717a] uppercase tracking-wider font-semibold mb-2">Available tactics</p>
+      <div className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-lg p-3">
+        <p className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider font-semibold mb-2">Available tactics</p>
         <div className="flex flex-wrap gap-1.5">
           {availableTactics.map((t) => (
             <span key={t} className="bg-[#00bc7d]/10 text-[#00bc7d] border border-[#00bc7d]/20 text-[10px] px-2 py-0.5 rounded font-medium">
@@ -367,26 +367,26 @@ function AIBuilder({ availableTactics }: { availableTactics: string[] }) {
 
       {/* Generated Rules Preview */}
       {generatedRules && (
-        <div className="border-t border-[#1f1f21] pt-4 flex flex-col gap-3">
+        <div className="border-t border-[var(--border-primary)] pt-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#71717a] uppercase tracking-wider font-semibold">Generated Rules Preview</span>
+            <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider font-semibold">Generated Rules Preview</span>
             <span className="text-[10px] text-[#00bc7d] bg-[#00bc7d]/10 px-2 py-0.5 rounded-full">{generatedRules.length} rules</span>
           </div>
           {generatedRules.map((rule, idx) => (
-            <div key={idx} className="bg-[#161618] border border-[#00bc7d]/20 rounded-lg p-3">
+            <div key={idx} className="bg-[var(--bg-card-inner)] border border-[#00bc7d]/20 rounded-lg p-3">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-white text-xs font-medium">{rule.name}</p>
-                <button className="text-[#667085] hover:text-[#ff2056] transition-colors" title="Remove rule">
+                <p className="text-[var(--text-primary)] text-xs font-medium">{rule.name}</p>
+                <button className="text-[var(--text-label)] hover:text-[#ff2056] transition-colors" title="Remove rule">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 3L3 9M3 3L9 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/></svg>
                 </button>
               </div>
-              <p className="text-[#9ca3af] text-[11px] leading-relaxed">
+              <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
                 {rule.conditions} set Tactic to <span className="text-[#6941c6]">{rule.tactic}</span>
               </p>
             </div>
           ))}
           <div className="flex items-center gap-3 pt-1">
-            <button className="flex-1 bg-[#1f1f21] border border-[#333] rounded-lg py-2.5 text-sm text-[#9ca3af] hover:text-white hover:border-[#475467] transition-colors">
+            <button className="flex-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg py-2.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors">
               Regenerate
             </button>
             <button className="flex-1 bg-[#00bc7d] hover:bg-[#00a86b] rounded-lg py-2.5 text-sm text-white font-medium transition-colors">
@@ -411,16 +411,16 @@ export default function CreateMappingRuleModal({ isOpen, onClose, availableTacti
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-[#0f0f10] border border-[#1f1f21] rounded-2xl shadow-2xl w-full max-w-[620px] max-h-[85vh] flex flex-col">
+      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl w-full max-w-[620px] max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-[#1f1f21]">
+        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-[var(--border-primary)]">
           <div>
-            <h2 className="text-white text-lg font-semibold">Create Mapping Rules</h2>
-            <p className="text-[#9ca3af] text-sm mt-0.5">Create rules to automatically map all existing and future campaigns to tactics.</p>
+            <h2 className="text-[var(--text-primary)] text-lg font-semibold">Create Mapping Rules</h2>
+            <p className="text-[var(--text-muted)] text-sm mt-0.5">Create rules to automatically map all existing and future campaigns to tactics.</p>
           </div>
           <button
             onClick={onClose}
-            className="text-[#667085] hover:text-white transition-colors p-1"
+            className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-1"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -430,13 +430,13 @@ export default function CreateMappingRuleModal({ isOpen, onClose, availableTacti
 
         {/* Tab Toggle */}
         <div className="px-6 pt-4">
-          <div className="flex items-center gap-1 bg-[#1f1f21] rounded-lg p-0.5 w-fit">
+          <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5 w-fit">
             <button
               onClick={() => setActiveTab("ai")}
               className={`px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 ${
                 activeTab === "ai"
                   ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11.67 7.58V11.08C11.67 11.39 11.55 11.69 11.33 11.91C11.11 12.13 10.81 12.25 10.5 12.25H2.92C2.61 12.25 2.31 12.13 2.09 11.91C1.87 11.69 1.75 11.39 1.75 11.08V3.5C1.75 3.19 1.87 2.89 2.09 2.67C2.31 2.46 2.61 2.33 2.92 2.33H6.42" stroke="currentColor" strokeWidth="1.17" strokeLinecap="round" strokeLinejoin="round"/><path d="M8.75 1.17L12.83 1.17V5.25" stroke="currentColor" strokeWidth="1.17" strokeLinecap="round" strokeLinejoin="round"/><path d="M5.83 8.17L12.83 1.17" stroke="currentColor" strokeWidth="1.17" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -447,7 +447,7 @@ export default function CreateMappingRuleModal({ isOpen, onClose, availableTacti
               className={`px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 ${
                 activeTab === "manual"
                   ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.17V12.83M1.17 7H12.83" stroke="currentColor" strokeWidth="1.17" strokeLinecap="round"/></svg>

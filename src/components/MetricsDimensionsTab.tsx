@@ -75,7 +75,7 @@ interface TransformStep {
 }
 
 const AGGREGATIONS = [
-  { key: "NONE", label: "No Aggregation", icon: "\u2014", desc: "Use the raw value as-is, no math applied.", color: "border-[#333] text-[#667085]" },
+  { key: "NONE", label: "No Aggregation", icon: "\u2014", desc: "Use the raw value as-is, no math applied.", color: "border-[var(--border-secondary)] text-[var(--text-label)]" },
   { key: "SUM", label: "Add Up All Values", icon: "\u03A3", desc: "Add up all values across rows. Good for totals like spend or revenue.", color: "border-[#00bc7d]/40 text-[#00bc7d]" },
   { key: "AVG", label: "Calculate Average", icon: "x\u0304", desc: "Calculate the mean value. Good for rates like CTR or frequency.", color: "border-[#2b7fff]/40 text-[#60a5fa]" },
   { key: "COUNT", label: "Count Entries", icon: "#", desc: "Count how many rows have this value. Good for counting events.", color: "border-[#fe9a00]/40 text-[#fbbf24]" },
@@ -265,7 +265,7 @@ function parseExistingTransform(field: Field): { aggregation: string; steps: Tra
 // --- Badge components ---
 const StatusBadge = ({ status }: { status: "Mapped" | "Unmapped" }) => (
   <span
-    className={`inline-flex items-center gap-1.5 text-xs ${status === "Mapped" ? "text-[#00bc7d]" : "text-[#667085]"}`}
+    className={`inline-flex items-center gap-1.5 text-xs ${status === "Mapped" ? "text-[#00bc7d]" : "text-[var(--text-label)]"}`}
   >
     <span
       className={`w-1.5 h-1.5 rounded-full ${status === "Mapped" ? "bg-[#00bc7d]" : "bg-[#475467]"}`}
@@ -296,7 +296,7 @@ const DataTypeBadge = ({ type }: { type: string }) => {
   const display = DATA_TYPES[type as DataTypeKey]?.display || type;
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${colors[type] || "bg-white/5 text-[#9ca3af] border-white/10"}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${colors[type] || "bg-[var(--hover-item)] text-[var(--text-muted)] border-[var(--border-subtle)]"}`}
     >
       {display}
     </span>
@@ -306,7 +306,7 @@ const DataTypeBadge = ({ type }: { type: string }) => {
 const TransformBadge = ({ transform }: { transform: string }) => {
   if (transform === "NONE") return null;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border bg-white/5 text-[#d1d5dc] border-white/10">
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border bg-[var(--hover-item)] text-[var(--text-secondary)] border-[var(--border-subtle)]">
       {transform}
     </span>
   );
@@ -435,7 +435,7 @@ function TransformationBuilder({
   return (
     <div className="flex flex-col gap-3">
       {/* Section header */}
-      <label className="text-xs text-[#9ca3af] font-medium">
+      <label className="text-xs text-[var(--text-muted)] font-medium">
         Transformation
       </label>
 
@@ -446,10 +446,10 @@ function TransformationBuilder({
             <button
               key={recipe.name}
               onClick={() => applyRecipe(recipe)}
-              className="flex flex-col gap-0.5 text-left px-3 py-2 rounded-md bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 transition-colors"
+              className="flex flex-col gap-0.5 text-left px-3 py-2 rounded-md bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] border border-[var(--border-subtle)] transition-colors"
             >
-              <span className="text-[#d1d5dc] text-xs font-medium">{recipe.name}</span>
-              <span className="text-[#667085] text-[10px]">{recipe.desc}</span>
+              <span className="text-[var(--text-secondary)] text-xs font-medium">{recipe.name}</span>
+              <span className="text-[var(--text-label)] text-[10px]">{recipe.desc}</span>
             </button>
           ))}
         </div>
@@ -460,7 +460,7 @@ function TransformationBuilder({
         <div className="flex flex-col gap-2">
           <div className="bg-[#fe9a00]/5 border border-[#fe9a00]/20 rounded-lg px-3 py-2">
             <p className="text-[10px] text-[#fbbf24] leading-relaxed">
-              Advanced mode: write your formula directly. Use SQL expressions like SUM, AVG, NULLIF, CASE WHEN, etc. The source key is <code className="bg-[#1f1f21] px-1 rounded text-[#a78bfa]">{sourceKey || "column"}</code>.
+              Advanced mode: write your formula directly. Use SQL expressions like SUM, AVG, NULLIF, CASE WHEN, etc. The source key is <code className="bg-[var(--bg-badge)] px-1 rounded text-[#a78bfa]">{sourceKey || "column"}</code>.
             </p>
           </div>
           <textarea
@@ -468,7 +468,7 @@ function TransformationBuilder({
             onChange={(e) => onAdvancedFormulaChange(e.target.value)}
             placeholder={`e.g., SUM(${sourceKey || "column"}) * 100 / NULLIF(denominator, 0)`}
             rows={3}
-            className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors font-mono resize-none"
+            className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors font-mono resize-none"
           />
         </div>
       ) : (
@@ -477,7 +477,7 @@ function TransformationBuilder({
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="w-4 h-4 rounded-full bg-[#6941c6] flex items-center justify-center text-[8px] text-white font-bold">1</span>
-              <span className="text-[11px] text-[#d1d5dc]">How should this field be aggregated?</span>
+              <span className="text-[11px] text-[var(--text-secondary)]">How should this field be aggregated?</span>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               {AGGREGATIONS.map((agg) => (
@@ -486,14 +486,14 @@ function TransformationBuilder({
                   onClick={() => onAggregationChange(agg.key)}
                   className={`flex flex-col items-center gap-1 px-4 py-3 rounded-lg border transition-all text-center ${
                     aggregation === agg.key
-                      ? `${agg.color} bg-white/5 border-current`
-                      : "border-[#1f1f21] text-[#667085] hover:border-[#333] hover:text-[#9ca3af]"
+                      ? `${agg.color} bg-[var(--hover-item)] border-current`
+                      : "border-[var(--border-primary)] text-[var(--text-label)] hover:border-[var(--border-secondary)] hover:text-[var(--text-muted)]"
                   }`}
                   title={agg.desc}
                 >
                   <span className="text-sm font-mono leading-none">{agg.icon}</span>
                   <span className="text-[10px] font-medium">{agg.label}</span>
-                  <span className="text-[9px] text-[#475467] leading-tight">{agg.desc.split(".")[0]}</span>
+                  <span className="text-[9px] text-[var(--text-label)] leading-tight">{agg.desc.split(".")[0]}</span>
                 </button>
               ))}
             </div>
@@ -503,8 +503,8 @@ function TransformationBuilder({
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <span className="w-4 h-4 rounded-full bg-[#6941c6] flex items-center justify-center text-[8px] text-white font-bold">2</span>
-              <span className="text-[11px] text-[#d1d5dc]">Then apply additional operations</span>
-              <span className="text-[10px] text-[#475467] ml-1">(optional)</span>
+              <span className="text-[11px] text-[var(--text-secondary)]">Then apply additional operations</span>
+              <span className="text-[10px] text-[var(--text-label)] ml-1">(optional)</span>
             </div>
 
             {/* Existing steps */}
@@ -514,11 +514,11 @@ function TransformationBuilder({
                   const opDef = POST_OPERATIONS.find((o) => o.key === step.operation);
                   if (!opDef) return null;
                   return (
-                    <div key={step.id} className="flex items-center gap-2 bg-[#1a1a1c] border border-[#1f1f21] rounded-lg px-4 py-3">
-                      <span className="text-[10px] text-[#475467] font-medium min-w-[40px]">
+                    <div key={step.id} className="flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg px-4 py-3">
+                      <span className="text-[10px] text-[var(--text-label)] font-medium min-w-[40px]">
                         {idx === 0 ? "Then" : "And"}
                       </span>
-                      <span className="text-xs text-[#d1d5dc] flex items-center gap-1.5">
+                      <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
                         <span className="text-sm">{opDef.icon}</span>
                         <span className="font-medium">{opDef.label}</span>
                       </span>
@@ -527,7 +527,7 @@ function TransformationBuilder({
                           type="number"
                           value={step.value}
                           onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[#1f1f21] border border-[#333] rounded px-2 py-1 text-xs text-[#d1d5dc] w-20 font-mono focus:outline-none focus:border-[#6941c6] transition-colors"
+                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] w-20 font-mono focus:outline-none focus:border-[#6941c6] transition-colors"
                           placeholder={opDef.placeholder}
                         />
                       )}
@@ -536,7 +536,7 @@ function TransformationBuilder({
                           type="text"
                           value={step.value}
                           onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[#1f1f21] border border-[#333] rounded px-2 py-1 text-xs text-[#d1d5dc] flex-1 font-mono focus:outline-none focus:border-[#6941c6] transition-colors"
+                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] flex-1 font-mono focus:outline-none focus:border-[#6941c6] transition-colors"
                           placeholder={opDef.placeholder}
                         />
                       )}
@@ -544,7 +544,7 @@ function TransformationBuilder({
                         <select
                           value={step.value}
                           onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[#1f1f21] border border-[#333] rounded px-2 py-1 text-xs text-[#d1d5dc] focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
+                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
                         >
                           <option value="YEAR">Year</option>
                           <option value="MONTH">Month</option>
@@ -554,7 +554,7 @@ function TransformationBuilder({
                       )}
                       <button
                         onClick={() => removeStep(step.id)}
-                        className="text-[#667085] hover:text-[#ef4444] transition-colors ml-auto p-0.5"
+                        className="text-[var(--text-label)] hover:text-[#ef4444] transition-colors ml-auto p-0.5"
                         title="Remove this step"
                       >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -571,7 +571,7 @@ function TransformationBuilder({
             {!showAddStep ? (
               <button
                 onClick={() => setShowAddStep(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-[#333] text-[#667085] text-xs hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors w-full justify-center"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-[var(--border-secondary)] text-[var(--text-label)] text-xs hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors w-full justify-center"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <path d="M5 2V8M2 5H8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -579,10 +579,10 @@ function TransformationBuilder({
                 Add a step
               </button>
             ) : (
-              <div className="bg-[#1a1a1c] border border-[#1f1f21] rounded-lg p-2 flex flex-col gap-1">
+              <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-2 flex flex-col gap-1">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-[#9ca3af] font-medium">Pick an operation to add</p>
-                  <button onClick={() => setShowAddStep(false)} className="text-[#667085] hover:text-white transition-colors p-0.5">
+                  <p className="text-[10px] text-[var(--text-muted)] font-medium">Pick an operation to add</p>
+                  <button onClick={() => setShowAddStep(false)} className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-0.5">
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                       <path d="M7.5 2.5L2.5 7.5M2.5 2.5L7.5 7.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
                     </svg>
@@ -592,12 +592,12 @@ function TransformationBuilder({
                   <button
                     key={op.key}
                     onClick={() => addStep(op.key)}
-                    className="flex items-start gap-2 px-2.5 py-2 rounded-md hover:bg-white/5 transition-colors text-left"
+                    className="flex items-start gap-2 px-2.5 py-2 rounded-md hover:bg-[var(--hover-item)] transition-colors text-left"
                   >
                     <span className="text-sm mt-0.5 w-4 text-center">{op.icon}</span>
                     <div className="flex flex-col">
-                      <span className="text-[11px] text-[#d1d5dc] font-medium">{op.label}</span>
-                      <span className="text-[10px] text-[#667085] leading-relaxed">{op.desc}</span>
+                      <span className="text-[11px] text-[var(--text-secondary)] font-medium">{op.label}</span>
+                      <span className="text-[10px] text-[var(--text-label)] leading-relaxed">{op.desc}</span>
                     </div>
                   </button>
                 ))}
@@ -610,7 +610,7 @@ function TransformationBuilder({
       {/* Plain English summary - always visible when there's any transform */}
       {!advancedMode && hasTransform && plainEnglish && (
         <div className="bg-[#00bc7d]/5 border border-[#00bc7d]/20 rounded-lg px-3 py-2">
-          <p className="text-[10px] text-[#475467] mb-0.5 font-medium">What this does:</p>
+          <p className="text-[10px] text-[var(--text-label)] mb-0.5 font-medium">What this does:</p>
           <p className="text-[11px] text-[#00bc7d] leading-relaxed">{plainEnglish}</p>
         </div>
       )}
@@ -618,8 +618,8 @@ function TransformationBuilder({
       {/* Generated formula - collapsed by default behind a disclosure */}
       {hasTransform && (
         <details className="text-xs">
-          <summary className="text-[#667085] cursor-pointer hover:text-[#9ca3af]">Show generated formula</summary>
-          <div className="mt-2 bg-[#1f1f21] border border-[#333] rounded-md px-3 py-2 font-mono text-xs text-[#a78bfa] break-all">
+          <summary className="text-[var(--text-label)] cursor-pointer hover:text-[var(--text-muted)]">Show generated formula</summary>
+          <div className="mt-2 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md px-3 py-2 font-mono text-xs text-[#a78bfa] break-all">
             {formula}
           </div>
         </details>
@@ -629,7 +629,7 @@ function TransformationBuilder({
       {!advancedMode && (
         <button
           onClick={() => onAdvancedModeChange(true)}
-          className="text-[10px] text-[#667085] hover:text-[#9ca3af] transition-colors text-left"
+          className="text-[10px] text-[var(--text-label)] hover:text-[var(--text-muted)] transition-colors text-left"
         >
           Need to write a custom formula?
         </button>
@@ -637,7 +637,7 @@ function TransformationBuilder({
       {advancedMode && (
         <button
           onClick={() => onAdvancedModeChange(false)}
-          className="text-[10px] text-[#667085] hover:text-[#9ca3af] transition-colors text-left"
+          className="text-[10px] text-[var(--text-label)] hover:text-[var(--text-muted)] transition-colors text-left"
         >
           Back to guided mode
         </button>
@@ -832,15 +832,15 @@ function FieldModal({
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-[#0f0f10] border border-[#1f1f21] rounded-2xl shadow-2xl w-full max-w-[900px] flex flex-col">
+      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl w-full max-w-[900px] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#1f1f21]">
-          <h2 className="text-white text-lg font-semibold">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[var(--border-primary)]">
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">
             {isEdit ? "Edit Field" : "Add Field"}
           </h2>
           <button
             onClick={onClose}
-            className="text-[#667085] hover:text-white transition-colors p-1"
+            className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-1"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path
@@ -858,19 +858,19 @@ function FieldModal({
         <div className="px-6 py-5 flex flex-col gap-4 overflow-y-auto max-h-[70vh]">
           {/* 1. Kind toggle */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Field Type
             </label>
-            <div className="flex items-center gap-1 bg-[#1f1f21] rounded-lg p-0.5 w-fit">
+            <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5 w-fit">
               <button
                 onClick={() => update("kind", "metric")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "metric" ? "bg-[#6941c6] text-white shadow-sm" : "text-[#9ca3af] hover:text-white"}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "metric" ? "bg-[#6941c6] text-white shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
               >
                 Metric
               </button>
               <button
                 onClick={() => update("kind", "dimension")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "dimension" ? "bg-[#6941c6] text-white shadow-sm" : "text-[#9ca3af] hover:text-white"}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "dimension" ? "bg-[#6941c6] text-white shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
               >
                 Dimension
               </button>
@@ -879,13 +879,13 @@ function FieldModal({
 
           {/* 2. Source (parent) */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Source
             </label>
             <select
               value={selectedParent}
               onChange={(e) => handleParentChange(e.target.value)}
-              className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
+              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
             >
               <option value="">Select source...</option>
               {parentSourceOptions.map((p) => (
@@ -899,7 +899,7 @@ function FieldModal({
           {/* 3. Stream (conditional) */}
           {selectedParent && (
             <div>
-              <label className="text-xs text-[#9ca3af] mb-1.5 block">
+              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
                 {isDataSourceParent ? "Table / Sheet Name" : "Stream"}
               </label>
               {isDataSourceParent ? (
@@ -922,17 +922,17 @@ function FieldModal({
                     }
                   }}
                   placeholder="e.g., my_data_table, Sheet1"
-                  className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+                  className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
                 />
               ) : isSingleStream ? (
-                <div className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#667085] px-3 py-2">
+                <div className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-label)] px-3 py-2">
                   {streamNames[0]}
                 </div>
               ) : (
                 <select
                   value={selectedStream}
                   onChange={(e) => handleStreamChange(e.target.value)}
-                  className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
+                  className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
                 >
                   <option value="">Select stream...</option>
                   {streamNames.map((s) => (
@@ -947,7 +947,7 @@ function FieldModal({
 
           {/* 4. Source Column (sourceKey) */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Source Column
             </label>
             <input
@@ -955,16 +955,16 @@ function FieldModal({
               value={form.sourceKey}
               onChange={(e) => update("sourceKey", e.target.value)}
               placeholder="e.g., metrics.ctr, campaign.name, total_sales"
-              className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors font-mono"
+              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors font-mono"
             />
-            <p className="text-[10px] text-[#475467] mt-1">
+            <p className="text-[10px] text-[var(--text-label)] mt-1">
               The raw field name from the source API
             </p>
           </div>
 
           {/* 5. Display Name */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Display Name
             </label>
             <input
@@ -972,16 +972,16 @@ function FieldModal({
               value={form.displayName}
               onChange={(e) => update("displayName", e.target.value)}
               placeholder="e.g., Total Revenue, Campaign Name"
-              className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
             />
-            <p className="text-[10px] text-[#475467] mt-1">
+            <p className="text-[10px] text-[var(--text-label)] mt-1">
               Leave blank to keep unmapped
             </p>
           </div>
 
           {/* 6. Column Name */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Column Name
             </label>
             <input
@@ -992,15 +992,15 @@ function FieldModal({
                 setColumnNameManuallyEdited(true);
               }}
               placeholder="e.g., total_revenue"
-              className={`bg-[#1f1f21] border rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none transition-colors font-mono ${
-                columnNameError ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#333] focus:border-[#6941c6]"
+              className={`bg-[var(--bg-badge)] border rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none transition-colors font-mono ${
+                columnNameError ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[var(--border-secondary)] focus:border-[#6941c6]"
               }`}
             />
             {columnNameError && (
               <p className="text-[10px] text-[#ef4444] mt-1">{columnNameError}</p>
             )}
             {!columnNameError && (
-              <p className="text-[10px] text-[#475467] mt-1">
+              <p className="text-[10px] text-[var(--text-label)] mt-1">
                 Auto-generated from display name. Edit to customize.
               </p>
             )}
@@ -1008,13 +1008,13 @@ function FieldModal({
 
           {/* 7. Data Type */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Data Type
             </label>
             <select
               value={form.dataType}
               onChange={(e) => update("dataType", e.target.value)}
-              className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
+              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
             >
               <option value="">Select type...</option>
               {(Object.entries(DATA_TYPES) as [DataTypeKey, { display: string }][]).map(([key, val]) => (
@@ -1028,13 +1028,13 @@ function FieldModal({
           {/* 8. Currency Code (conditional) */}
           {form.dataType === "CURRENCY" && (
             <div>
-              <label className="text-xs text-[#9ca3af] mb-1.5 block">
+              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
                 Currency Code
               </label>
               <select
                 value={selectedCurrency}
                 onChange={(e) => setSelectedCurrency(e.target.value)}
-                className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#6941c6] transition-colors appearance-none"
               >
                 {CURRENCY_OPTIONS.map((c) => (
                   <option key={c.code} value={c.code}>
@@ -1046,7 +1046,7 @@ function FieldModal({
           )}
 
           {/* Divider */}
-          <div className="border-t border-[#1f1f21]" />
+          <div className="border-t border-[var(--border-primary)]" />
 
           {/* 9. Transformation Builder */}
           <TransformationBuilder
@@ -1062,11 +1062,11 @@ function FieldModal({
           />
 
           {/* Divider */}
-          <div className="border-t border-[#1f1f21]" />
+          <div className="border-t border-[var(--border-primary)]" />
 
           {/* 10. Description */}
           <div>
-            <label className="text-xs text-[#9ca3af] mb-1.5 block">
+            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
               Description
             </label>
             <input
@@ -1074,16 +1074,16 @@ function FieldModal({
               value={form.description}
               onChange={(e) => update("description", e.target.value)}
               placeholder="Brief description of this field"
-              className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-[#1f1f21]">
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
-            className="flex-1 bg-[#1f1f21] border border-[#333] rounded-lg py-2.5 text-sm text-[#9ca3af] hover:text-white hover:border-[#475467] transition-colors"
+            className="flex-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg py-2.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
           >
             Cancel
           </button>
@@ -1131,7 +1131,7 @@ interface ParentSourceGroup {
 const EditButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => (
   <button
     onClick={onClick}
-    className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all"
+    className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--hover-item)] transition-all"
     title="Edit"
   >
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -1157,11 +1157,11 @@ const EditButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => 
 const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
   const info = getSourceStreamInfo(field.source);
   return (
-    <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-white/[0.03] bg-white/[0.015] hover:bg-white/[0.03] transition-colors group">
+    <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
       <div className="px-2 py-2" />
       <div className="px-4 py-2 flex flex-col justify-center min-w-0">
-        <span className="text-[#d1d5dc] text-xs truncate">
-          {field.displayName || <span className="text-[#475467] italic">Unmapped</span>}
+        <span className="text-[var(--text-secondary)] text-xs truncate">
+          {field.displayName || <span className="text-[var(--text-label)] italic">Unmapped</span>}
         </span>
         {/* Source pill for field view child rows */}
         <div className="flex items-center gap-1.5 mt-0.5">
@@ -1176,15 +1176,15 @@ const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => v
               <span className="text-[5px] text-white font-bold">{field.source[0]}</span>
             </span>
             <span style={{ color: field.sourceColor }}>{info.parent}</span>
-            <span className="text-[#667085]">&middot;</span>
-            <span className="text-[#9ca3af]">{info.stream}</span>
+            <span className="text-[var(--text-label)]">&middot;</span>
+            <span className="text-[var(--text-muted)]">{info.stream}</span>
           </div>
         </div>
         {/* Table labels */}
         {field.tables && field.tables.length > 0 && (
           <div className="flex items-center gap-1 mt-0.5">
             {field.tables.map(t => (
-              <span key={t} className="text-[9px] text-[#667085] bg-white/5 px-1.5 py-0.5 rounded">{t}</span>
+              <span key={t} className="text-[9px] text-[var(--text-label)] bg-[var(--hover-item)] px-1.5 py-0.5 rounded">{t}</span>
             ))}
           </div>
         )}
@@ -1195,7 +1195,7 @@ const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => v
         </code>
       </div>
       <div className="px-4 py-2 flex items-center min-w-0">
-        <code className="text-[#9ca3af] text-[10px] font-mono truncate">
+        <code className="text-[var(--text-muted)] text-[10px] font-mono truncate">
           {field.columnName || field.name}
         </code>
       </div>
@@ -1376,16 +1376,16 @@ export default function MetricsDimensionsTab({
   return (
     <div className="flex flex-col gap-0">
       {/* Single card container */}
-      <div className="bg-[#0f0f10] border border-[#1f1f21] rounded-xl overflow-hidden">
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
         {/* Toolbar row */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[#1f1f21]">
-          <div className="flex items-center gap-1 bg-[#1f1f21] rounded-lg p-0.5">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-primary)]">
+          <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
             <button
               onClick={() => switchSubTab("metrics")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 subTab === "metrics"
                   ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Metrics ({metricCount})
@@ -1395,7 +1395,7 @@ export default function MetricsDimensionsTab({
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 subTab === "dimensions"
                   ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Dimensions ({dimensionCount})
@@ -1412,7 +1412,7 @@ export default function MetricsDimensionsTab({
                   setCurrentPage(1);
                 }}
                 placeholder={`Search ${subTab}...`}
-                className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] pl-8 pr-3 py-1.5 w-52 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] pl-8 pr-3 py-1.5 w-52 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
               />
             </div>
 
@@ -1423,10 +1423,10 @@ export default function MetricsDimensionsTab({
                   setShowStatusDropdown((v) => !v);
                   setShowSourceDropdown(false);
                 }}
-                className={`bg-white/5 border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors ${
+                className={`bg-[var(--hover-item)] border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--hover-item)] transition-colors ${
                   statusFilter !== "all"
                     ? "border-[#6941c6] text-[#a78bfa]"
-                    : "border-[#333] text-[#d1d5dc]"
+                    : "border-[var(--border-secondary)] text-[var(--text-secondary)]"
                 }`}
               >
                 {statusFilter === "all"
@@ -1439,7 +1439,7 @@ export default function MetricsDimensionsTab({
                 </svg>
               </button>
               {showStatusDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-[#1f1f21] border border-[#333] rounded-lg shadow-lg z-20 min-w-[120px]">
+                <div className="absolute top-full right-0 mt-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg shadow-lg z-20 min-w-[120px]">
                   {(
                     [
                       ["all", "All"],
@@ -1457,7 +1457,7 @@ export default function MetricsDimensionsTab({
                       className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
                         statusFilter === val
                           ? "text-[#6941c6] bg-[#6941c6]/10"
-                          : "text-[#d1d5dc] hover:bg-white/5"
+                          : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
                       }`}
                     >
                       {label}
@@ -1474,10 +1474,10 @@ export default function MetricsDimensionsTab({
                   setShowSourceDropdown((v) => !v);
                   setShowStatusDropdown(false);
                 }}
-                className={`bg-white/5 border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors max-w-[160px] ${
+                className={`bg-[var(--hover-item)] border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--hover-item)] transition-colors max-w-[160px] ${
                   sourceFilter !== "all"
                     ? "border-[#6941c6] text-[#a78bfa]"
-                    : "border-[#333] text-[#d1d5dc]"
+                    : "border-[var(--border-secondary)] text-[var(--text-secondary)]"
                 }`}
               >
                 <span className="truncate">
@@ -1488,7 +1488,7 @@ export default function MetricsDimensionsTab({
                 </svg>
               </button>
               {showSourceDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-[#1f1f21] border border-[#333] rounded-lg shadow-lg z-20 min-w-[180px] max-h-[300px] overflow-y-auto">
+                <div className="absolute top-full right-0 mt-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg shadow-lg z-20 min-w-[180px] max-h-[300px] overflow-y-auto">
                   <button
                     onClick={() => {
                       setSourceFilter("all");
@@ -1498,7 +1498,7 @@ export default function MetricsDimensionsTab({
                     className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
                       sourceFilter === "all"
                         ? "text-[#6941c6] bg-[#6941c6]/10"
-                        : "text-[#d1d5dc] hover:bg-white/5"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
                     }`}
                   >
                     All Sources
@@ -1514,7 +1514,7 @@ export default function MetricsDimensionsTab({
                       className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
                         sourceFilter === src
                           ? "text-[#6941c6] bg-[#6941c6]/10"
-                          : "text-[#d1d5dc] hover:bg-white/5"
+                          : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
                       }`}
                     >
                       <SourceDot color={getSourceColor(src)} name={src} />
@@ -1542,14 +1542,14 @@ export default function MetricsDimensionsTab({
         </div>
 
         {/* View toggle row */}
-        <div className="flex items-center px-6 py-2 border-b border-[#1f1f21]">
-          <div className="flex items-center gap-1 bg-[#1f1f21] rounded-lg p-0.5">
+        <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
+          <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
             <button
               onClick={() => switchViewMode("field")}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 viewMode === "field"
-                  ? "bg-white/10 text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  ? "bg-[var(--active-item)] text-[var(--text-primary)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Field View
@@ -1558,14 +1558,14 @@ export default function MetricsDimensionsTab({
               onClick={() => switchViewMode("source")}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 viewMode === "source"
-                  ? "bg-white/10 text-white shadow-sm"
-                  : "text-[#9ca3af] hover:text-white"
+                  ? "bg-[var(--active-item)] text-[var(--text-primary)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               Source View
             </button>
           </div>
-          <span className="text-[#475467] text-xs ml-3">
+          <span className="text-[var(--text-label)] text-xs ml-3">
             {totalGroups} {viewMode === "field" ? "fields" : "sources"} &middot;{" "}
             {filteredFields.length} mappings
           </span>
@@ -1575,25 +1575,25 @@ export default function MetricsDimensionsTab({
         {viewMode === "field" ? (
           <>
             {/* Field View Header — shared 8-column grid */}
-            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[#eaecf0]/10">
+            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Name</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Source Column</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Column Name</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Column Name</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Type</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Transform</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Transform</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Status</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
               </div>
               <div className="px-4 py-3" />
             </div>
@@ -1609,17 +1609,17 @@ export default function MetricsDimensionsTab({
                 <div key={group.key}>
                   {/* Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(group.key)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
                       <ChevronIcon expanded={isExpanded} />
                     </div>
                     <div className="px-4 py-2.5 flex flex-col justify-center min-w-0">
-                      <span className="text-[#fcfaff] text-xs font-medium truncate">
+                      <span className="text-[var(--text-primary)] text-xs font-medium truncate">
                         {group.displayName}
                       </span>
-                      <span className="text-[#71717a] text-[10px] mt-0.5">
+                      <span className="text-[var(--text-dim)] text-[10px] mt-0.5">
                         {primaryField.description}
                       </span>
                     </div>
@@ -1628,7 +1628,7 @@ export default function MetricsDimensionsTab({
                         {group.fields.slice(0, 5).map((f, i) => (
                           <div
                             key={i}
-                            className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0f0f10]"
+                            className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)]"
                             style={{ backgroundColor: f.sourceColor }}
                             title={f.source}
                           >
@@ -1636,12 +1636,12 @@ export default function MetricsDimensionsTab({
                           </div>
                         ))}
                         {group.fields.length > 5 && (
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0f0f10] bg-[#333] text-[8px] text-[#d1d5dc]">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] bg-[#333] text-[8px] text-[var(--text-secondary)]">
                             +{group.fields.length - 5}
                           </div>
                         )}
                       </div>
-                      <span className="text-[#71717a] text-[10px] ml-1">{group.fields.length}</span>
+                      <span className="text-[var(--text-dim)] text-[10px] ml-1">{group.fields.length}</span>
                     </div>
                     <div className="px-4 py-2.5" />
                     <div className="px-4 py-2.5 flex items-center">
@@ -1651,7 +1651,7 @@ export default function MetricsDimensionsTab({
                       <TransformBadge transform={uniqueTransforms[0]} />
                     </div>
                     <div className="px-4 py-2.5 flex items-center">
-                      <span className="text-xs text-[#9ca3af]">
+                      <span className="text-xs text-[var(--text-muted)]">
                         <span className="text-[#00bc7d]">{group.mappedCount}</span>/{group.fields.length}
                       </span>
                     </div>
@@ -1669,25 +1669,25 @@ export default function MetricsDimensionsTab({
         ) : (
           <>
             {/* Source View Header — shared 8-column grid */}
-            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[#eaecf0]/10">
+            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Name</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Source Column</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Column Name</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Column Name</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Type</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Transform</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Transform</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[#475467] text-xs font-medium">Status</span>
+                <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
               </div>
               <div className="px-4 py-3" />
             </div>
@@ -1701,7 +1701,7 @@ export default function MetricsDimensionsTab({
                 <div key={parentKey}>
                   {/* Level 1: Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(parentKey)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
@@ -1712,10 +1712,10 @@ export default function MetricsDimensionsTab({
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: parentGroup.color }}
                       />
-                      <span className="text-[#fcfaff] text-xs font-medium">
+                      <span className="text-[var(--text-primary)] text-xs font-medium">
                         {parentGroup.parent}
                       </span>
-                      <span className="text-[#475467] text-[10px]">
+                      <span className="text-[var(--text-label)] text-[10px]">
                         {parentGroup.streams.length} {parentGroup.streams.length === 1 ? "stream" : "streams"} &middot; {parentGroup.totalFields} fields &middot; {parentGroup.totalMapped} mapped
                       </span>
                     </div>
@@ -1730,25 +1730,25 @@ export default function MetricsDimensionsTab({
                       <div key={streamKey}>
                         {/* Stream row */}
                         <div
-                          className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-white/[0.03] bg-white/[0.01] hover:bg-white/[0.02] cursor-pointer transition-colors"
+                          className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                           onClick={() => toggleGroup(streamKey)}
                         >
                           <div className="px-2 py-2 flex items-center justify-center pl-6">
                             <ChevronIcon expanded={isStreamExpanded} />
                           </div>
                           <div className="col-span-7 px-4 py-2 flex items-center gap-2 min-w-0">
-                            <span className="text-[#d1d5dc] text-xs font-medium">
+                            <span className="text-[var(--text-secondary)] text-xs font-medium">
                               {streamGroup.stream}
                             </span>
                             {/* Table pills */}
                             {streamGroup.tables.length > 0 && (
                               <div className="flex items-center gap-1">
                                 {streamGroup.tables.map(t => (
-                                  <span key={t} className="text-[9px] text-[#667085] bg-white/5 px-1.5 py-0.5 rounded">{t}</span>
+                                  <span key={t} className="text-[9px] text-[var(--text-label)] bg-[var(--hover-item)] px-1.5 py-0.5 rounded">{t}</span>
                                 ))}
                               </div>
                             )}
-                            <span className="text-[#475467] text-[10px]">
+                            <span className="text-[var(--text-label)] text-[10px]">
                               {streamGroup.fields.length} fields
                             </span>
                           </div>
@@ -1770,7 +1770,7 @@ export default function MetricsDimensionsTab({
         {/* Empty state */}
         {paginatedGroups.length === 0 && (
           <div className="px-6 py-12 text-center">
-            <p className="text-[#475467] text-sm">
+            <p className="text-[var(--text-label)] text-sm">
               {search
                 ? `No ${subTab} found matching "${search}"`
                 : `No ${subTab} match the current filters`}

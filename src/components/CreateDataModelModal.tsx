@@ -233,11 +233,11 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#0f0f10] border border-[#1f1f21] rounded-2xl shadow-2xl w-full max-w-[680px] flex flex-col max-h-[90vh]">
+      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl w-full max-w-[680px] flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#1f1f21] flex-shrink-0">
-          <h2 className="text-white text-lg font-semibold">{isEdit ? "Edit Data Model" : "Create Data Model"}</h2>
-          <button onClick={onClose} className="text-[#667085] hover:text-white transition-colors p-1">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[var(--border-primary)] flex-shrink-0">
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">{isEdit ? "Edit Data Model" : "Create Data Model"}</h2>
+          <button onClick={onClose} className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-1">
             <CloseIcon />
           </button>
         </div>
@@ -250,28 +250,28 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">1</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">Basic Info</h3>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Basic Info</h3>
             </div>
 
             <div>
-              <label className="text-xs text-[#9ca3af] mb-1.5 block">Model Name</label>
+              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">Model Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="e.g., US E-Commerce Revenue Model"
-                className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
               />
             </div>
 
             <div>
-              <label className="text-xs text-[#9ca3af] mb-1.5 block">Description</label>
+              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">Description</label>
               <input
                 type="text"
                 value={form.description}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Brief description of this data model"
-                className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
               />
             </div>
 
@@ -283,10 +283,10 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">2</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">KPIs (Target Variables)</h3>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">KPIs (Target Variables)</h3>
             </div>
 
-            <p className="text-[10px] text-[#475467] -mt-2">Select KPI categories and map each to a source. For Platform sources, pick a metric field.</p>
+            <p className="text-[10px] text-[var(--text-label)] -mt-2">Select KPI categories and map each to a source. For Platform sources, pick a metric field.</p>
 
             {/* KPI category selector */}
             <div className="flex flex-wrap gap-1.5">
@@ -294,7 +294,7 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                 <button
                   key={cat}
                   onClick={() => addKpi(cat)}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#1f1f21] border border-[#333] text-[#9ca3af] hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors"
+                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--bg-badge)] border border-[var(--border-secondary)] text-[var(--text-muted)] hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors"
                 >
                   + {cat}
                 </button>
@@ -305,12 +305,12 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
             {form.kpis.length > 0 && (
               <div className="flex flex-col gap-2">
                 {form.kpis.map((kpi, idx) => (
-                  <div key={idx} className="bg-[#1f1f21] border border-[#333] rounded-lg px-3 py-2.5 flex items-center gap-2">
+                  <div key={idx} className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg px-3 py-2.5 flex items-center gap-2">
                     <span className="text-[11px] text-[#a78bfa] font-medium min-w-[90px]">{kpi.category}</span>
                     <select
                       value={kpi.sourceType}
                       onChange={(e) => updateKpi(idx, { sourceType: e.target.value as KPIWithSource["sourceType"], fieldName: undefined, tableName: undefined, columnName: undefined })}
-                      className="bg-[#0f0f10] border border-[#333] rounded text-[10px] text-[#d1d5dc] px-2 py-1 focus:outline-none focus:border-[#6941c6] appearance-none"
+                      className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-secondary)] px-2 py-1 focus:outline-none focus:border-[#6941c6] appearance-none"
                     >
                       {KPI_SOURCE_TYPES.map((st) => (
                         <option key={st} value={st}>{st}</option>
@@ -320,7 +320,7 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                       <select
                         value={kpi.fieldName || ""}
                         onChange={(e) => updateKpi(idx, { fieldName: e.target.value })}
-                        className="bg-[#0f0f10] border border-[#333] rounded text-[10px] text-[#d1d5dc] px-2 py-1 flex-1 focus:outline-none focus:border-[#6941c6] appearance-none"
+                        className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-secondary)] px-2 py-1 flex-1 focus:outline-none focus:border-[#6941c6] appearance-none"
                       >
                         <option value="">Select metric field...</option>
                         {metricFieldOptions.map((f) => (
@@ -334,20 +334,20 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                           value={kpi.tableName || ""}
                           onChange={(e) => updateKpi(idx, { tableName: e.target.value })}
                           placeholder="Table"
-                          className="bg-[#0f0f10] border border-[#333] rounded text-[10px] text-[#d1d5dc] px-2 py-1 w-24 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] font-mono"
+                          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-secondary)] px-2 py-1 w-24 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] font-mono"
                         />
                         <input
                           type="text"
                           value={kpi.columnName || ""}
                           onChange={(e) => updateKpi(idx, { columnName: e.target.value })}
                           placeholder="Column"
-                          className="bg-[#0f0f10] border border-[#333] rounded text-[10px] text-[#d1d5dc] px-2 py-1 w-24 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] font-mono"
+                          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-secondary)] px-2 py-1 w-24 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] font-mono"
                         />
                       </>
                     )}
                     <button
                       onClick={() => removeKpi(idx)}
-                      className="text-[#667085] hover:text-[#ff2056] transition-colors flex-shrink-0"
+                      className="text-[var(--text-label)] hover:text-[#ff2056] transition-colors flex-shrink-0"
                     >
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M7.5 2.5L2.5 7.5M2.5 2.5L7.5 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
                     </button>
@@ -363,10 +363,10 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">3</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">Spend Variables</h3>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Spend Variables</h3>
             </div>
 
-            <p className="text-[10px] text-[#475467] -mt-2">Select tactics to include. Each tactic auto-suggests relevant spend metrics.</p>
+            <p className="text-[10px] text-[var(--text-label)] -mt-2">Select tactics to include. Each tactic auto-suggests relevant spend metrics.</p>
 
             {/* Tactic cards */}
             <div className="grid grid-cols-2 gap-2">
@@ -379,12 +379,12 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                     className={`px-3 py-2 rounded-lg text-xs text-left border transition-colors ${
                       isSelected
                         ? "bg-[#6941c6]/10 border-[#6941c6]/40 text-[#a78bfa]"
-                        : "bg-[#1f1f21] border-[#333] text-[#9ca3af] hover:border-[#475467]"
+                        : "bg-[var(--bg-badge)] border-[var(--border-secondary)] text-[var(--text-muted)] hover:border-[var(--border-secondary)]"
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded border flex items-center justify-center flex-shrink-0 ${
-                        isSelected ? "bg-[#6941c6] border-[#6941c6]" : "border-[#475467]"
+                        isSelected ? "bg-[#6941c6] border-[#6941c6]" : "border-[var(--border-secondary)]"
                       }`}>
                         {isSelected && (
                           <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M6.5 2L3 5.5L1.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -399,12 +399,12 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
 
             {/* Selected tactics with metric sub-items */}
             {form.spendVariables.length > 0 && (
-              <div className="border border-[#1f1f21] rounded-lg divide-y divide-[#1f1f21]/50">
+              <div className="border border-[var(--border-primary)] rounded-lg divide-y divide-[#1f1f21]/50">
                 {form.spendVariables.map((sv, svIndex) => (
                   <div key={sv.tactic} className="px-3 py-2">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[11px] text-[#a78bfa] font-medium">{sv.tactic}</span>
-                      <span className="text-[10px] text-[#475467]">{sv.metricFields.length} metrics</span>
+                      <span className="text-[10px] text-[var(--text-label)]">{sv.metricFields.length} metrics</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {spendMetrics.map((field) => {
@@ -416,7 +416,7 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                             className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
                               isActive
                                 ? "bg-[#00bc7d]/15 text-[#00bc7d] border border-[#00bc7d]/30"
-                                : "bg-[#1f1f21] text-[#667085] border border-[#333] hover:text-[#9ca3af]"
+                                : "bg-[var(--bg-badge)] text-[var(--text-label)] border border-[var(--border-secondary)] hover:text-[var(--text-muted)]"
                             }`}
                           >
                             {field.source}: {field.displayName}
@@ -436,8 +436,8 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">4</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">Control Variables</h3>
-              <span className="text-[10px] text-[#475467]">(Optional)</span>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Control Variables</h3>
+              <span className="text-[10px] text-[var(--text-label)]">(Optional)</span>
             </div>
 
             {/* Selected control variables */}
@@ -470,34 +470,34 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                 onChange={(e) => setCustomVarName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") addCustomVar(); }}
                 placeholder="Add custom variable (e.g., Weather Index)"
-                className="bg-[#1f1f21] border border-[#333] rounded-md text-xs text-[#d1d5dc] px-3 py-1.5 flex-1 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-1.5 flex-1 placeholder-[#475467] focus:outline-none focus:border-[#6941c6] transition-colors"
               />
               <button
                 onClick={addCustomVar}
                 disabled={!customVarName.trim()}
-                className="bg-[#1f1f21] border border-[#333] rounded-md px-3 py-1.5 text-xs text-[#9ca3af] hover:text-white hover:border-[#475467] disabled:opacity-40 transition-colors"
+                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] disabled:opacity-40 transition-colors"
               >
                 Add Custom
               </button>
             </div>
 
             {/* Select from mapped fields */}
-            <div className="border border-[#1f1f21] rounded-lg max-h-[140px] overflow-y-auto">
+            <div className="border border-[var(--border-primary)] rounded-lg max-h-[140px] overflow-y-auto">
               {mappedMetrics.slice(0, 20).map((field) => {
                 const isSelected = form.controlVariables.some((cv) => cv.fieldName === field.name);
                 return (
                   <label
                     key={field.name}
-                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleControlField(field.name, field.displayName)}
-                      className="w-3.5 h-3.5 rounded border-[#333] bg-[#1f1f21] accent-[#6941c6]"
+                      className="w-3.5 h-3.5 rounded border-[var(--border-secondary)] bg-[var(--bg-badge)] accent-[#6941c6]"
                     />
-                    <span className="text-[11px] text-[#d1d5dc] flex-1">{field.displayName}</span>
-                    <span className="text-[10px] text-[#475467]">{field.source}</span>
+                    <span className="text-[11px] text-[var(--text-secondary)] flex-1">{field.displayName}</span>
+                    <span className="text-[10px] text-[var(--text-label)]">{field.source}</span>
                   </label>
                 );
               })}
@@ -510,10 +510,10 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">5</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">Modeling Dimensions</h3>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Modeling Dimensions</h3>
             </div>
 
-            <p className="text-[10px] text-[#475467] -mt-2">Select dimension categories and pick the granularity level for each.</p>
+            <p className="text-[10px] text-[var(--text-label)] -mt-2">Select dimension categories and pick the granularity level for each.</p>
 
             {/* Dimension category buttons */}
             <div className="flex flex-wrap gap-1.5">
@@ -521,7 +521,7 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                 <button
                   key={cat}
                   onClick={() => addDimension(cat)}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#1f1f21] border border-[#333] text-[#9ca3af] hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors"
+                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--bg-badge)] border border-[var(--border-secondary)] text-[var(--text-muted)] hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors"
                 >
                   + {cat}
                 </button>
@@ -534,12 +534,12 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                 {form.modelingDimensions.map((dim, idx) => {
                   const options = DIMENSION_CATEGORIES[dim.category];
                   return (
-                    <div key={idx} className="bg-[#1f1f21] border border-[#333] rounded-lg px-3 py-2.5 flex items-center gap-3">
+                    <div key={idx} className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg px-3 py-2.5 flex items-center gap-3">
                       <span className="text-[11px] text-[#a78bfa] font-medium min-w-[70px]">{dim.category}</span>
                       <select
                         value={dim.granularity}
                         onChange={(e) => updateDimensionGranularity(idx, e.target.value)}
-                        className="bg-[#0f0f10] border border-[#333] rounded text-[10px] text-[#d1d5dc] px-2 py-1 flex-1 focus:outline-none focus:border-[#6941c6] appearance-none"
+                        className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-secondary)] px-2 py-1 flex-1 focus:outline-none focus:border-[#6941c6] appearance-none"
                       >
                         {options.map((opt) => (
                           <option key={opt} value={opt}>{opt}</option>
@@ -547,7 +547,7 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
                       </select>
                       <button
                         onClick={() => removeDimension(idx)}
-                        className="text-[#667085] hover:text-[#ff2056] transition-colors flex-shrink-0"
+                        className="text-[var(--text-label)] hover:text-[#ff2056] transition-colors flex-shrink-0"
                       >
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M7.5 2.5L2.5 7.5M2.5 2.5L7.5 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
                       </button>
@@ -564,17 +564,17 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
               <div className="w-5 h-5 rounded bg-[#6941c6]/20 flex items-center justify-center">
                 <span className="text-[10px] text-[#a78bfa] font-bold">6</span>
               </div>
-              <h3 className="text-white text-sm font-semibold">Time Granularity</h3>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Time Granularity</h3>
             </div>
 
             <div>
-              <div className="flex items-center gap-1 bg-[#1f1f21] rounded-lg p-0.5 w-fit">
+              <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5 w-fit">
                 {(["Daily", "Weekly", "Monthly"] as const).map((g) => (
                   <button
                     key={g}
                     onClick={() => setForm((prev) => ({ ...prev, granularity: g }))}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      form.granularity === g ? "bg-[#6941c6] text-white shadow-sm" : "text-[#9ca3af] hover:text-white"
+                      form.granularity === g ? "bg-[#6941c6] text-white shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     }`}
                   >
                     {g}
@@ -586,8 +586,8 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-[#1f1f21] flex-shrink-0">
-          <button onClick={onClose} className="flex-1 bg-[#1f1f21] border border-[#333] rounded-lg py-2.5 text-sm text-[#9ca3af] hover:text-white hover:border-[#475467] transition-colors">
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-[var(--border-primary)] flex-shrink-0">
+          <button onClick={onClose} className="flex-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg py-2.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors">
             Cancel
           </button>
           <button

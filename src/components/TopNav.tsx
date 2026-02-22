@@ -1,19 +1,36 @@
 "use client";
 
+import { useTheme } from "./ThemeContext";
+
+const SunIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.33" />
+    <path d="M8 1.33V3M8 13V14.67M1.33 8H3M13 8H14.67M3.29 3.29L4.23 4.23M11.77 11.77L12.71 12.71M3.29 12.71L4.23 11.77M11.77 4.23L12.71 3.29" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M14 8.54A6 6 0 117.46 2 4.67 4.67 0 0014 8.54z" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function TopNav() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
-    <div className="bg-black border-b border-[#1d2939] flex items-center justify-between px-4 h-[51px]">
+    <div className="bg-[var(--topnav-bg)] border-b border-[var(--topnav-border)] flex items-center justify-between px-4 h-[51px]">
       {/* Left: Workspace */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-[#2b7fff] rounded shadow-sm flex items-center justify-center">
             <div className="w-2.5 h-2.5 bg-white rounded-[1px]" />
           </div>
-          <span className="text-[#e5e7eb] text-sm font-medium tracking-[-0.15px]">
+          <span className="text-[var(--text-secondary)] text-sm font-medium tracking-[-0.15px]">
             Nexa
           </span>
         </div>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[#667085]">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--text-label)]">
           <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </div>
@@ -42,7 +59,16 @@ export default function TopNav() {
         </div>
 
         {/* Separator */}
-        <div className="w-px h-3 bg-white/10" />
+        <div className="w-px h-3 bg-[var(--topnav-separator)]" />
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="w-8 h-8 rounded-md flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+        </button>
 
         {/* Avatar */}
         <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-purple-400 to-blue-500 border border-white/20" />

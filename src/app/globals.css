@@ -4,24 +4,104 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-body {
-  font-family: 'Inter', sans-serif;
-  background: #000;
-  color: #fff;
+/* ─── Dark Theme (default) ─────────────────────────────────────────────────── */
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #0f0f10;
+  --bg-card: #0f0f10;
+  --bg-card-inner: #161618;
+  --bg-tertiary: #161618;
+  --bg-badge: #1f1f21;
+
+  --text-primary: #ffffff;
+  --text-secondary: #d1d5dc;
+  --text-muted: #9ca3af;
+  --text-label: #667085;
+  --text-dim: #71717a;
+
+  --border-primary: #1f1f21;
+  --border-secondary: #333333;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-tab: #344054;
+
+  --hover-bg: rgba(255, 255, 255, 0.01);
+  --hover-item: rgba(255, 255, 255, 0.05);
+  --active-item: rgba(255, 255, 255, 0.1);
+
+  --sidebar-bg: #0f0f10;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-active: rgba(255, 255, 255, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+
+  --topnav-bg: #000000;
+  --topnav-border: #1d2939;
+  --topnav-separator: rgba(255, 255, 255, 0.1);
+
+  --dropdown-bg: #1a1a1c;
+
+  --scrollbar-track: #0f0f10;
+  --scrollbar-thumb: #333;
+  --scrollbar-thumb-hover: #444;
 }
 
-/* Custom scrollbar for dark theme */
+/* ─── Light Theme ──────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-card-inner: #f3f4f6;
+  --bg-tertiary: #f3f4f6;
+  --bg-badge: #e5e7eb;
+
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --text-label: #9ca3af;
+  --text-dim: #9ca3af;
+
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+  --border-subtle: #f3f4f6;
+  --border-tab: #d1d5db;
+
+  --hover-bg: rgba(0, 0, 0, 0.02);
+  --hover-item: rgba(0, 0, 0, 0.04);
+  --active-item: rgba(0, 0, 0, 0.08);
+
+  --sidebar-bg: #f9fafb;
+  --sidebar-border: #e5e7eb;
+  --sidebar-active: rgba(0, 0, 0, 0.08);
+  --sidebar-hover: rgba(0, 0, 0, 0.04);
+
+  --topnav-bg: #ffffff;
+  --topnav-border: #e5e7eb;
+  --topnav-separator: rgba(0, 0, 0, 0.1);
+
+  --dropdown-bg: #ffffff;
+
+  --scrollbar-track: #f9fafb;
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-thumb-hover: #9ca3af;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f0f10;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: var(--scrollbar-thumb-hover);
 }
