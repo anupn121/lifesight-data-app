@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Pagination from "./Pagination";
 import {
   type Field,
@@ -13,9 +13,273 @@ import {
   toColumnName,
 } from "./fieldsData";
 
-type SubTab = "metrics" | "dimensions";
+type SubTab = "metrics" | "dimensions" | "data-flow";
 type ViewMode = "field" | "source";
 type StatusFilter = "all" | "mapped" | "unmapped";
+
+// ─── Noir Circuit static data ───
+const noirSources = [
+  { id: "paid", label: "Paid Media", items: ["Google Ads", "Meta Ads", "TikTok", "Snapchat"] },
+  { id: "owned", label: "Owned Media", items: ["Email", "Push Notifications", "SMS"] },
+  { id: "earned", label: "Earned Media", items: ["PR Coverage", "Social Mentions"] },
+  { id: "sponsorships", label: "Sponsorships", items: ["Event Sponsor", "Podcast Ads"] },
+];
+
+const noirCampaigns = [
+  { name: "CoreComms", budget: "$1,240,400", color: "#8B5CF6" },
+  { name: "Walk the Plank", budget: "$920,000", color: "#EC4899" },
+  { name: "Grand Final", budget: "$602,500", color: "#F59E0B" },
+  { name: "eComm", budget: "$1,240,400", color: "#10B981" },
+];
+
+const noirColumns = [
+  { file: "date", attr: "Date" },
+  { file: "product", attr: "Product" },
+  { file: "dma", attr: "Geography" },
+  { file: "creative", attr: "Campaign" },
+  { file: "spend", attr: "Cost" },
+];
+
+const noirGeoData = [
+  { name: "California", value: "$2,500,000", pct: 100 },
+  { name: "New York", value: "$1,200,000", pct: 48 },
+  { name: "Texas", value: "$1,150,000", pct: 46 },
+  { name: "Florida", value: "$800,000", pct: 32 },
+];
+
+function NoirCircuitView() {
+  const [activeSource, setActiveSource] = useState("paid");
+  const [hoveredCampaign, setHoveredCampaign] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div style={{
+      background: "#0a0a0f",
+      color: "#e0e0e8",
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      position: "relative",
+      overflow: "hidden",
+      minHeight: 600,
+    }}>
+      {/* Grid overlay */}
+      <div style={{
+        position: "absolute", inset: 0, opacity: 0.03,
+        backgroundImage: `linear-gradient(rgba(139,92,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.5) 1px, transparent 1px)`,
+        backgroundSize: "40px 40px",
+        pointerEvents: "none",
+      }} />
+
+      <div style={{ display: "flex", minHeight: 600 }}>
+        {/* Sidebar */}
+        <nav style={{
+          width: 220, borderRight: "1px solid rgba(139,92,246,0.08)",
+          padding: "24px 0", flexShrink: 0,
+        }}>
+          <div style={{ padding: "0 16px 16px", fontSize: 9, letterSpacing: 3, color: "#555", textTransform: "uppercase" }}>
+            Data Sources
+          </div>
+          {noirSources.map((s, i) => (
+            <button key={s.id} onClick={() => setActiveSource(s.id)} style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 16px", border: "none", cursor: "pointer",
+              background: activeSource === s.id ? "rgba(139,92,246,0.08)" : "transparent",
+              borderLeft: activeSource === s.id ? "2px solid #8B5CF6" : "2px solid transparent",
+              color: activeSource === s.id ? "#c4b5fd" : "#666",
+              fontSize: 12, textAlign: "left", letterSpacing: 0.5,
+              transition: "all 0.2s",
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? "translateX(0)" : "translateX(-20px)",
+              transitionDelay: `${i * 80}ms`,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: 2,
+                background: activeSource === s.id ? "#8B5CF6" : "#333",
+                transition: "all 0.2s",
+              }} />
+              {s.label}
+            </button>
+          ))}
+
+          <div style={{ padding: "24px 16px 12px", fontSize: 9, letterSpacing: 3, color: "#555", textTransform: "uppercase" }}>
+            Geography
+          </div>
+          {noirGeoData.map((g, i) => (
+            <div key={g.name} style={{
+              padding: "8px 16px", fontSize: 11,
+              opacity: mounted ? 1 : 0,
+              transition: "opacity 0.4s",
+              transitionDelay: `${400 + i * 100}ms`,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ color: "#888" }}>{g.name}</span>
+                <span style={{ color: "#c4b5fd", fontVariantNumeric: "tabular-nums" }}>{g.value}</span>
+              </div>
+              <div style={{ height: 2, background: "#1a1a2e", borderRadius: 1, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", background: "linear-gradient(90deg, #8B5CF6, #EC4899)",
+                  width: mounted ? `${g.pct}%` : "0%",
+                  transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
+                  transitionDelay: `${600 + i * 150}ms`,
+                  borderRadius: 1,
+                }} />
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Main */}
+        <main style={{ flex: 1, padding: 32, overflow: "auto" }}>
+          {/* Column Mapping */}
+          <div style={{ marginBottom: 40 }}>
+            <h2 style={{
+              fontSize: 10, letterSpacing: 4, color: "#555", textTransform: "uppercase", marginBottom: 20,
+            }}>
+              Column Mapping
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {noirColumns.map((c, i) => (
+                <div key={c.file} style={{
+                  display: "flex", alignItems: "center", gap: 16,
+                  opacity: mounted ? 1 : 0,
+                  transform: mounted ? "translateY(0)" : "translateY(10px)",
+                  transition: "all 0.5s cubic-bezier(0.16,1,0.3,1)",
+                  transitionDelay: `${200 + i * 80}ms`,
+                }}>
+                  <div style={{
+                    background: "rgba(139,92,246,0.06)",
+                    border: "1px solid rgba(139,92,246,0.12)",
+                    padding: "8px 16px", borderRadius: 6, width: 140,
+                    fontSize: 12, color: "#c4b5fd", letterSpacing: 0.5,
+                  }}>
+                    {c.file}
+                  </div>
+                  <svg width="60" height="20" viewBox="0 0 60 20">
+                    <line x1="0" y1="10" x2="48" y2="10" stroke="#8B5CF6" strokeWidth="1" strokeDasharray="4 3" opacity="0.4" />
+                    <polygon points="48,6 56,10 48,14" fill="#8B5CF6" opacity="0.6" />
+                  </svg>
+                  <div style={{
+                    background: "rgba(236,72,153,0.06)",
+                    border: "1px solid rgba(236,72,153,0.15)",
+                    padding: "8px 16px", borderRadius: 6, width: 140,
+                    fontSize: 12, color: "#f9a8d4", letterSpacing: 0.5,
+                  }}>
+                    {c.attr}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Flow Diagram */}
+          <div>
+            <h2 style={{
+              fontSize: 10, letterSpacing: 4, color: "#555", textTransform: "uppercase", marginBottom: 20,
+            }}>
+              Labelling → Optimization Flow
+            </h2>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {noirCampaigns.map((camp, ci) => {
+                const src = noirSources[ci % noirSources.length];
+                return (
+                  <div
+                    key={camp.name}
+                    onMouseEnter={() => setHoveredCampaign(ci)}
+                    onMouseLeave={() => setHoveredCampaign(null)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 0,
+                      opacity: mounted ? 1 : 0,
+                      transform: mounted ? "translateX(0)" : "translateX(-30px)",
+                      transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
+                      transitionDelay: `${600 + ci * 150}ms`,
+                    }}
+                  >
+                    {/* Source nodes */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 140, flexShrink: 0 }}>
+                      {src.items.map((item, ii) => (
+                        <div key={ii} style={{
+                          fontSize: 10, color: "#888", padding: "4px 10px",
+                          background: hoveredCampaign === ci ? "rgba(139,92,246,0.06)" : "transparent",
+                          border: `1px solid ${hoveredCampaign === ci ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)"}`,
+                          borderRadius: 4, transition: "all 0.3s",
+                          letterSpacing: 0.3,
+                        }}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Flow SVG */}
+                    <svg width="320" height={Math.max(80, src.items.length * 28)} viewBox={`0 0 320 ${Math.max(80, src.items.length * 28)}`} style={{ flexShrink: 0 }}>
+                      <defs>
+                        <linearGradient id={`noir-grad-${ci}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={camp.color} stopOpacity="0.15" />
+                          <stop offset="50%" stopColor={camp.color} stopOpacity="0.3" />
+                          <stop offset="100%" stopColor={camp.color} stopOpacity="0.6" />
+                        </linearGradient>
+                      </defs>
+                      {src.items.map((_, ii) => {
+                        const h = Math.max(80, src.items.length * 28);
+                        const sy = ii * 28 + 14;
+                        const ey = h / 2;
+                        return (
+                          <path
+                            key={ii}
+                            d={`M 0 ${sy} C 120 ${sy}, 200 ${ey}, 320 ${ey}`}
+                            fill="none"
+                            stroke={camp.color}
+                            strokeWidth={hoveredCampaign === ci ? 2.5 : 1.5}
+                            opacity={hoveredCampaign === ci ? 0.7 : 0.3}
+                            style={{ transition: "all 0.3s" }}
+                          />
+                        );
+                      })}
+                      {/* Validation node */}
+                      <rect x="145" y={Math.max(80, src.items.length * 28) / 2 - 14} width="30" height="28" rx="4"
+                        fill="rgba(16,185,129,0.1)" stroke="rgba(16,185,129,0.3)" strokeWidth="1" />
+                      <text x="160" y={Math.max(80, src.items.length * 28) / 2 + 4}
+                        textAnchor="middle" fill="#10B981" fontSize="7" fontFamily="monospace">
+                        ✓
+                      </text>
+                    </svg>
+
+                    {/* Campaign target */}
+                    <div style={{
+                      padding: "14px 20px",
+                      background: hoveredCampaign === ci
+                        ? `linear-gradient(135deg, ${camp.color}15, ${camp.color}08)`
+                        : "rgba(255,255,255,0.02)",
+                      border: `1px solid ${hoveredCampaign === ci ? camp.color + "40" : "rgba(255,255,255,0.04)"}`,
+                      borderRadius: 8, minWidth: 160,
+                      transition: "all 0.3s",
+                      boxShadow: hoveredCampaign === ci ? `0 0 30px ${camp.color}10` : "none",
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: camp.color, letterSpacing: 0.5 }}>
+                        {camp.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#666", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+                        {camp.budget}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <style>{`
+        @keyframes noir-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
+    </div>
+  );
+}
 
 const sourceOptions = [
   { name: "Facebook Ads", color: "#1877F2" },
@@ -1254,6 +1518,7 @@ export default function MetricsDimensionsTab({
 
   // Filter fields
   const filteredFields = useMemo(() => {
+    if (subTab === "data-flow") return [];
     return fields.filter((f) => {
       if (f.kind !== (subTab === "metrics" ? "metric" : "dimension")) return false;
       if (statusFilter === "mapped" && f.status !== "Mapped") return false;
@@ -1278,6 +1543,7 @@ export default function MetricsDimensionsTab({
 
   // Unique sources for filter dropdown
   const uniqueSources = useMemo(() => {
+    if (subTab === "data-flow") return [];
     const kindFilter = subTab === "metrics" ? "metric" : "dimension";
     const sources = new Set(fields.filter((f) => f.kind === kindFilter).map((f) => f.source));
     return Array.from(sources).sort();
@@ -1400,8 +1666,18 @@ export default function MetricsDimensionsTab({
             >
               Dimensions ({dimensionCount})
             </button>
+            <button
+              onClick={() => switchSubTab("data-flow")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                subTab === "data-flow"
+                  ? "bg-[#6941c6] text-white shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Data Flow
+            </button>
           </div>
-          <div className="flex items-center gap-2">
+          {subTab !== "data-flow" && <div className="flex items-center gap-2">
             <div className="relative">
               <SearchIcon />
               <input
@@ -1538,11 +1814,11 @@ export default function MetricsDimensionsTab({
               </svg>
               Add Field
             </button>
-          </div>
+          </div>}
         </div>
 
-        {/* View toggle row */}
-        <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
+        {/* View toggle row — hidden for Data Flow tab */}
+        {subTab !== "data-flow" && <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
           <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
             <button
               onClick={() => switchViewMode("field")}
@@ -1569,10 +1845,13 @@ export default function MetricsDimensionsTab({
             {totalGroups} {viewMode === "field" ? "fields" : "sources"} &middot;{" "}
             {filteredFields.length} mappings
           </span>
-        </div>
+        </div>}
 
-        {/* Table content */}
-        {viewMode === "field" ? (
+        {/* Data Flow tab content */}
+        {subTab === "data-flow" && <NoirCircuitView />}
+
+        {/* Table content — metrics/dimensions only */}
+        {subTab !== "data-flow" && (viewMode === "field" ? (
           <>
             {/* Field View Header — shared 8-column grid */}
             <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-primary)]">
@@ -1765,10 +2044,10 @@ export default function MetricsDimensionsTab({
               );
             })}
           </>
-        )}
+        ))}
 
-        {/* Empty state */}
-        {paginatedGroups.length === 0 && (
+        {/* Empty state — metrics/dimensions only */}
+        {subTab !== "data-flow" && paginatedGroups.length === 0 && (
           <div className="px-6 py-12 text-center">
             <p className="text-[var(--text-label)] text-sm">
               {search
@@ -1778,8 +2057,8 @@ export default function MetricsDimensionsTab({
           </div>
         )}
 
-        {/* Pagination */}
-        <Pagination
+        {/* Pagination — metrics/dimensions only */}
+        {subTab !== "data-flow" && <Pagination
           currentPage={currentPage}
           totalItems={totalGroups}
           itemsPerPage={itemsPerPage}
@@ -1788,7 +2067,7 @@ export default function MetricsDimensionsTab({
             setItemsPerPage(size);
             setCurrentPage(1);
           }}
-        />
+        />}
       </div>
 
       {/* Modal */}
@@ -1808,7 +2087,7 @@ export default function MetricsDimensionsTab({
           setEditField(null);
         }}
         editField={editField}
-        defaultKind={subTab === "metrics" ? "metric" : "dimension"}
+        defaultKind={subTab === "dimensions" ? "dimension" : "metric"}
         fields={fields}
       />
     </div>
