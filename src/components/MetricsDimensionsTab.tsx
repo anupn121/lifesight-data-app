@@ -1115,24 +1115,13 @@ const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => v
   return (
     <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
       <div className="px-2 py-2" />
-      <div className="px-4 py-2 flex flex-col justify-center min-w-0">
-        {/* Source pill for field view child rows */}
-        <div className="flex items-center gap-1.5">
-          <div
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px]"
-            style={{ borderColor: field.sourceColor + "40", backgroundColor: field.sourceColor + "08" }}
-          >
-            <span
-              className="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center"
-              style={{ backgroundColor: field.sourceColor }}
-            >
-              <span className="text-[5px] text-white font-bold">{field.source[0]}</span>
-            </span>
-            <span style={{ color: field.sourceColor }}>{info.parent}</span>
-            <span className="text-[var(--text-label)]">&middot;</span>
-            <span className="text-[var(--text-muted)]">{info.stream}</span>
-          </div>
-        </div>
+      <div className="px-4 py-2 flex items-center min-w-0">
+        <span
+          className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
+          style={{ backgroundColor: field.sourceColor }}
+        >
+          <span className="text-[6px] text-white font-bold">{field.source[0]}</span>
+        </span>
       </div>
       <div className="pl-8 pr-4 py-2 flex items-center min-w-0">
         <span className="text-[var(--text-secondary)] text-[11px] truncate" title={info.parent}>{info.parent}</span>
