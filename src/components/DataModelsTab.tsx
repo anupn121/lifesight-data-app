@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { Field } from "./fieldsData";
 import type { DataModel } from "./dataModelsData";
 import CreateDataModelModal from "./CreateDataModelModal";
+import DataPreviewView from "./DataPreviewView";
+import EDAView from "./EDAView";
 
 // --- Badge helpers ---
 const StatusBadge = ({ status }: { status: DataModel["status"] }) => {
@@ -69,6 +71,31 @@ const TrashIcon = () => (
   </svg>
 );
 
+const PreviewIcon = ({ size = 12 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+    <path d="M1 6C1 6 3 2 6 2C9 2 11 6 11 6C11 6 9 10 6 10C3 10 1 6 1 6Z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="6" cy="6" r="1.5" stroke="currentColor" strokeWidth="1" />
+  </svg>
+);
+
+const EDAIcon = ({ size = 12 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+    <rect x="1.5" y="6" width="2" height="4.5" rx="0.5" stroke="currentColor" strokeWidth="1" />
+    <rect x="5" y="3.5" width="2" height="7" rx="0.5" stroke="currentColor" strokeWidth="1" />
+    <rect x="8.5" y="1.5" width="2" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" />
+  </svg>
+);
+
+const KebabIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <circle cx="7" cy="3" r="1" fill="currentColor" />
+    <circle cx="7" cy="7" r="1" fill="currentColor" />
+    <circle cx="7" cy="11" r="1" fill="currentColor" />
+  </svg>
+);
+
+type SubTab = "models" | "preview" | "eda";
+
 interface DataModelsTabProps {
   fields: Field[];
   tactics: string[];
@@ -79,6 +106,9 @@ interface DataModelsTabProps {
 export default function DataModelsTab({ fields, tactics, dataModels, onDataModelsChange }: DataModelsTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editModel, setEditModel] = useState<DataModel | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>("models");
+  const [selectedModel, setSelectedModel] = useState<DataModel | null>(null);
+  const [kebabOpenId, setKebabOpenId] = useState<string | null>(null);
 
   // Summary counts
   const totalModels = dataModels.length;
@@ -124,6 +154,58 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
       dataModels.map((m) => (m.id === id ? { ...m, status, updatedAt: new Date().toISOString() } : m))
     );
   };
+
+  const handlePreview = (model: DataModel) => {
+    setSelectedModel(model);
+    setActiveSubTab("preview");
+  };
+
+  const handleEDA = (model: DataModel) => {
+    setSelectedModel(model);
+    setActiveSubTab("eda");
+  };
+
+  const handleBack = () => {
+    setActiveSubTab("models");
+    setSelectedModel(null);
+  };
+
+  // Sub-tab bar for preview/eda mode
+  if (activeSubTab !== "models" && selectedModel) {
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Sub-tab switcher */}
+        <div className="flex items-center gap-1 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg p-1 w-fit">
+          <button
+            onClick={() => setActiveSubTab("preview")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeSubTab === "preview"
+                ? "bg-[#6941c6] text-white"
+                : "text-[var(--text-muted)] hover:bg-[var(--hover-item)]"
+            }`}
+          >
+            Preview
+          </button>
+          <button
+            onClick={() => setActiveSubTab("eda")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeSubTab === "eda"
+                ? "bg-[#6941c6] text-white"
+                : "text-[var(--text-muted)] hover:bg-[var(--hover-item)]"
+            }`}
+          >
+            EDA
+          </button>
+        </div>
+
+        {activeSubTab === "preview" ? (
+          <DataPreviewView model={selectedModel} fields={fields} onBack={handleBack} />
+        ) : (
+          <EDAView model={selectedModel} fields={fields} onBack={handleBack} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -229,38 +311,72 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                   <h3 className="text-[var(--text-primary)] text-sm font-semibold">{model.name}</h3>
                   <StatusBadge status={model.status} />
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Status toggle */}
+                <div className="flex items-center gap-2">
+                  {/* Preview button */}
+                  <button
+                    onClick={() => handlePreview(model)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-[var(--text-muted)] border border-[var(--border-primary)] hover:bg-[var(--hover-item)] hover:border-[var(--border-secondary)] transition-all"
+                  >
+                    <PreviewIcon size={13} />
+                    Preview
+                  </button>
+                  {/* EDA button */}
+                  <button
+                    onClick={() => handleEDA(model)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-[var(--text-muted)] border border-[var(--border-primary)] hover:bg-[var(--hover-item)] hover:border-[var(--border-secondary)] transition-all"
+                  >
+                    <EDAIcon size={13} />
+                    EDA
+                  </button>
+                  {/* Status dropdown */}
                   <select
                     value={model.status}
                     onChange={(e) => handleStatusChange(model.id, e.target.value as DataModel["status"])}
-                    className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded text-[10px] text-[var(--text-muted)] px-1.5 py-1 focus:outline-none appearance-none mr-1"
+                    className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg text-[11px] font-medium text-[var(--text-muted)] px-2.5 py-1.5 focus:outline-none focus:border-[var(--border-secondary)] appearance-none cursor-pointer hover:border-[var(--border-secondary)] transition-colors"
                   >
                     <option value="Draft">Draft</option>
                     <option value="Active">Active</option>
                     <option value="Archived">Archived</option>
                   </select>
-                  <button
-                    onClick={() => { setEditModel(model); setIsModalOpen(true); }}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
-                    title="Edit"
-                  >
-                    <EditIcon />
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(model)}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
-                    title="Duplicate"
-                  >
-                    <DuplicateIcon />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(model.id)}
-                    className="w-7 h-7 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
-                    title="Delete"
-                  >
-                    <TrashIcon />
-                  </button>
+                  {/* Kebab menu */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setKebabOpenId(kebabOpenId === model.id ? null : model.id)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-dim)] hover:bg-[var(--hover-item)] hover:text-[var(--text-muted)] transition-all"
+                      title="More actions"
+                    >
+                      <KebabIcon />
+                    </button>
+                    {kebabOpenId === model.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setKebabOpenId(null)} />
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-xl py-1 w-36">
+                          <button
+                            onClick={() => { setEditModel(model); setIsModalOpen(true); setKebabOpenId(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+                          >
+                            <EditIcon />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => { handleDuplicate(model); setKebabOpenId(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+                          >
+                            <DuplicateIcon />
+                            Duplicate
+                          </button>
+                          <div className="my-1 border-t border-[var(--border-primary)]" />
+                          <button
+                            onClick={() => { handleDelete(model.id); setKebabOpenId(null); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <TrashIcon />
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 

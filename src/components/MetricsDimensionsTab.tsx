@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import Pagination from "./Pagination";
+import FlowView from "./FlowView";
+import BulkAddModal from "./BulkAddModal";
 import {
   type Field,
   type DataTypeKey,
@@ -11,325 +13,15 @@ import {
   CURRENCY_OPTIONS,
   getSourceStreamInfo,
   toColumnName,
+  sourceOptions,
 } from "./fieldsData";
 
-type SubTab = "metrics" | "dimensions" | "data-flow";
+type SubTab = "metrics" | "dimensions" | "metrics-flow" | "dimensions-flow";
 type ViewMode = "field" | "source";
 type StatusFilter = "all" | "mapped" | "unmapped";
 
-// ─── Noir Circuit static data ───
-const noirSources = [
-  { id: "paid", label: "Paid Media", items: ["Google Ads", "Meta Ads", "TikTok", "Snapchat"] },
-  { id: "owned", label: "Owned Media", items: ["Email", "Push Notifications", "SMS"] },
-  { id: "earned", label: "Earned Media", items: ["PR Coverage", "Social Mentions"] },
-  { id: "sponsorships", label: "Sponsorships", items: ["Event Sponsor", "Podcast Ads"] },
-];
 
-const noirCampaigns = [
-  { name: "CoreComms", budget: "$1,240,400", color: "#8B5CF6" },
-  { name: "Walk the Plank", budget: "$920,000", color: "#EC4899" },
-  { name: "Grand Final", budget: "$602,500", color: "#F59E0B" },
-  { name: "eComm", budget: "$1,240,400", color: "#10B981" },
-];
 
-const noirColumns = [
-  { file: "date", attr: "Date" },
-  { file: "product", attr: "Product" },
-  { file: "dma", attr: "Geography" },
-  { file: "creative", attr: "Campaign" },
-  { file: "spend", attr: "Cost" },
-];
-
-const noirGeoData = [
-  { name: "California", value: "$2,500,000", pct: 100 },
-  { name: "New York", value: "$1,200,000", pct: 48 },
-  { name: "Texas", value: "$1,150,000", pct: 46 },
-  { name: "Florida", value: "$800,000", pct: 32 },
-];
-
-function NoirCircuitView() {
-  const [activeSource, setActiveSource] = useState("paid");
-  const [hoveredCampaign, setHoveredCampaign] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 100);
-    return () => clearTimeout(t);
-  }, []);
-
-  return (
-    <div style={{
-      background: "#0a0a0f",
-      color: "#e0e0e8",
-      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      position: "relative",
-      overflow: "hidden",
-      minHeight: 600,
-    }}>
-      {/* Grid overlay */}
-      <div style={{
-        position: "absolute", inset: 0, opacity: 0.03,
-        backgroundImage: `linear-gradient(rgba(139,92,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.5) 1px, transparent 1px)`,
-        backgroundSize: "40px 40px",
-        pointerEvents: "none",
-      }} />
-
-      <div style={{ display: "flex", minHeight: 600 }}>
-        {/* Sidebar */}
-        <nav style={{
-          width: 220, borderRight: "1px solid rgba(139,92,246,0.08)",
-          padding: "24px 0", flexShrink: 0,
-        }}>
-          <div style={{ padding: "0 16px 16px", fontSize: 9, letterSpacing: 3, color: "#555", textTransform: "uppercase" }}>
-            Data Sources
-          </div>
-          {noirSources.map((s, i) => (
-            <button key={s.id} onClick={() => setActiveSource(s.id)} style={{
-              width: "100%", display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 16px", border: "none", cursor: "pointer",
-              background: activeSource === s.id ? "rgba(139,92,246,0.08)" : "transparent",
-              borderLeft: activeSource === s.id ? "2px solid #8B5CF6" : "2px solid transparent",
-              color: activeSource === s.id ? "#c4b5fd" : "#666",
-              fontSize: 12, textAlign: "left", letterSpacing: 0.5,
-              transition: "all 0.2s",
-              opacity: mounted ? 1 : 0,
-              transform: mounted ? "translateX(0)" : "translateX(-20px)",
-              transitionDelay: `${i * 80}ms`,
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: 2,
-                background: activeSource === s.id ? "#8B5CF6" : "#333",
-                transition: "all 0.2s",
-              }} />
-              {s.label}
-            </button>
-          ))}
-
-          <div style={{ padding: "24px 16px 12px", fontSize: 9, letterSpacing: 3, color: "#555", textTransform: "uppercase" }}>
-            Geography
-          </div>
-          {noirGeoData.map((g, i) => (
-            <div key={g.name} style={{
-              padding: "8px 16px", fontSize: 11,
-              opacity: mounted ? 1 : 0,
-              transition: "opacity 0.4s",
-              transitionDelay: `${400 + i * 100}ms`,
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ color: "#888" }}>{g.name}</span>
-                <span style={{ color: "#c4b5fd", fontVariantNumeric: "tabular-nums" }}>{g.value}</span>
-              </div>
-              <div style={{ height: 2, background: "#1a1a2e", borderRadius: 1, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", background: "linear-gradient(90deg, #8B5CF6, #EC4899)",
-                  width: mounted ? `${g.pct}%` : "0%",
-                  transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
-                  transitionDelay: `${600 + i * 150}ms`,
-                  borderRadius: 1,
-                }} />
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* Main */}
-        <main style={{ flex: 1, padding: 32, overflow: "auto" }}>
-          {/* Column Mapping */}
-          <div style={{ marginBottom: 40 }}>
-            <h2 style={{
-              fontSize: 10, letterSpacing: 4, color: "#555", textTransform: "uppercase", marginBottom: 20,
-            }}>
-              Column Mapping
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {noirColumns.map((c, i) => (
-                <div key={c.file} style={{
-                  display: "flex", alignItems: "center", gap: 16,
-                  opacity: mounted ? 1 : 0,
-                  transform: mounted ? "translateY(0)" : "translateY(10px)",
-                  transition: "all 0.5s cubic-bezier(0.16,1,0.3,1)",
-                  transitionDelay: `${200 + i * 80}ms`,
-                }}>
-                  <div style={{
-                    background: "rgba(139,92,246,0.06)",
-                    border: "1px solid rgba(139,92,246,0.12)",
-                    padding: "8px 16px", borderRadius: 6, width: 140,
-                    fontSize: 12, color: "#c4b5fd", letterSpacing: 0.5,
-                  }}>
-                    {c.file}
-                  </div>
-                  <svg width="60" height="20" viewBox="0 0 60 20">
-                    <line x1="0" y1="10" x2="48" y2="10" stroke="#8B5CF6" strokeWidth="1" strokeDasharray="4 3" opacity="0.4" />
-                    <polygon points="48,6 56,10 48,14" fill="#8B5CF6" opacity="0.6" />
-                  </svg>
-                  <div style={{
-                    background: "rgba(236,72,153,0.06)",
-                    border: "1px solid rgba(236,72,153,0.15)",
-                    padding: "8px 16px", borderRadius: 6, width: 140,
-                    fontSize: 12, color: "#f9a8d4", letterSpacing: 0.5,
-                  }}>
-                    {c.attr}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Flow Diagram */}
-          <div>
-            <h2 style={{
-              fontSize: 10, letterSpacing: 4, color: "#555", textTransform: "uppercase", marginBottom: 20,
-            }}>
-              Labelling → Optimization Flow
-            </h2>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {noirCampaigns.map((camp, ci) => {
-                const src = noirSources[ci % noirSources.length];
-                return (
-                  <div
-                    key={camp.name}
-                    onMouseEnter={() => setHoveredCampaign(ci)}
-                    onMouseLeave={() => setHoveredCampaign(null)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 0,
-                      opacity: mounted ? 1 : 0,
-                      transform: mounted ? "translateX(0)" : "translateX(-30px)",
-                      transition: "all 0.6s cubic-bezier(0.16,1,0.3,1)",
-                      transitionDelay: `${600 + ci * 150}ms`,
-                    }}
-                  >
-                    {/* Source nodes */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 140, flexShrink: 0 }}>
-                      {src.items.map((item, ii) => (
-                        <div key={ii} style={{
-                          fontSize: 10, color: "#888", padding: "4px 10px",
-                          background: hoveredCampaign === ci ? "rgba(139,92,246,0.06)" : "transparent",
-                          border: `1px solid ${hoveredCampaign === ci ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)"}`,
-                          borderRadius: 4, transition: "all 0.3s",
-                          letterSpacing: 0.3,
-                        }}>
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Flow SVG */}
-                    <svg width="320" height={Math.max(80, src.items.length * 28)} viewBox={`0 0 320 ${Math.max(80, src.items.length * 28)}`} style={{ flexShrink: 0 }}>
-                      <defs>
-                        <linearGradient id={`noir-grad-${ci}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor={camp.color} stopOpacity="0.15" />
-                          <stop offset="50%" stopColor={camp.color} stopOpacity="0.3" />
-                          <stop offset="100%" stopColor={camp.color} stopOpacity="0.6" />
-                        </linearGradient>
-                      </defs>
-                      {src.items.map((_, ii) => {
-                        const h = Math.max(80, src.items.length * 28);
-                        const sy = ii * 28 + 14;
-                        const ey = h / 2;
-                        return (
-                          <path
-                            key={ii}
-                            d={`M 0 ${sy} C 120 ${sy}, 200 ${ey}, 320 ${ey}`}
-                            fill="none"
-                            stroke={camp.color}
-                            strokeWidth={hoveredCampaign === ci ? 2.5 : 1.5}
-                            opacity={hoveredCampaign === ci ? 0.7 : 0.3}
-                            style={{ transition: "all 0.3s" }}
-                          />
-                        );
-                      })}
-                      {/* Validation node */}
-                      <rect x="145" y={Math.max(80, src.items.length * 28) / 2 - 14} width="30" height="28" rx="4"
-                        fill="rgba(16,185,129,0.1)" stroke="rgba(16,185,129,0.3)" strokeWidth="1" />
-                      <text x="160" y={Math.max(80, src.items.length * 28) / 2 + 4}
-                        textAnchor="middle" fill="#10B981" fontSize="7" fontFamily="monospace">
-                        ✓
-                      </text>
-                    </svg>
-
-                    {/* Campaign target */}
-                    <div style={{
-                      padding: "14px 20px",
-                      background: hoveredCampaign === ci
-                        ? `linear-gradient(135deg, ${camp.color}15, ${camp.color}08)`
-                        : "rgba(255,255,255,0.02)",
-                      border: `1px solid ${hoveredCampaign === ci ? camp.color + "40" : "rgba(255,255,255,0.04)"}`,
-                      borderRadius: 8, minWidth: 160,
-                      transition: "all 0.3s",
-                      boxShadow: hoveredCampaign === ci ? `0 0 30px ${camp.color}10` : "none",
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: camp.color, letterSpacing: 0.5 }}>
-                        {camp.name}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#666", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
-                        {camp.budget}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      <style>{`
-        @keyframes noir-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
-    </div>
-  );
-}
-
-const sourceOptions = [
-  { name: "Facebook Ads", color: "#1877F2" },
-  { name: "Facebook Geo Insights", color: "#1877F2" },
-  { name: "Google Ads", color: "#34A853" },
-  { name: "Google Geo Insights", color: "#34A853" },
-  { name: "Tiktok Ads", color: "#EE1D52" },
-  { name: "Snapchat Ads", color: "#FFFC00" },
-  { name: "Pinterest Ads", color: "#E60023" },
-  { name: "Linkedin Ads", color: "#0A66C2" },
-  { name: "X Ads", color: "#1DA1F2" },
-  { name: "Amazon Ads", color: "#FF9900" },
-  { name: "Microsoft Ads", color: "#00A4EF" },
-  { name: "Criteo Ads", color: "#F48120" },
-  { name: "Outbrain Ads", color: "#F47920" },
-  { name: "Adroll Ads", color: "#0DAEF0" },
-  { name: "Walmart Ads", color: "#0071DC" },
-  { name: "Vibe Ads", color: "#7C3AED" },
-  { name: "Vibe Geo Insights", color: "#7C3AED" },
-  { name: "Google DV 360", color: "#4285F4" },
-  { name: "Spotify Ads", color: "#1DB954" },
-  { name: "StackAdapt", color: "#4A3AFF" },
-  { name: "Moloco", color: "#FF4B4B" },
-  { name: "Taboola", color: "#243B86" },
-  { name: "Facebook Lead Forms", color: "#1877F2" },
-  { name: "Tradedoubler", color: "#00A3E0" },
-  { name: "Everflow", color: "#FF6B35" },
-  { name: "CJ Affiliate", color: "#003366" },
-  { name: "Impact", color: "#FF6D3A" },
-  { name: "Google Analytics 4", color: "#F9AB00" },
-  { name: "HubSpot", color: "#FF7A59" },
-  { name: "Salesforce", color: "#00A1E0" },
-  { name: "Custom Connector", color: "#6941c6" },
-  { name: "Google Sheets", color: "#0F9D58" },
-  { name: "Import CSV", color: "#71717a" },
-  { name: "Snowflake", color: "#29B5E8" },
-  { name: "BigQuery", color: "#4285F4" },
-  { name: "Shopify", color: "#95BF47" },
-  { name: "WooCommerce", color: "#96588A" },
-  { name: "Salesforce Commerce Cloud", color: "#00A1E0" },
-  { name: "Salesforce Marketing Cloud", color: "#00A1E0" },
-  { name: "Klaviyo", color: "#2B2B2B" },
-  { name: "ActiveCampaign", color: "#356AE6" },
-  { name: "AppsFlyer", color: "#00C853" },
-  { name: "Recharge", color: "#00BFA5" },
-  { name: "Judge.me", color: "#FFC107" },
-  { name: "Fera.ai", color: "#FF5252" },
-  { name: "Roku", color: "#6C3C97" },
-  { name: "Multiple", color: "#9CA3AF" },
-];
 
 // --- Transformation Step Types ---
 interface TransformStep {
@@ -1421,14 +1113,11 @@ const EditButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => 
 const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
   const info = getSourceStreamInfo(field.source);
   return (
-    <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
+    <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
       <div className="px-2 py-2" />
       <div className="px-4 py-2 flex flex-col justify-center min-w-0">
-        <span className="text-[var(--text-secondary)] text-xs truncate">
-          {field.displayName || <span className="text-[var(--text-label)] italic">Unmapped</span>}
-        </span>
         {/* Source pill for field view child rows */}
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="flex items-center gap-1.5">
           <div
             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px]"
             style={{ borderColor: field.sourceColor + "40", backgroundColor: field.sourceColor + "08" }}
@@ -1453,24 +1142,13 @@ const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => v
           </div>
         )}
       </div>
-      <div className="px-4 py-2 flex items-center min-w-0">
+      <div className="pl-8 pr-4 py-2 flex items-center min-w-0">
         <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate">
           {field.sourceKey}
         </code>
       </div>
-      <div className="px-4 py-2 flex items-center min-w-0">
-        <code className="text-[var(--text-muted)] text-[10px] font-mono truncate">
-          {field.columnName || field.name}
-        </code>
-      </div>
       <div className="px-4 py-2 flex items-center">
         <DataTypeBadge type={field.dataType} />
-      </div>
-      <div className="px-4 py-2 flex items-center">
-        <TransformBadge transform={field.transformation} />
-      </div>
-      <div className="px-4 py-2 flex items-center">
-        <StatusBadge status={field.status} />
       </div>
       <div className="px-4 py-2 flex items-center">
         <EditButton onClick={(e) => { e.stopPropagation(); onEdit(field); }} />
@@ -1496,6 +1174,7 @@ export default function MetricsDimensionsTab({
   const [sourceFilter, setSourceFilter] = useState("all");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [editField, setEditField] = useState<Field | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
@@ -1516,9 +1195,11 @@ export default function MetricsDimensionsTab({
     setSearch("");
   };
 
+  const isFlowTab = subTab === "metrics-flow" || subTab === "dimensions-flow";
+
   // Filter fields
   const filteredFields = useMemo(() => {
-    if (subTab === "data-flow") return [];
+    if (isFlowTab) return [];
     return fields.filter((f) => {
       if (f.kind !== (subTab === "metrics" ? "metric" : "dimension")) return false;
       if (statusFilter === "mapped" && f.status !== "Mapped") return false;
@@ -1543,7 +1224,7 @@ export default function MetricsDimensionsTab({
 
   // Unique sources for filter dropdown
   const uniqueSources = useMemo(() => {
-    if (subTab === "data-flow") return [];
+    if (isFlowTab) return [];
     const kindFilter = subTab === "metrics" ? "metric" : "dimension";
     const sources = new Set(fields.filter((f) => f.kind === kindFilter).map((f) => f.source));
     return Array.from(sources).sort();
@@ -1667,17 +1348,27 @@ export default function MetricsDimensionsTab({
               Dimensions ({dimensionCount})
             </button>
             <button
-              onClick={() => switchSubTab("data-flow")}
+              onClick={() => switchSubTab("metrics-flow")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                subTab === "data-flow"
+                subTab === "metrics-flow"
                   ? "bg-[#6941c6] text-white shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
-              Data Flow
+              Metrics (Flow)
+            </button>
+            <button
+              onClick={() => switchSubTab("dimensions-flow")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                subTab === "dimensions-flow"
+                  ? "bg-[#6941c6] text-white shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              Dimensions (Flow)
             </button>
           </div>
-          {subTab !== "data-flow" && <div className="flex items-center gap-2">
+          {!isFlowTab && <div className="flex items-center gap-2">
             <div className="relative">
               <SearchIcon />
               <input
@@ -1814,11 +1505,22 @@ export default function MetricsDimensionsTab({
               </svg>
               Add Field
             </button>
+
+            {/* Bulk Add */}
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="bg-[var(--bg-badge)] hover:bg-[var(--hover-item)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-primary)] rounded-md flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 3.5h8M2 6h8M2 8.5h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              Bulk Add
+            </button>
           </div>}
         </div>
 
         {/* View toggle row — hidden for Data Flow tab */}
-        {subTab !== "data-flow" && <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
+        {!isFlowTab && <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
           <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
             <button
               onClick={() => switchViewMode("field")}
@@ -1848,13 +1550,19 @@ export default function MetricsDimensionsTab({
         </div>}
 
         {/* Data Flow tab content */}
-        {subTab === "data-flow" && <NoirCircuitView />}
+        {isFlowTab && (
+          <FlowView
+            fields={fields}
+            kind={subTab === "metrics-flow" ? "metric" : "dimension"}
+            onBulkAdd={() => setIsBulkModalOpen(true)}
+          />
+        )}
 
         {/* Table content — metrics/dimensions only */}
-        {subTab !== "data-flow" && (viewMode === "field" ? (
+        {!isFlowTab && (viewMode === "field" ? (
           <>
-            {/* Field View Header — shared 8-column grid */}
-            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-primary)]">
+            {/* Field View Header */}
+            <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
@@ -1863,16 +1571,7 @@ export default function MetricsDimensionsTab({
                 <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Column Name</span>
-              </div>
-              <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Transform</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
               </div>
               <div className="px-4 py-3" />
             </div>
@@ -1888,7 +1587,7 @@ export default function MetricsDimensionsTab({
                 <div key={group.key}>
                   {/* Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(group.key)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
@@ -1922,17 +1621,8 @@ export default function MetricsDimensionsTab({
                       </div>
                       <span className="text-[var(--text-dim)] text-[10px] ml-1">{group.fields.length}</span>
                     </div>
-                    <div className="px-4 py-2.5" />
                     <div className="px-4 py-2.5 flex items-center">
                       <DataTypeBadge type={uniqueDataTypes[0]} />
-                    </div>
-                    <div className="px-4 py-2.5 flex items-center">
-                      <TransformBadge transform={uniqueTransforms[0]} />
-                    </div>
-                    <div className="px-4 py-2.5 flex items-center">
-                      <span className="text-xs text-[var(--text-muted)]">
-                        <span className="text-[#00bc7d]">{group.mappedCount}</span>/{group.fields.length}
-                      </span>
                     </div>
                     <div className="px-4 py-2.5" />
                   </div>
@@ -1947,8 +1637,8 @@ export default function MetricsDimensionsTab({
           </>
         ) : (
           <>
-            {/* Source View Header — shared 8-column grid */}
-            <div className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-primary)]">
+            {/* Source View Header */}
+            <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
@@ -1957,16 +1647,7 @@ export default function MetricsDimensionsTab({
                 <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
               </div>
               <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Column Name</span>
-              </div>
-              <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Transform</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
               </div>
               <div className="px-4 py-3" />
             </div>
@@ -1980,13 +1661,13 @@ export default function MetricsDimensionsTab({
                 <div key={parentKey}>
                   {/* Level 1: Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(parentKey)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
                       <ChevronIcon expanded={isParentExpanded} />
                     </div>
-                    <div className="col-span-7 px-4 py-2.5 flex items-center gap-2 min-w-0">
+                    <div className="col-span-4 px-4 py-2.5 flex items-center gap-2 min-w-0">
                       <div
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: parentGroup.color }}
@@ -2009,13 +1690,13 @@ export default function MetricsDimensionsTab({
                       <div key={streamKey}>
                         {/* Stream row */}
                         <div
-                          className="grid grid-cols-[32px_1fr_160px_100px_80px_80px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                          className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                           onClick={() => toggleGroup(streamKey)}
                         >
                           <div className="px-2 py-2 flex items-center justify-center pl-6">
                             <ChevronIcon expanded={isStreamExpanded} />
                           </div>
-                          <div className="col-span-7 px-4 py-2 flex items-center gap-2 min-w-0">
+                          <div className="col-span-4 px-4 py-2 flex items-center gap-2 min-w-0">
                             <span className="text-[var(--text-secondary)] text-xs font-medium">
                               {streamGroup.stream}
                             </span>
@@ -2047,7 +1728,7 @@ export default function MetricsDimensionsTab({
         ))}
 
         {/* Empty state — metrics/dimensions only */}
-        {subTab !== "data-flow" && paginatedGroups.length === 0 && (
+        {!isFlowTab && paginatedGroups.length === 0 && (
           <div className="px-6 py-12 text-center">
             <p className="text-[var(--text-label)] text-sm">
               {search
@@ -2058,7 +1739,7 @@ export default function MetricsDimensionsTab({
         )}
 
         {/* Pagination — metrics/dimensions only */}
-        {subTab !== "data-flow" && <Pagination
+        {!isFlowTab && <Pagination
           currentPage={currentPage}
           totalItems={totalGroups}
           itemsPerPage={itemsPerPage}
@@ -2087,7 +1768,18 @@ export default function MetricsDimensionsTab({
           setEditField(null);
         }}
         editField={editField}
-        defaultKind={subTab === "dimensions" ? "dimension" : "metric"}
+        defaultKind={subTab === "dimensions" || subTab === "dimensions-flow" ? "dimension" : "metric"}
+        fields={fields}
+      />
+
+      <BulkAddModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onSave={(newFields) => {
+          onFieldsChange([...fields, ...newFields]);
+          setIsBulkModalOpen(false);
+        }}
+        defaultKind={subTab === "dimensions" || subTab === "dimensions-flow" ? "dimension" : "metric"}
         fields={fields}
       />
     </div>
