@@ -500,16 +500,6 @@ function FieldFlowDiagram({
               <div style={{ fontSize: 10, color: NOIR.textDim, marginTop: 3, paddingLeft: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {src.sourceKey}
               </div>
-              <div style={{ marginTop: 4, paddingLeft: 15 }}>
-                <span style={{
-                  fontSize: 9, padding: "1px 5px", borderRadius: 3,
-                  background: src.status === "Mapped" ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
-                  color: src.status === "Mapped" ? "#10B981" : "#F59E0B",
-                  border: `1px solid ${src.status === "Mapped" ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}`,
-                }}>
-                  {src.status === "Mapped" ? "MAPPED" : "UNMAPPED"}
-                </span>
-              </div>
             </div>
           );
         })}
@@ -578,18 +568,6 @@ function FieldFlowDiagram({
             &ldquo;{group.description}&rdquo;
           </div>
         )}
-        <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-          {group.hasMapped && (
-            <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "rgba(16,185,129,0.1)", color: "#10B981", border: "1px solid rgba(16,185,129,0.2)" }}>
-              MAPPED
-            </span>
-          )}
-          {group.hasUnmapped && (
-            <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "rgba(245,158,11,0.1)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.2)" }}>
-              UNMAPPED
-            </span>
-          )}
-        </div>
         <div style={{ fontSize: 10, color: NOIR.textDim, marginTop: 8 }}>
           {group.sources.length} source{group.sources.length !== 1 ? "s" : ""}
         </div>

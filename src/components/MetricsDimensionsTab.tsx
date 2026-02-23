@@ -1113,7 +1113,7 @@ const EditButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => 
 const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
   const info = getSourceStreamInfo(field.source);
   return (
-    <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
+    <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
       <div className="px-2 py-2" />
       <div className="px-4 py-2 flex flex-col justify-center min-w-0">
         {/* Source pill for field view child rows */}
@@ -1133,17 +1133,15 @@ const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => v
             <span className="text-[var(--text-muted)]">{info.stream}</span>
           </div>
         </div>
-        {/* Table labels */}
-        {field.tables && field.tables.length > 0 && (
-          <div className="flex items-center gap-1 mt-0.5">
-            {field.tables.map(t => (
-              <span key={t} className="text-[9px] text-[var(--text-label)] bg-[var(--hover-item)] px-1.5 py-0.5 rounded">{t}</span>
-            ))}
-          </div>
-        )}
       </div>
       <div className="pl-8 pr-4 py-2 flex items-center min-w-0">
-        <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate">
+        <span className="text-[var(--text-secondary)] text-[11px] truncate" title={info.parent}>{info.parent}</span>
+      </div>
+      <div className="px-4 py-2 flex items-center min-w-0">
+        <span className="text-[var(--text-muted)] text-[11px] truncate" title={info.stream}>{info.stream}</span>
+      </div>
+      <div className="px-4 py-2 flex items-center min-w-0">
+        <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate" title={field.sourceKey}>
           {field.sourceKey}
         </code>
       </div>
@@ -1562,10 +1560,16 @@ export default function MetricsDimensionsTab({
         {!isFlowTab && (viewMode === "field" ? (
           <>
             {/* Field View Header */}
-            <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-primary)]">
+            <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
+              </div>
+              <div className="px-4 py-3">
+                <span className="text-[var(--text-label)] text-xs font-medium">Source</span>
+              </div>
+              <div className="px-4 py-3">
+                <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
               </div>
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
@@ -1587,7 +1591,7 @@ export default function MetricsDimensionsTab({
                 <div key={group.key}>
                   {/* Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(group.key)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
@@ -1621,6 +1625,8 @@ export default function MetricsDimensionsTab({
                       </div>
                       <span className="text-[var(--text-dim)] text-[10px] ml-1">{group.fields.length}</span>
                     </div>
+                    <div className="px-4 py-2.5" />
+                    <div className="px-4 py-2.5" />
                     <div className="px-4 py-2.5 flex items-center">
                       <DataTypeBadge type={uniqueDataTypes[0]} />
                     </div>
@@ -1638,10 +1644,16 @@ export default function MetricsDimensionsTab({
         ) : (
           <>
             {/* Source View Header */}
-            <div className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-primary)]">
+            <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-primary)]">
               <div className="px-2 py-3" />
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
+              </div>
+              <div className="px-4 py-3">
+                <span className="text-[var(--text-label)] text-xs font-medium">Source</span>
+              </div>
+              <div className="px-4 py-3">
+                <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
               </div>
               <div className="px-4 py-3">
                 <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
@@ -1661,13 +1673,13 @@ export default function MetricsDimensionsTab({
                 <div key={parentKey}>
                   {/* Level 1: Parent row */}
                   <div
-                    className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                    className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                     onClick={() => toggleGroup(parentKey)}
                   >
                     <div className="px-2 py-2.5 flex items-center justify-center">
                       <ChevronIcon expanded={isParentExpanded} />
                     </div>
-                    <div className="col-span-4 px-4 py-2.5 flex items-center gap-2 min-w-0">
+                    <div className="col-span-6 px-4 py-2.5 flex items-center gap-2 min-w-0">
                       <div
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: parentGroup.color }}
@@ -1690,24 +1702,16 @@ export default function MetricsDimensionsTab({
                       <div key={streamKey}>
                         {/* Stream row */}
                         <div
-                          className="grid grid-cols-[32px_1fr_200px_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                          className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                           onClick={() => toggleGroup(streamKey)}
                         >
                           <div className="px-2 py-2 flex items-center justify-center pl-6">
                             <ChevronIcon expanded={isStreamExpanded} />
                           </div>
-                          <div className="col-span-4 px-4 py-2 flex items-center gap-2 min-w-0">
+                          <div className="col-span-6 px-4 py-2 flex items-center gap-2 min-w-0">
                             <span className="text-[var(--text-secondary)] text-xs font-medium">
                               {streamGroup.stream}
                             </span>
-                            {/* Table pills */}
-                            {streamGroup.tables.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                {streamGroup.tables.map(t => (
-                                  <span key={t} className="text-[9px] text-[var(--text-label)] bg-[var(--hover-item)] px-1.5 py-0.5 rounded">{t}</span>
-                                ))}
-                              </div>
-                            )}
                             <span className="text-[var(--text-label)] text-[10px]">
                               {streamGroup.fields.length} fields
                             </span>
