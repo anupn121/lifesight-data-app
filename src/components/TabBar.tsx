@@ -1,6 +1,6 @@
 "use client";
 
-export type TabId = "monitoring" | "integrations" | "metrics-dimensions" | "tactic-mapper" | "data-models";
+export type TabId = "monitoring" | "integrations" | "integrations-monitoring" | "metrics-dimensions" | "tactic-mapper" | "data-models";
 
 interface TabBarProps {
   activeTab: TabId;
@@ -10,6 +10,7 @@ interface TabBarProps {
 const tabs: { id: TabId; label: string }[] = [
   { id: "monitoring", label: "Monitoring" },
   { id: "integrations", label: "Integrations" },
+  { id: "integrations-monitoring", label: "Integrations & Monitoring" },
   { id: "metrics-dimensions", label: "Metrics & Dimensions" },
   { id: "tactic-mapper", label: "Tactic Mapper" },
   { id: "data-models", label: "Data Models" },

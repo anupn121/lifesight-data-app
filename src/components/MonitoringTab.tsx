@@ -5,41 +5,33 @@ import {
   type IntegrationStatus,
   type IntegrationCategory,
   type AccountStatus,
-  type SyncHealthStatus,
   type Integration,
   allIntegrations,
-  heatmapDates,
   ALL_CATEGORIES,
   ALL_STATUSES,
+  STATUS_LABELS,
 } from "./monitoringData";
 
 // ─── Status Config ──────────────────────────────────────────────────────────
 const statusConfig: Record<IntegrationStatus, { color: string; dotColor: string; bg: string; borderColor: string }> = {
-  Active: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]", bg: "", borderColor: "" },
-  Warning: { color: "text-[#fe9a00]", dotColor: "bg-[#fe9a00]", bg: "bg-[#fe9a00]/5", borderColor: "border-[#fe9a00]/30" },
-  Reconnect: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
-  Failed: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
-  Partial: { color: "text-[#3b82f6]", dotColor: "bg-[#3b82f6]", bg: "bg-[#3b82f6]/5", borderColor: "border-[#3b82f6]/30" },
-  "Sync-in-Progress": { color: "text-[#a855f7]", dotColor: "bg-[#a855f7]", bg: "bg-[#a855f7]/5", borderColor: "border-[#a855f7]/30" },
+  NOT_CONNECTED: { color: "text-[#71717a]", dotColor: "bg-[#71717a]", bg: "", borderColor: "" },
+  SETUP_INCOMPLETE: { color: "text-[#fe9a00]", dotColor: "bg-[#fe9a00]", bg: "bg-[#fe9a00]/5", borderColor: "border-[#fe9a00]/30" },
+  SYNCING: { color: "text-[#a855f7]", dotColor: "bg-[#a855f7]", bg: "bg-[#a855f7]/5", borderColor: "border-[#a855f7]/30" },
+  CONNECTED: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]", bg: "", borderColor: "" },
+  SYNC_ERROR: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
+  ACTION_REQUIRED: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
 };
 
 const accountStatusConfig: Record<AccountStatus, { color: string; dotColor: string }> = {
-  Active: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]" },
-  Warning: { color: "text-[#fe9a00]", dotColor: "bg-[#fe9a00]" },
-  Reconnect: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
-  Failed: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
-  Partial: { color: "text-[#3b82f6]", dotColor: "bg-[#3b82f6]" },
-  Inactive: { color: "text-[var(--text-dim)]", dotColor: "bg-[#71717a]" },
+  NOT_CONNECTED: { color: "text-[var(--text-dim)]", dotColor: "bg-[#71717a]" },
+  SETUP_INCOMPLETE: { color: "text-[#fe9a00]", dotColor: "bg-[#fe9a00]" },
+  SYNCING: { color: "text-[#a855f7]", dotColor: "bg-[#a855f7]" },
+  CONNECTED: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]" },
+  SYNC_ERROR: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
+  ACTION_REQUIRED: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
 };
 
-const syncHealthConfig: Record<SyncHealthStatus, { bg: string; text: string; icon: string }> = {
-  healthy: { bg: "bg-[#00bc7d]/15", text: "text-[#00bc7d]", icon: "\u2713" },
-  warning: { bg: "bg-[#fe9a00]/15", text: "text-[#fe9a00]", icon: "\u26a0" },
-  failed: { bg: "bg-[#ff2056]/15", text: "text-[#ff2056]", icon: "\u2717" },
-  pending: { bg: "bg-[#a855f7]/15", text: "text-[#a855f7]", icon: "\u27f3" },
-};
-
-const ATTENTION_STATUSES: IntegrationStatus[] = ["Warning", "Reconnect", "Failed", "Partial"];
+const ATTENTION_STATUSES: IntegrationStatus[] = ["SYNC_ERROR", "ACTION_REQUIRED", "SETUP_INCOMPLETE"];
 
 // ─── Status Legend Data ─────────────────────────────────────────────────────
 const statusLegendItems: {
@@ -49,13 +41,12 @@ const statusLegendItems: {
   requiresAction: boolean;
   shownIn: string;
 }[] = [
-  { status: "Active", dotColor: "bg-[#00bc7d]", description: "All syncs running normally", requiresAction: false, shownIn: "Monitoring & Integrations" },
-  { status: "Warning", dotColor: "bg-[#fe9a00]", description: "Some accounts have stale or incomplete data", requiresAction: true, shownIn: "Monitoring & Integrations" },
-  { status: "Partial", dotColor: "bg-[#3b82f6]", description: "Not all available accounts are selected for sync", requiresAction: true, shownIn: "Monitoring & Integrations" },
-  { status: "Reconnect", dotColor: "bg-[#ff2056]", description: "Connection expired — re-authentication required", requiresAction: true, shownIn: "Monitoring & Integrations" },
-  { status: "Failed", dotColor: "bg-[#ff2056]", description: "All syncs failing — immediate action needed", requiresAction: true, shownIn: "Monitoring & Integrations" },
-  { status: "Sync-in-Progress", dotColor: "bg-[#a855f7]", description: "Initial sync underway — data available soon", requiresAction: false, shownIn: "Monitoring & Integrations" },
-  { status: "Inactive", dotColor: "bg-[#71717a]", description: "Integration is disabled or disconnected", requiresAction: false, shownIn: "Integrations tab only" },
+  { status: "Not Connected", dotColor: "bg-[#71717a]", description: "This integration is available but hasn't been set up yet.", requiresAction: false, shownIn: "Monitoring & Integrations" },
+  { status: "Setup Incomplete", dotColor: "bg-[#fe9a00]", description: "You started connecting this source but didn't finish. Resume setup to start syncing.", requiresAction: true, shownIn: "Monitoring & Integrations" },
+  { status: "Syncing", dotColor: "bg-[#a855f7]", description: "Your data is being pulled in. This may take a few minutes for the initial sync.", requiresAction: false, shownIn: "Monitoring & Integrations" },
+  { status: "Connected", dotColor: "bg-[#00bc7d]", description: "Everything is working. Your data is up to date.", requiresAction: false, shownIn: "Monitoring & Integrations" },
+  { status: "Sync Error", dotColor: "bg-[#ff2056]", description: "Something went wrong during the last sync. We're looking into it — no action needed from you.", requiresAction: false, shownIn: "Monitoring & Integrations" },
+  { status: "Action Required", dotColor: "bg-[#ff2056]", description: "There's an issue that needs your attention. Check the details below to resolve it.", requiresAction: true, shownIn: "Monitoring & Integrations" },
 ];
 
 // ─── Helper Components ──────────────────────────────────────────────────────
@@ -77,7 +68,7 @@ const StatusBadge = ({ status }: { status: IntegrationStatus }) => {
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-semibold uppercase tracking-wide ${cfg.color} ${cfg.borderColor || "border-current/20"}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
-      {status}
+      {STATUS_LABELS[status]}
     </span>
   );
 };
@@ -87,7 +78,7 @@ const AccountStatusBadge = ({ status }: { status: AccountStatus }) => {
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs ${cfg.color}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
-      {status}
+      {STATUS_LABELS[status]}
     </span>
   );
 };
@@ -252,12 +243,12 @@ export default function MonitoringTab() {
   // ─── Filtered integrations ──────────────────────────────────────────────
   const filtered = allIntegrations.filter((i) => {
     if (categoryFilter.length > 0 && !categoryFilter.includes(i.category)) return false;
-    if (statusFilter.length > 0 && !statusFilter.includes(i.status)) return false;
+    if (statusFilter.length > 0 && !statusFilter.includes(STATUS_LABELS[i.status])) return false;
     return true;
   });
 
   // ─── Derived counts ─────────────────────────────────────────────────────
-  const attentionOrder: Record<string, number> = { Failed: 0, Reconnect: 1, Warning: 2, Partial: 3 };
+  const attentionOrder: Record<string, number> = { ACTION_REQUIRED: 0, SYNC_ERROR: 1, SETUP_INCOMPLETE: 2 };
   const needsAttention = allIntegrations
     .filter((i) => ATTENTION_STATUSES.includes(i.status))
     .sort((a, b) => (attentionOrder[a.status] ?? 99) - (attentionOrder[b.status] ?? 99));
@@ -268,12 +259,12 @@ export default function MonitoringTab() {
   const destinations = allIntegrations.filter((i) => i.connectionType === "Destination");
 
   const countByStatus = (list: Integration[]) => ({
-    active: list.filter((i) => i.status === "Active").length,
-    warning: list.filter((i) => i.status === "Warning").length,
-    reconnect: list.filter((i) => i.status === "Reconnect").length,
-    failed: list.filter((i) => i.status === "Failed").length,
-    partial: list.filter((i) => i.status === "Partial").length,
-    syncing: list.filter((i) => i.status === "Sync-in-Progress").length,
+    connected: list.filter((i) => i.status === "CONNECTED").length,
+    syncing: list.filter((i) => i.status === "SYNCING").length,
+    syncError: list.filter((i) => i.status === "SYNC_ERROR").length,
+    actionRequired: list.filter((i) => i.status === "ACTION_REQUIRED").length,
+    setupIncomplete: list.filter((i) => i.status === "SETUP_INCOMPLETE").length,
+    notConnected: list.filter((i) => i.status === "NOT_CONNECTED").length,
   });
 
   const srcCounts = countByStatus(sources);
@@ -283,8 +274,8 @@ export default function MonitoringTab() {
   const needsAttentionFiltered = filtered
     .filter((i) => ATTENTION_STATUSES.includes(i.status))
     .sort((a, b) => (attentionOrder[a.status] ?? 99) - (attentionOrder[b.status] ?? 99));
-  const syncInProgressFiltered = filtered.filter((i) => i.status === "Sync-in-Progress");
-  const healthyFiltered = filtered.filter((i) => i.status === "Active");
+  const syncInProgressFiltered = filtered.filter((i) => i.status === "SYNCING");
+  const healthyFiltered = filtered.filter((i) => i.status === "CONNECTED");
 
   return (
     <div className="flex flex-col gap-5">
@@ -331,7 +322,9 @@ export default function MonitoringTab() {
                     <span className="text-[var(--text-primary)] text-sm font-semibold whitespace-nowrap">{integration.name}</span>
                     <StatusBadge status={integration.status} />
                     <span className="text-[var(--text-dim)] text-xs truncate flex-1 min-w-0">
-                      {integration.alertMessage || integration.subtitle}
+                      {integration.status === "SYNC_ERROR"
+                        ? `Something went wrong on our end — data reliable through ${integration.reliableThrough}`
+                        : integration.alertMessage || integration.subtitle}
                     </span>
                     <button
                       onClick={() => scrollToIntegration(integration.name)}
@@ -353,23 +346,23 @@ export default function MonitoringTab() {
           <div>
             <p className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider mb-2">Sources <InfoIcon tooltip="Status breakdown of all connected source integrations" /></p>
             <div className="flex items-center gap-4 flex-wrap">
-              {srcCounts.active > 0 && <StatusDot color="bg-[#00bc7d]" label={`${srcCounts.active} Active`} />}
-              {srcCounts.warning > 0 && <StatusDot color="bg-[#fe9a00]" label={`${srcCounts.warning} Warning`} />}
-              {srcCounts.partial > 0 && <StatusDot color="bg-[#3b82f6]" label={`${srcCounts.partial} Partial`} />}
-              {srcCounts.reconnect > 0 && <StatusDot color="bg-[#ff2056]" label={`${srcCounts.reconnect} Reconnect`} />}
-              {srcCounts.failed > 0 && <StatusDot color="bg-[#ff2056]" label={`${srcCounts.failed} Failed`} />}
+              {srcCounts.connected > 0 && <StatusDot color="bg-[#00bc7d]" label={`${srcCounts.connected} Connected`} />}
               {srcCounts.syncing > 0 && <StatusDot color="bg-[#a855f7]" label={`${srcCounts.syncing} Syncing`} />}
+              {srcCounts.syncError > 0 && <StatusDot color="bg-[#ff2056]" label={`${srcCounts.syncError} Sync Error`} />}
+              {srcCounts.actionRequired > 0 && <StatusDot color="bg-[#ff2056]" label={`${srcCounts.actionRequired} Action Required`} />}
+              {srcCounts.setupIncomplete > 0 && <StatusDot color="bg-[#fe9a00]" label={`${srcCounts.setupIncomplete} Setup Incomplete`} />}
+              {srcCounts.notConnected > 0 && <StatusDot color="bg-[#71717a]" label={`${srcCounts.notConnected} Not Connected`} />}
             </div>
           </div>
           <div className="border-l border-[var(--border-primary)] pl-12">
             <p className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider mb-2">Destinations <InfoIcon tooltip="Status breakdown of all connected destination integrations" /></p>
             <div className="flex items-center gap-4 flex-wrap">
-              {dstCounts.active > 0 && <StatusDot color="bg-[#00bc7d]" label={`${dstCounts.active} Active`} />}
-              {dstCounts.warning > 0 && <StatusDot color="bg-[#fe9a00]" label={`${dstCounts.warning} Warning`} />}
-              {dstCounts.partial > 0 && <StatusDot color="bg-[#3b82f6]" label={`${dstCounts.partial} Partial`} />}
-              {dstCounts.reconnect > 0 && <StatusDot color="bg-[#ff2056]" label={`${dstCounts.reconnect} Reconnect`} />}
-              {dstCounts.failed > 0 && <StatusDot color="bg-[#ff2056]" label={`${dstCounts.failed} Failed`} />}
+              {dstCounts.connected > 0 && <StatusDot color="bg-[#00bc7d]" label={`${dstCounts.connected} Connected`} />}
               {dstCounts.syncing > 0 && <StatusDot color="bg-[#a855f7]" label={`${dstCounts.syncing} Syncing`} />}
+              {dstCounts.syncError > 0 && <StatusDot color="bg-[#ff2056]" label={`${dstCounts.syncError} Sync Error`} />}
+              {dstCounts.actionRequired > 0 && <StatusDot color="bg-[#ff2056]" label={`${dstCounts.actionRequired} Action Required`} />}
+              {dstCounts.setupIncomplete > 0 && <StatusDot color="bg-[#fe9a00]" label={`${dstCounts.setupIncomplete} Setup Incomplete`} />}
+              {dstCounts.notConnected > 0 && <StatusDot color="bg-[#71717a]" label={`${dstCounts.notConnected} Not Connected`} />}
             </div>
           </div>
         </div>
@@ -387,68 +380,13 @@ export default function MonitoringTab() {
           <MultiSelectDropdown
             label="Status"
             selected={statusFilter}
-            options={ALL_STATUSES as unknown as string[]}
+            options={ALL_STATUSES.map((s) => STATUS_LABELS[s])}
             onChange={setStatusFilter}
           />
         </div>
       </div>
 
-      {/* ─── 4. Sync Health Timeline (Heatmap) ───────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1 h-5 bg-[#6941c6] rounded-full" />
-          <h3 className="text-[var(--text-primary)] text-lg font-semibold">Sync Health Timeline</h3>
-          <InfoIcon tooltip="Color-coded grid showing each integration's sync health over the last 7 days. Hover a cell for details." />
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-6">
-          {/* Header row */}
-          <div className="grid gap-1" style={{ gridTemplateColumns: "200px repeat(7, 1fr)" }}>
-            <div />
-            {heatmapDates.map((d) => (
-              <div key={d} className="text-center text-[var(--text-dim)] text-[10px] font-medium pb-2">{d}</div>
-            ))}
-          </div>
-          {/* Data rows */}
-          {filtered.map((integration) => {
-            const sCfg = statusConfig[integration.status];
-            return (
-              <div key={integration.name} className="grid gap-1 mb-1" style={{ gridTemplateColumns: "200px repeat(7, 1fr)" }}>
-                <div className="flex items-center gap-2 pr-3">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sCfg.dotColor}`} />
-                  <span className="text-[var(--text-secondary)] text-xs truncate">{integration.name}</span>
-                </div>
-                {integration.syncHealthDays.map((status, idx) => {
-                  const hCfg = syncHealthConfig[status];
-                  const detail = integration.syncHealthDetail?.[idx] || "";
-                  const tooltipText = `${integration.name} \u00b7 ${heatmapDates[idx]}\nStatus: ${status}${detail ? `\n${detail}` : ""}`;
-                  return (
-                    <div key={idx} className={`${hCfg.bg} rounded flex items-center justify-center py-2 cursor-default`} title={tooltipText}>
-                      <span className={`text-xs font-medium ${hCfg.text}`}>{hCfg.icon}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-5 mt-4 pt-4 border-t border-[var(--border-subtle)]">
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)] text-[10px]">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#00bc7d]/30" /> Healthy
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)] text-[10px]">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#fe9a00]/30" /> Warning
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)] text-[10px]">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#ff2056]/30" /> Failed
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)] text-[10px]">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#a855f7]/30" /> Syncing
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── 5. Integrations List ────────────────────────────────────────── */}
+      {/* ─── 4. Integrations List ────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -555,8 +493,9 @@ function IntegrationCard({
   cardRef?: React.Ref<HTMLDivElement>;
 }) {
   const cfg = statusConfig[integration.status];
-  const isFailed = integration.status === "Failed";
-  const isSyncing = integration.status === "Sync-in-Progress";
+  const isSyncError = integration.status === "SYNC_ERROR";
+  const isFailed = isSyncError || integration.status === "ACTION_REQUIRED";
+  const isSyncing = integration.status === "SYNCING";
 
   return (
     <div ref={cardRef} className={`bg-[var(--bg-card)] border rounded-xl overflow-hidden ${cfg.borderColor || "border-[var(--border-primary)]"}`}>
@@ -603,8 +542,35 @@ function IntegrationCard({
         style={{ maxHeight: isExpanded ? "1200px" : "0px", opacity: isExpanded ? 1 : 0 }}
       >
         <div className="border-t border-[var(--border-subtle)] px-5 pb-5">
-          {/* Alert banner */}
-          {integration.alertMessage && (
+          {/* Sync Error banner — reassuring, with data boundary dates */}
+          {isSyncError && (
+            <div className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-xl px-5 py-5 mt-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-[#ff2056]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 5.33V8M8 10.67H8.007M14.67 8C14.67 11.68 11.68 14.67 8 14.67C4.32 14.67 1.33 11.68 1.33 8C1.33 4.32 4.32 1.33 8 1.33C11.68 1.33 14.67 4.32 14.67 8Z" stroke="#FF2056" strokeWidth="1.33" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[var(--text-primary)] text-sm font-semibold">We're on it</p>
+                  <p className="text-[var(--text-muted)] text-xs mt-0.5 leading-relaxed">Something went wrong on our end. No action needed from you — we're working on a fix and will update you once it's resolved.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg px-4 py-3">
+                  <p className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider mb-1">Data reliable through</p>
+                  <p className="text-[#00bc7d] text-sm font-semibold">{integration.reliableThrough}</p>
+                </div>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg px-4 py-3">
+                  <p className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider mb-1">Syncing paused since</p>
+                  <p className="text-[#ff2056] text-sm font-semibold">{integration.latestDate}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Alert banner for non-sync-error statuses */}
+          {!isSyncError && integration.alertMessage && (
             <div className={`${integration.alertType === "error" ? "bg-[#ff2056]/10 border-[#ff2056]/20" : "bg-[#fe9a00]/10 border-[#fe9a00]/20"} border rounded-lg px-4 py-3 mt-4 flex items-center justify-between`}>
               <div className="flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -615,7 +581,7 @@ function IntegrationCard({
                 </span>
               </div>
               <button className={`${integration.alertType === "error" ? "bg-[#ff2056] hover:bg-[#e01b4c]" : "bg-[#fe9a00] hover:bg-[#e58a00]"} text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors`}>
-                {integration.status === "Partial" ? "Select Accounts" : integration.alertType === "error" ? "View Error" : "Check Status"}
+                Check Status
               </button>
             </div>
           )}
@@ -628,10 +594,10 @@ function IntegrationCard({
               {/* Overview Metrics Header */}
               <div className="mt-4 mb-3">
                 <p className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">
-                  {isFailed ? "Last Known Metrics (Stale)" : "Overview Metrics"}
+                  {isSyncError ? "Last Synced Metrics" : isFailed ? "Last Known Metrics (Stale)" : "Overview Metrics"}
                 </p>
                 {integration.metricsDateRange && integration.metricsDateRange !== "—" && (
-                  <p className={`text-[10px] mt-0.5 ${isFailed ? "text-[#ff6b8a]" : "text-[var(--text-dim)]"}`}>
+                  <p className={`text-[10px] mt-0.5 ${isFailed && !isSyncError ? "text-[#ff6b8a]" : "text-[var(--text-dim)]"}`}>
                     {integration.metricsDateRange}
                   </p>
                 )}
@@ -689,7 +655,7 @@ function IntegrationCard({
                       <div className="px-4 py-2.5"><AccountStatusBadge status={account.status} /></div>
                       <div className="px-4 py-2.5"><span className={`text-xs ${account.lastRefreshed === "Not selected" ? "text-[var(--text-dim)] italic" : "text-[var(--text-secondary)]"}`}>{account.lastRefreshed}</span></div>
                       <div className="px-4 py-2.5">
-                        <span className={`text-xs ${account.status === "Active" ? "text-[#00bc7d]" : account.dataUntil === "—" ? "text-[var(--text-dim)]" : "text-[#fe9a00]"}`}>
+                        <span className={`text-xs ${account.status === "CONNECTED" ? "text-[#00bc7d]" : account.dataUntil === "—" ? "text-[var(--text-dim)]" : "text-[#fe9a00]"}`}>
                           {account.dataUntil}
                         </span>
                       </div>

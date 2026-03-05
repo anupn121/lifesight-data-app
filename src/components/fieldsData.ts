@@ -4,6 +4,20 @@
 // --- Data Type System ---
 export type DataTypeKey = "CURRENCY" | "FLOAT64" | "NUMERIC" | "INT64" | "STRING" | "DATE" | "BIGNUMERIC" | "JSON";
 
+// --- Metric Category System ---
+export type MetricCategory = "kpi" | "paid_marketing" | "organic" | "contextual" | "halo";
+export type VariableType = "Binary" | "Continuous" | "Categorical";
+export type KpiSubtype = "Revenue" | "Conversions" | "Installs" | "Orders" | "Store Visits" | "Registrations" | "Reach" | "Subscriptions" | "Admissions";
+export type PaidMarketingMetricType = "Spends" | "Impressions" | "Clicks" | "Other";
+
+export const METRIC_CATEGORIES: Record<MetricCategory, { label: string; color: string; description: string }> = {
+  kpi: { label: "KPIs", color: "#00bc7d", description: "Revenue, Conversions, Installs, Orders, etc." },
+  paid_marketing: { label: "Paid Marketing", color: "#2b7fff", description: "Spends, Impressions, Clicks grouped by ad platform" },
+  organic: { label: "Organic", color: "#fe9a00", description: "Binary, Continuous, Categorical variables" },
+  contextual: { label: "Contextual", color: "#6941c6", description: "Binary, Continuous, Categorical variables" },
+  halo: { label: "Halo", color: "#EE1D52", description: "Binary, Continuous, Categorical variables" },
+};
+
 export const DATA_TYPES: Record<DataTypeKey, { display: string; bqType: string }> = {
   DATE: { display: "Date", bqType: "DATE" },
   STRING: { display: "Text", bqType: "STRING" },
@@ -43,6 +57,10 @@ export interface Field {
   transformationFormula?: string;
   tables?: string[];
   currencyConfig?: { code: string; symbol: string };
+  metricCategory?: MetricCategory;
+  variableType?: VariableType;
+  kpiSubtype?: KpiSubtype;
+  paidMarketingMetricType?: PaidMarketingMetricType;
 }
 
 interface RawField {
@@ -58,6 +76,10 @@ interface RawField {
   description: string;
   stream?: string;
   transformationFormula?: string;
+  metricCategory?: MetricCategory;
+  variableType?: VariableType;
+  kpiSubtype?: KpiSubtype;
+  paidMarketingMetricType?: PaidMarketingMetricType;
 }
 
 // --- Source/Stream/Table hierarchy ---
@@ -200,131 +222,54 @@ export function getStreamInfo(source: string): { parent: string; stream: string 
 
 const rawFields: RawField[] = [
   // ══════════════════════════════════════════════════════════════════════
-  // FACEBOOK ADS — Metrics
+  // FACEBOOK ADS
   // ══════════════════════════════════════════════════════════════════════
   { name: "fb_spend", displayName: "Spend", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total advertising spend" },
   { name: "fb_impressions", displayName: "Impressions", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total ad impressions" },
   { name: "fb_clicks", displayName: "Link Clicks", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.inline_link_clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Clicks on ad links" },
-  { name: "fb_all_clicks", displayName: "All Clicks", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks (all types)" },
-  { name: "fb_frequency", displayName: "Frequency", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.frequency", dataType: "Ratio", transformation: "AVG", status: "Mapped", description: "Avg times each person saw the ad" },
   { name: "fb_purchase", displayName: "Purchases", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_purchase]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase conversion events" },
   { name: "fb_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.action_values[omni_purchase]", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue attributed to ad purchases" },
   { name: "fb_add_to_cart", displayName: "Add to Cart", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_add_to_cart]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Add-to-cart events" },
-  { name: "fb_begin_checkout", displayName: "Initiated Checkout", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_initiated_checkout]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Checkout initiation events" },
   { name: "fb_leads", displayName: "Leads", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[lead_grouped]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Lead generation events" },
-  { name: "fb_complete_registration", displayName: "Registrations", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_complete_registration]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Registration completion events" },
-  { name: "fb_app_install", displayName: "App Installs", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_app_install]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "App installation events" },
-  { name: "fb_activate_app", displayName: "App Activations", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_activate_app]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App activation events" },
-  { name: "fb_rate", displayName: "Rate", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_rate]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Rate action events" },
-  { name: "fb_tutorial_completion", displayName: "Tutorial Completion", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_tutorial_completion]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Tutorial completion events" },
-  { name: "fb_achievement_unlocked", displayName: "Achievement Unlocked", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_achievement_unlocked]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Achievement unlocked events" },
-  { name: "fb_spend_credits", displayName: "Spend Credits", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_spend_credits]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "In-app spend credit events" },
-  { name: "fb_level_achieved", displayName: "Level Achieved", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.actions[omni_level_achieved]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Level achieved events" },
-
-  // FACEBOOK ADS — Dimensions
-  { name: "fb_source", displayName: "Source", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Integration source identifier" },
-  { name: "fb_parent_source", displayName: "Parent Source", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source grouping" },
-  { name: "fb_account_id", displayName: "Account ID", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad account identifier" },
-  { name: "fb_account_name", displayName: "Account Name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad account name" },
   { name: "fb_date", displayName: "Date", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.date_start", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "fb_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign identifier" },
   { name: "fb_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "fb_adset_id", displayName: "Ad Set ID", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.adset_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set identifier" },
   { name: "fb_adset_name", displayName: "Ad Set Name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.adset_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set name" },
-  { name: "fb_ad_id", displayName: "Ad ID", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.ad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad identifier" },
   { name: "fb_ad_name", displayName: "Ad Name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.ad_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad creative name" },
   { name: "fb_objective", displayName: "Objective", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.objective", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "fb_device_platform", displayName: "Device Platform", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.device_platform", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Device platform breakdown" },
-  { name: "fb_account_currency", displayName: "Currency", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.account_currency", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency code" },
-  { name: "fb_ad_status", displayName: "Ad Status", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.ad_status", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad delivery status" },
-  { name: "fb_adset_status", displayName: "Ad Set Status", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "aad.dset_status", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad set delivery status" },
-  { name: "fb_campaign_status", displayName: "Campaign Status", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ad.campaign_status", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign delivery status" },
-  { name: "fb_creative_id", displayName: "Creative ID", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "__creative.id__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Creative asset identifier" },
-  { name: "fb_creative_status", displayName: "Creative Status", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.status", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Creative delivery status" },
-  { name: "fb_tracking_url", displayName: "Tracking URL", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.url_tags", dataType: "String", transformation: "NONE", status: "Unmapped", description: "URL tags for tracking" },
-  { name: "fb_photo_title", displayName: "Photo Title", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.object_story_spec.photo_data.title", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Photo creative title" },
-  { name: "fb_photo_message", displayName: "Photo Message", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.object_story_spec.photo_data.message", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Photo creative primary text" },
-  { name: "fb_photo_link_desc", displayName: "Photo Link Description", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.object_story_spec.photo_data.link_description", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Photo link description" },
-  { name: "fb_video_cta", displayName: "Video CTA", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.object_story_spec.video_data.call_to_action.value.link", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Video call-to-action link" },
-  { name: "fb_video_link_desc", displayName: "Video Link Description", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "creative.object_story_spec.video_data.link_description", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Video link description" },
 
   // ══════════════════════════════════════════════════════════════════════
-  // FACEBOOK GEO INSIGHTS — Metrics & Dimensions
+  // FACEBOOK GEO INSIGHTS
   // ══════════════════════════════════════════════════════════════════════
   { name: "fb_geo_impressions", displayName: "Impressions", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Impressions by geo" },
-  { name: "fb_geo_all_clicks", displayName: "All Clicks", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "All clicks by geo" },
   { name: "fb_geo_clicks", displayName: "Link Clicks", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "inline_link_clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Link clicks by geo" },
   { name: "fb_geo_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "action_values[omni_purchase]", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Purchase revenue by geo" },
-  { name: "fb_geo_registration", displayName: "Registrations", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "actions[omni_complete_registration]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Registrations by geo" },
-  { name: "fb_geo_activate_app", displayName: "App Activations", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "actions[omni_activate_app]", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App activations by geo" },
-  { name: "fb_geo_app_install", displayName: "App Installs", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "actions[omni_app_install]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "App installs by geo" },
-  { name: "fb_geo_begin_checkout", displayName: "Checkout", kind: "metric", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "actions[omni_initiated_checkout]", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Checkouts by geo" },
-  { name: "fb_geo_source", displayName: "Source", kind: "dimension", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
   { name: "fb_geo_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
   { name: "fb_geo_country", displayName: "Country", kind: "dimension", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "country", dataType: "String", transformation: "NONE", status: "Mapped", description: "Country code" },
-  { name: "fb_geo_state", displayName: "State", kind: "dimension", source: "Facebook Geo Insights", sourceColor: "#1877F2", sourceKey: "region", dataType: "String", transformation: "NONE", status: "Mapped", description: "State / region" },
 
   // ══════════════════════════════════════════════════════════════════════
-  // GOOGLE ADS — Metrics
+  // GOOGLE ADS
   // ══════════════════════════════════════════════════════════════════════
   { name: "gads_spend", displayName: "Spend", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.costMicros", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend in micros" },
   { name: "gads_impressions", displayName: "Impressions", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total ad impressions" },
   { name: "gads_clicks", displayName: "Clicks", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total ad clicks" },
   { name: "gads_conversions", displayName: "All Conversions", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.allConversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "All conversion actions" },
-  { name: "gads_conv_value", displayName: "Conversions Value", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.conversionsValue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total value of conversions" },
   { name: "gads_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "metrics.attributedRevenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue attributed to ads" },
   { name: "gads_purchase", displayName: "Purchases", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.purchase", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase conversion events" },
-  { name: "gads_add_to_cart", displayName: "Add to Cart", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.add_to_cart", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Add-to-cart events" },
-  { name: "gads_begin_checkout", displayName: "Begin Checkout", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.begin_checkout", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Checkout initiation events" },
-  { name: "gads_signup", displayName: "Signups", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.signup", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Signup events" },
   { name: "gads_submit_lead_form", displayName: "Lead Form Submits", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.submit_lead_form", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Lead form submission events" },
-  { name: "gads_qualified_lead", displayName: "Qualified Leads", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.qualified_lead", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Qualified lead events" },
-  { name: "gads_converted_lead", displayName: "Converted Leads", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.converted_lead", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Converted lead events" },
-  { name: "gads_page_view", displayName: "Page Views", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.page_view", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Page view events" },
-  { name: "gads_download", displayName: "Downloads", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.download", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Download events" },
-  { name: "gads_contact", displayName: "Contacts", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.contact", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Contact events" },
-  { name: "gads_outbound_click", displayName: "Outbound Clicks", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.outbound_click", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Outbound click events" },
-  { name: "gads_book_appointment", displayName: "Book Appointment", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.book_appointment", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Appointment booking events" },
-  { name: "gads_subscribe_paid", displayName: "Paid Subscriptions", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.subscribe_paid", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Paid subscription events" },
-
-  // GOOGLE ADS — Dimensions
-  { name: "gads_source", displayName: "Source", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source identifier" },
-  { name: "gads_parent_source", displayName: "Parent Source", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "gads_account_id", displayName: "Account ID", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account identifier" },
-  { name: "gads_account_name", displayName: "Account Name", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "gads_date", displayName: "Date", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "gads_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__campaign.id__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign identifier" },
   { name: "gads_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__campaign.name__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "gads_adset_id", displayName: "Ad Group ID", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__adGroup.id__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group identifier" },
   { name: "gads_adset_name", displayName: "Ad Group Name", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__adGroup.name__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group name" },
-  { name: "gads_ad_id", displayName: "Ad ID", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__adGroupAd.ad____.id__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad identifier" },
-  { name: "gads_ad_name", displayName: "Ad Name", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "__adGroupAd.ad____.name__", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
-  { name: "gads_ad_type", displayName: "Ad Type", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "adGroupAd.ad.type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad format type" },
   { name: "gads_channel_type", displayName: "Channel Type", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "campaign.advertisingChannelType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX" },
   { name: "gads_objective", displayName: "Network Type", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "segments.adNetworkType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad network type" },
-  { name: "gads_currency", displayName: "Currency", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "currencyCode", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
-  // GOOGLE GEO INSIGHTS — Metrics & Dimensions
+  // GOOGLE GEO INSIGHTS
   // ══════════════════════════════════════════════════════════════════════
+  { name: "gads_geo_spend", displayName: "Spend", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Spend by geo" },
   { name: "gads_geo_impressions", displayName: "Impressions", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Impressions by geo" },
   { name: "gads_geo_clicks", displayName: "Clicks", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Clicks by geo" },
-  { name: "gads_geo_spend", displayName: "Spend", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Spend by geo" },
-  { name: "gads_geo_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "attributed_revenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue by geo" },
-  { name: "gads_geo_purchase", displayName: "Purchases", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "purchase", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchases by geo" },
-  { name: "gads_geo_add_to_cart", displayName: "Add to Cart", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "add_to_cart", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Add to cart by geo" },
-  { name: "gads_geo_begin_checkout", displayName: "Begin Checkout", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "begin_checkout", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Begin checkout by geo" },
-  { name: "gads_geo_registration", displayName: "Registrations", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "complete_registration", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Registrations by geo" },
-  { name: "gads_geo_activate_app", displayName: "App Activations", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "activate_app", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App activations by geo" },
-  { name: "gads_geo_app_install", displayName: "App Installs", kind: "metric", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "app_install", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App installs by geo" },
-  { name: "gads_geo_source", displayName: "Source", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "gads_geo_date", displayName: "Date", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Date" },
-  { name: "gads_geo_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "gads_geo_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "gads_geo_location_type", displayName: "Location Type", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "location_type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Location type" },
   { name: "gads_geo_country", displayName: "Country", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "country_code", dataType: "String", transformation: "NONE", status: "Mapped", description: "Country code" },
-  { name: "gads_geo_state", displayName: "State", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "state", dataType: "String", transformation: "NONE", status: "Mapped", description: "State" },
-  { name: "gads_geo_dma", displayName: "DMA", kind: "dimension", source: "Google Geo Insights", sourceColor: "#34A853", sourceKey: "dma", dataType: "String", transformation: "NONE", status: "Mapped", description: "Designated market area" },
 
   // ══════════════════════════════════════════════════════════════════════
   // TIKTOK ADS
@@ -334,19 +279,9 @@ const rawFields: RawField[] = [
   { name: "tt_clicks", displayName: "Clicks", kind: "metric", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
   { name: "tt_purchase", displayName: "Purchases", kind: "metric", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.total_purchase", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total purchase conversions" },
   { name: "tt_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.total_complete_payment_rate", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from completed payments" },
-  { name: "tt_source", displayName: "Source", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "tt_parent_source", displayName: "Parent Source", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "tt_account_id", displayName: "Account ID", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account ID" },
-  { name: "tt_account_name", displayName: "Account Name", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "tt_date", displayName: "Date", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "tt_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "campaign.campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "tt_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "campaign.campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "tt_adset_id", displayName: "Ad Set ID", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "adset.adSetId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set ID" },
-  { name: "tt_adset_name", displayName: "Ad Set Name", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "adset.adSetName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set name" },
-  { name: "tt_ad_id", displayName: "Ad ID", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "ad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "tt_ad_name", displayName: "Ad Name", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "ad_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
   { name: "tt_objective", displayName: "Objective", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.objective_type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "tt_currency", displayName: "Currency", kind: "dimension", source: "Tiktok Ads", sourceColor: "#EE1D52", sourceKey: "metrics.account_currency", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
   // SNAPCHAT ADS
@@ -354,34 +289,11 @@ const rawFields: RawField[] = [
   { name: "snap_spend", displayName: "Spend", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "snap_impressions", displayName: "Impressions", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "snap_clicks", displayName: "Swipe Ups", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "swipes", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Swipe-up clicks" },
-  { name: "snap_frequency", displayName: "Frequency", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "frequency", dataType: "Ratio", transformation: "AVG", status: "Mapped", description: "Ad frequency" },
   { name: "snap_purchase", displayName: "Purchases", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_purchases", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase conversions" },
   { name: "snap_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_purchases_value", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from purchases" },
-  { name: "snap_add_to_cart", displayName: "Add to Cart", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_add_cart", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Add-to-cart events" },
-  { name: "snap_begin_checkout", displayName: "Begin Checkout", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_start_checkout", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Checkout initiation events" },
-  { name: "snap_signup", displayName: "Signups", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_sign_ups", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Signup events" },
-  { name: "snap_page_view", displayName: "Page Views", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_page_views", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Page view events" },
-  { name: "snap_app_opens", displayName: "App Opens", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_app_opens", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App open events" },
-  { name: "snap_add_billing", displayName: "Add Billing", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_add_billing", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Add billing events" },
-  { name: "snap_subscribe", displayName: "Subscribe", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_subscribe", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Paid subscription events" },
-  { name: "snap_login", displayName: "Login", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_login", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Login events" },
-  { name: "snap_save", displayName: "Saves", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_save", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Save events" },
-  { name: "snap_search", displayName: "Searches", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_searches", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Search events" },
-  { name: "snap_wishlist", displayName: "Add to Wishlist", kind: "metric", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "conversion_add_to_wishlist", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Wishlist events" },
-  // Snapchat Dimensions
-  { name: "snap_source", displayName: "Source", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "snap_parent_source", displayName: "Parent Source", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "snap_account_id", displayName: "Account ID", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account ID" },
-  { name: "snap_account_name", displayName: "Account Name", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "snap_date", displayName: "Date", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "snap_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "snap_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "snap_adset_id", displayName: "Ad Squad ID", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "adsquad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad squad ID" },
-  { name: "snap_adset_name", displayName: "Ad Squad Name", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "adsquad_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad squad name" },
-  { name: "snap_ad_id", displayName: "Ad ID", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "ad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "snap_ad_name", displayName: "Ad Name", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "ad_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
   { name: "snap_objective", displayName: "Objective", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "objective", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "snap_currency", displayName: "Currency", kind: "dimension", source: "Snapchat Ads", sourceColor: "#FFFC00", sourceKey: "currency", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
   // PINTEREST ADS
@@ -390,28 +302,10 @@ const rawFields: RawField[] = [
   { name: "pin_impressions", displayName: "Impressions", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_impression", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "pin_clicks", displayName: "Clickthroughs", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_clickthrough", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Clickthrough events" },
   { name: "pin_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "attributed_revenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue attributed to pins" },
-  { name: "pin_all_conversions", displayName: "All Conversions", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_conversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total conversion events" },
-  { name: "pin_checkout", displayName: "Checkouts", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_checkout", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Checkout conversions" },
-  { name: "pin_begin_checkout", displayName: "Begin Checkout", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_web_checkout", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Web checkout events" },
-  { name: "pin_page_visit", displayName: "Page Visits", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_page_visit", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Page visit events" },
   { name: "pin_leads", displayName: "Leads", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_lead", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Lead generation events" },
-  { name: "pin_signups", displayName: "Signups", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_signup", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Signup events" },
-  { name: "pin_frequency", displayName: "Frequency", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_impression_frequency", dataType: "Ratio", transformation: "AVG", status: "Mapped", description: "Impression frequency" },
-  { name: "pin_custom", displayName: "Custom Events", kind: "metric", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "total_custom", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Custom conversion events" },
-  // Pinterest Dimensions
-  { name: "pin_source", displayName: "Source", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "pin_parent_source", displayName: "Parent Source", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "pin_account_id", displayName: "Account ID", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account ID" },
-  { name: "pin_account_name", displayName: "Account Name", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "pin_date", displayName: "Date", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "pin_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "pin_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "pin_adset_id", displayName: "Ad Group ID", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "ad_group_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group ID" },
-  { name: "pin_adset_name", displayName: "Ad Group Name", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "ad_group_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group name" },
-  { name: "pin_ad_id", displayName: "Ad ID", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "ad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "pin_ad_name", displayName: "Ad Name", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "ad_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
   { name: "pin_objective", displayName: "Objective", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "campaign_objective_type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "pin_currency", displayName: "Currency", kind: "dimension", source: "Pinterest Ads", sourceColor: "#E60023", sourceKey: "currency", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
   // LINKEDIN ADS
@@ -419,24 +313,11 @@ const rawFields: RawField[] = [
   { name: "li_spend", displayName: "Spend", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "Spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "li_impressions", displayName: "Impressions", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "Impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "li_clicks", displayName: "Clicks", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "Clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "li_all_conversions", displayName: "All Conversions", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "externalWebsiteConversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "External website conversions" },
   { name: "li_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "ConversionValueInLocalCurrency", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from conversions" },
   { name: "li_one_click_leads", displayName: "One-Click Leads", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "OneClickLeads", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Lead gen form submissions" },
-  { name: "li_frequency", displayName: "Frequency", kind: "metric", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "Frequency", dataType: "Ratio", transformation: "AVG", status: "Mapped", description: "Ad frequency" },
-  // LinkedIn Dimensions
-  { name: "li_source", displayName: "Source", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "li_parent_source", displayName: "Parent Source", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "li_account_id", displayName: "Account ID", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account ID" },
-  { name: "li_account_name", displayName: "Account Name", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "li_date", displayName: "Date", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "TimePeriod", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "li_campaign_id", displayName: "Campaign Group ID", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CampaignGroupId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign group ID" },
   { name: "li_campaign_name", displayName: "Campaign Group Name", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CampaignGroupName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign group name" },
-  { name: "li_adset_id", displayName: "Campaign ID", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CampaignId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign (ad set) ID" },
-  { name: "li_adset_name", displayName: "Campaign Name", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CampaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign (ad set) name" },
-  { name: "li_ad_id", displayName: "Creative ID", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CreativeId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Creative ID" },
-  { name: "li_ad_type", displayName: "Ad Type", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "Type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad format type" },
   { name: "li_objective", displayName: "Objective", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "ObjectiveType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "li_currency", displayName: "Currency", kind: "dimension", source: "Linkedin Ads", sourceColor: "#0A66C2", sourceKey: "CurrencyCode", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
   // X ADS (Twitter)
@@ -444,65 +325,29 @@ const rawFields: RawField[] = [
   { name: "x_spend", displayName: "Spend", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "x_impressions", displayName: "Impressions", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "x_clicks", displayName: "Clicks", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "x_all_conversions", displayName: "All Conversions", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "all_conversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "All conversion events" },
   { name: "x_purchase", displayName: "Purchases", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_purchases", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase conversions" },
   { name: "x_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_value", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from conversions" },
-  { name: "x_qualified_lead", displayName: "Qualified Leads", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "card_engagements", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Card engagement / lead events" },
-  { name: "x_page_view", displayName: "Site Visits", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_site_visits", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Site visit conversions" },
-  { name: "x_download", displayName: "Downloads", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_downloads", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Download events" },
-  { name: "x_signup", displayName: "Signups", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_sign_ups", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Signup events" },
-  { name: "x_custom", displayName: "Custom", kind: "metric", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "conversion_custom", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Custom conversion events" },
-  // X Ads Dimensions
-  { name: "x_source", displayName: "Source", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Source" },
-  { name: "x_parent_source", displayName: "Parent Source", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "parent_source", dataType: "String", transformation: "NONE", status: "Mapped", description: "Parent source" },
-  { name: "x_account_id", displayName: "Account ID", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "account_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account ID" },
-  { name: "x_account_name", displayName: "Account Name", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "account_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account name" },
   { name: "x_date", displayName: "Date", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "time_period", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Report date" },
-  { name: "x_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "campaign_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "x_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "x_adset_id", displayName: "Line Item ID", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "line_item_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Line item (ad set) ID" },
-  { name: "x_adset_name", displayName: "Line Item Name", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "line_item_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Line item (ad set) name" },
-  { name: "x_ad_id", displayName: "Ad ID", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "ad_id", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "x_ad_type", displayName: "Ad Type", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "ad_type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad type" },
-  { name: "x_ad_network", displayName: "Placement", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "placement", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad placement / network" },
   { name: "x_objective", displayName: "Objective", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "goal", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign goal" },
-  { name: "x_currency", displayName: "Currency", kind: "dimension", source: "X Ads", sourceColor: "#1DA1F2", sourceKey: "currency", dataType: "String", transformation: "NONE", status: "Mapped", description: "Account currency" },
 
   // ══════════════════════════════════════════════════════════════════════
-  // AMAZON ADS, MICROSOFT ADS, WALMART ADS, CRITEO, ADROLL, OUTBRAIN, VIBE, DV360
-  // (Condensed — key metrics + dimensions per channel)
+  // REMAINING CHANNELS (Condensed)
   // ══════════════════════════════════════════════════════════════════════
 
   // Amazon Ads
   { name: "amz_spend", displayName: "Spend", kind: "metric", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "cost", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad cost" },
   { name: "amz_impressions", displayName: "Impressions", kind: "metric", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "amz_clicks", displayName: "Clicks", kind: "metric", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "amz_purchase", displayName: "Purchases", kind: "metric", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "purchases / purchases14d", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase events (14d attribution)" },
   { name: "amz_attributed_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "sales / sales14d", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Attributed revenue (14d)" },
-  { name: "amz_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "campaignId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "amz_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "campaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "amz_adset_id", displayName: "Ad Group ID", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "adGroupId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group ID" },
-  { name: "amz_adset_name", displayName: "Ad Group Name", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "adGroupName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group name" },
-  { name: "amz_ad_id", displayName: "Ad ID", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "adId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "amz_objective", displayName: "Objective", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "objective", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Campaign objective" },
-  { name: "amz_currency", displayName: "Currency", kind: "dimension", source: "Amazon Ads", sourceColor: "#FF9900", sourceKey: "campaignBudgetCurrencyCode", dataType: "String", transformation: "NONE", status: "Mapped", description: "Currency" },
 
   // Microsoft Ads
   { name: "msft_spend", displayName: "Spend", kind: "metric", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "Spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "msft_impressions", displayName: "Impressions", kind: "metric", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "Impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "msft_clicks", displayName: "Clicks", kind: "metric", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "Clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "msft_conversions", displayName: "All Conversions", kind: "metric", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AllConversionsQualified", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Qualified conversions" },
   { name: "msft_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AllRevenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from conversions" },
-  { name: "msft_campaign_id", displayName: "Campaign ID", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "CampaignId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign ID" },
   { name: "msft_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "CampaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "msft_adset_id", displayName: "Ad Group ID", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdGroupId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group ID" },
-  { name: "msft_adset_name", displayName: "Ad Group Name", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdGroupName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group name" },
-  { name: "msft_ad_id", displayName: "Ad ID", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdId", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad ID" },
-  { name: "msft_ad_name", displayName: "Ad Title", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdTitle", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad title" },
-  { name: "msft_ad_type", displayName: "Ad Type", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad type" },
-  { name: "msft_device", displayName: "Device", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "DeviceType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Device platform" },
-  { name: "msft_network", displayName: "Ad Distribution", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "AdDistribution", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad network distribution" },
-  { name: "msft_objective", displayName: "Objective", kind: "dimension", source: "Microsoft Ads", sourceColor: "#00A4EF", sourceKey: "GoalType", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Goal type" },
 
   // Walmart Ads
   { name: "wm_spend", displayName: "Spend", kind: "metric", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
@@ -510,19 +355,13 @@ const rawFields: RawField[] = [
   { name: "wm_clicks", displayName: "Clicks", kind: "metric", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
   { name: "wm_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "attributedRevenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Attributed revenue" },
   { name: "wm_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "campaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "wm_adset_name", displayName: "Ad Set Name", kind: "dimension", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "adsetName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set name" },
-  { name: "wm_ad_name", displayName: "Ad Name", kind: "dimension", source: "Walmart Ads", sourceColor: "#0071DC", sourceKey: "adName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
 
   // Criteo Ads
   { name: "criteo_spend", displayName: "Spend", kind: "metric", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "AdvertiserCost", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "criteo_impressions", displayName: "Impressions", kind: "metric", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Displays", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total displays/impressions" },
   { name: "criteo_clicks", displayName: "Clicks", kind: "metric", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "criteo_conversions", displayName: "All Conversions", kind: "metric", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "totalConversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total conversions" },
   { name: "criteo_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "RevenueGeneratedAllPc30d", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue (30d post-click)" },
   { name: "criteo_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Campaign", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "criteo_adset_name", displayName: "Ad Set Name", kind: "dimension", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Adset", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad set name" },
-  { name: "criteo_ad_name", displayName: "Ad Name", kind: "dimension", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Ad", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
-  { name: "criteo_device", displayName: "Device", kind: "dimension", source: "Criteo Ads", sourceColor: "#F48120", sourceKey: "Device", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Device platform" },
 
   // Adroll Ads
   { name: "adroll_spend", displayName: "Spend", kind: "metric", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "cost", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
@@ -530,47 +369,93 @@ const rawFields: RawField[] = [
   { name: "adroll_clicks", displayName: "Clicks", kind: "metric", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
   { name: "adroll_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "revenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Attributed revenue" },
   { name: "adroll_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "campaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "adroll_adset_name", displayName: "Ad Group Name", kind: "dimension", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "adGroupName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad group name" },
-  { name: "adroll_ad_name", displayName: "Ad Name", kind: "dimension", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "adName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Ad name" },
-  { name: "adroll_channel", displayName: "Channel", kind: "dimension", source: "Adroll Ads", sourceColor: "#0DAEF0", sourceKey: "channel", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad network channel" },
 
   // Outbrain Ads
   { name: "ob_spend", displayName: "Spend", kind: "metric", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "ob_impressions", displayName: "Impressions", kind: "metric", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "ob_clicks", displayName: "Clicks", kind: "metric", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "ob_conversions", displayName: "All Conversions", kind: "metric", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "totalConversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total conversions" },
   { name: "ob_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "attributedRevenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Attributed revenue" },
   { name: "ob_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Outbrain Ads", sourceColor: "#F47920", sourceKey: "campaignName", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
 
   // Vibe Ads
   { name: "vibe_spend", displayName: "Spend", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
   { name: "vibe_impressions", displayName: "Impressions", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
-  { name: "vibe_frequency", displayName: "Frequency", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "frequency", dataType: "Ratio", transformation: "AVG", status: "Mapped", description: "Ad frequency" },
   { name: "vibe_purchase", displayName: "Purchases", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_purchases", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase events" },
   { name: "vibe_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "amount_of_purchases", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from purchases" },
-  { name: "vibe_page_view", displayName: "Page Views", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_page_views", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Page view events" },
-  { name: "vibe_sessions", displayName: "Sessions", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_sessions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Session events" },
-  { name: "vibe_leads", displayName: "Lead Form Submits", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_leads", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Lead form submissions" },
-  { name: "vibe_signups", displayName: "Signups", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_signups", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Signup events" },
-  { name: "vibe_installs", displayName: "App Installs", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "installs", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "App install events" },
   { name: "vibe_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "vibe_channel", displayName: "Channel Type", kind: "dimension", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "channel_name", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Advertising channel type" },
-  { name: "vibe_device", displayName: "Device", kind: "dimension", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "screen", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Screen / device type" },
 
   // Google DV 360
   { name: "dv360_spend", displayName: "Media Cost", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "media_cost_partner_currency", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total media cost" },
   { name: "dv360_impressions", displayName: "Impressions", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
   { name: "dv360_clicks", displayName: "Clicks", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "dv360_conversions", displayName: "All Conversions", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "total_conversions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total conversions" },
   { name: "dv360_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "revenue_partner_currency", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue in partner currency" },
   { name: "dv360_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
-  { name: "dv360_adset_name", displayName: "Line Item Name", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "line_item_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Line item name" },
-  { name: "dv360_ad_name", displayName: "Creative Name", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "creative_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Creative name" },
-  { name: "dv360_ad_type", displayName: "Creative Type", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "creative_type", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Creative format type" },
-  { name: "dv360_channel", displayName: "Inventory Source", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "inventory_source", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Inventory source / channel type" },
-  { name: "dv360_device", displayName: "Device", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "device_platform", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Device type" },
-  { name: "dv360_network", displayName: "Exchange", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "exchange_id", dataType: "Enum", transformation: "NONE", status: "Mapped", description: "Ad exchange network" },
 ];
+
+// ---------------------------------------------------------------------------
+// Metric category derivation
+// ---------------------------------------------------------------------------
+
+const AD_PLATFORM_SOURCES = new Set(
+  Object.values(SOURCE_STREAM_TABLES).flatMap((p) =>
+    Object.values(p.streams).flatMap((s) => s.sources)
+  )
+);
+
+export function deriveMetricCategory(displayName: string, source: string): {
+  metricCategory: MetricCategory;
+  variableType?: VariableType;
+  kpiSubtype?: KpiSubtype;
+  paidMarketingMetricType?: PaidMarketingMetricType;
+} {
+  const dn = displayName.toLowerCase();
+
+  // KPI: Revenue
+  if (/attributed revenue|conversions? value/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Revenue" };
+  }
+  // KPI: Conversions
+  if (/^purchases$|^all conversions$|^add to cart$|^begin checkout$|^initiated checkout$|^checkout$|^checkouts$|^leads$|^one-click leads$|^qualified leads$|^converted leads$|^lead form submits$|^all clicks$/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Conversions" };
+  }
+  // KPI: Installs
+  if (/^app installs$|^app activations$/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Installs" };
+  }
+  // KPI: Registrations
+  if (/^registrations$|^signups$|^complete registration$/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Registrations" };
+  }
+  // KPI: Reach
+  if (/^page views$|^page visits$|^site visits$|^sessions$/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Reach" };
+  }
+  // KPI: Subscriptions
+  if (/^paid subscriptions$|^subscribe$/i.test(displayName)) {
+    return { metricCategory: "kpi", kpiSubtype: "Subscriptions" };
+  }
+
+  // Paid Marketing (only from ad platforms)
+  if (AD_PLATFORM_SOURCES.has(source)) {
+    // Spends
+    if (/^spend$|^media cost$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" };
+    }
+    // Impressions
+    if (/^impressions$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" };
+    }
+    // Clicks
+    if (/^clicks$|^link clicks$|^all clicks$|^swipe ups$|^clickthroughs$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Clicks" };
+    }
+    // Other ad platform metrics
+    return { metricCategory: "paid_marketing", paidMarketingMetricType: "Other" };
+  }
+
+  // Default: contextual / continuous for non-ad-platform metrics
+  return { metricCategory: "contextual", variableType: "Continuous" };
+}
 
 // ---------------------------------------------------------------------------
 // Migration: raw fields -> typed fields
@@ -578,12 +463,19 @@ const rawFields: RawField[] = [
 
 function migrateField(raw: RawField): Field {
   const info = getSourceStreamInfo(raw.source);
+  const derived = raw.kind === "metric"
+    ? deriveMetricCategory(raw.displayName, raw.source)
+    : { metricCategory: undefined, variableType: undefined, kpiSubtype: undefined, paidMarketingMetricType: undefined };
   return {
     ...raw,
     columnName: raw.name, // existing name is already snake_case + unique
     dataType: (DATA_TYPE_MIGRATION[raw.dataType] || "STRING") as DataTypeKey,
     stream: info.stream,
     tables: info.tables,
+    metricCategory: raw.metricCategory ?? derived.metricCategory,
+    variableType: raw.variableType ?? derived.variableType,
+    kpiSubtype: raw.kpiSubtype ?? derived.kpiSubtype,
+    paidMarketingMetricType: raw.paidMarketingMetricType ?? derived.paidMarketingMetricType,
   };
 }
 
@@ -639,6 +531,68 @@ export const sourceOptions = [
   { name: "Roku", color: "#6C3C97" },
   { name: "Multiple", color: "#9CA3AF" },
 ];
+
+// --- Dimension Definition System ---
+export interface ChannelDimensionMapping {
+  channel: string;         // parent source name e.g. "Facebook", "Google"
+  source: string;          // e.g. "Facebook Ads"
+  sourceKey: string;       // e.g. "ad.account_name"
+  stream: string;
+  dataType: DataTypeKey;
+  status: "Mapped" | "Unmapped";
+}
+
+export interface DimensionDefinition {
+  id: string;
+  name: string;            // e.g. "Account", "Brand", "Geo"
+  description: string;
+  isSystem: boolean;       // true for pre-defined, false for user-created
+  channelMappings: ChannelDimensionMapping[];
+}
+
+// Build system dimensions from existing rawFields dimension entries
+function buildSystemDimensions(): DimensionDefinition[] {
+  const dimensionFields = rawFields.filter((f) => f.kind === "dimension");
+
+  // Map displayName patterns to unified dimension definitions
+  const dimensionDefs: { id: string; name: string; description: string; patterns: RegExp }[] = [
+    { id: "dim_date", name: "Date", description: "Report date for time-based analysis", patterns: /^Date$/i },
+    { id: "dim_campaign_name", name: "Campaign Name", description: "Campaign or campaign group name across channels", patterns: /^Campaign( Group)? Name$/i },
+    { id: "dim_adgroup", name: "Ad Group / Ad Set", description: "Ad group or ad set level grouping", patterns: /^Ad (Set|Group) Name$/i },
+    { id: "dim_ad_name", name: "Ad Name", description: "Individual ad creative name", patterns: /^Ad Name$/i },
+    { id: "dim_objective", name: "Objective", description: "Campaign objective or goal type", patterns: /^Objective$|^Network Type$/i },
+    { id: "dim_country", name: "Geo / Country", description: "Geographic country or region targeting", patterns: /^Country$/i },
+    { id: "dim_channel_type", name: "Channel Type", description: "Advertising channel type (Search, Display, Video, etc.)", patterns: /^Channel Type$/i },
+    { id: "dim_account", name: "Account", description: "Advertising account identifier", patterns: /^Account( Name)?$/i },
+    { id: "dim_brand", name: "Brand", description: "Brand or advertiser name", patterns: /^Brand$/i },
+    { id: "dim_region", name: "Region / State", description: "Sub-country geographic region or state", patterns: /^Region$|^State$/i },
+  ];
+
+  return dimensionDefs.map((def) => {
+    const matchingFields = dimensionFields.filter((f) => def.patterns.test(f.displayName));
+    const channelMappings: ChannelDimensionMapping[] = matchingFields.map((f) => {
+      const info = getSourceStreamInfo(f.source);
+      return {
+        channel: info.parent,
+        source: f.source,
+        sourceKey: f.sourceKey,
+        stream: info.stream,
+        dataType: (DATA_TYPE_MIGRATION[f.dataType] || "STRING") as DataTypeKey,
+        status: f.status,
+      };
+    });
+
+    return {
+      id: def.id,
+      name: def.name,
+      description: def.description,
+      isSystem: true,
+      channelMappings,
+    };
+  });
+}
+
+export const SYSTEM_DIMENSIONS: DimensionDefinition[] = buildSystemDimensions();
 
 // --- Default transforms per data type (used by bulk add) ---
 export const DEFAULT_TRANSFORMS: Record<DataTypeKey, string> = {

@@ -1,106 +1,141 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import {
+  type CatalogIntegration,
+  type IntegrationStatus,
+  STATUS_LABELS,
+} from "./monitoringData";
+import { type MetricCategory, METRIC_CATEGORIES } from "./fieldsData";
 
-interface Integration {
-  name: string;
-  description: string;
-  category: string;
-  status: "Connected" | "Reconnect" | "Partial" | "Not Connected";
-  color: string;
-  accounts: number;
-  icon?: string;
-  footerLabel?: string;
-}
+// Extended integration type with data category
+type CatalogIntegrationWithCategory = CatalogIntegration & {
+  dataCategory: MetricCategory;
+};
 
-const integrations: Integration[] = [
-  // Advertising
-  { name: "Facebook Ads", description: "Connect Facebook to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#1877F2", accounts: 21, icon: "fb" },
-  { name: "Google Ads", description: "Connect Google to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#34A853", accounts: 4, icon: "gad" },
-  { name: "Microsoft Ads", description: "Connect Microsoft to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#00A4EF", accounts: 0, icon: "ms" },
-  { name: "TikTok Ads", description: "Get potential customers with TikTok leads", category: "Advertising", status: "Connected", color: "#EE1D52", accounts: 2, icon: "tt" },
-  { name: "Snapchat Ads", description: "Connect Snapchat to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#FFFC00", accounts: 2, icon: "sc" },
-  { name: "Pinterest Ads", description: "Connect Pinterest to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#E60023", accounts: 3, icon: "pi" },
-  { name: "LinkedIn Ads", description: "Connect LinkedIn to use this integration with Lifesight", category: "Advertising", status: "Reconnect", color: "#0A66C2", accounts: 1, icon: "in" },
-  { name: "X Ads (Twitter)", description: "Connect X Ads to use this integration with your platform.", category: "Advertising", status: "Connected", color: "#1DA1F2", accounts: 2, icon: "x" },
-  { name: "Amazon Ads", description: "Connect Amazon to use this integration with your platform.", category: "Advertising", status: "Not Connected", color: "#FF9900", accounts: 0, icon: "amz" },
-  { name: "Criteo", description: "Connect Criteo and start with automation", category: "Advertising", status: "Not Connected", color: "#F48120", accounts: 0, icon: "cr" },
-  { name: "Taboola", description: "Connect Taboola to use this integration with Lifesight", category: "Advertising", status: "Not Connected", color: "#243B86", accounts: 0, icon: "tb" },
-  { name: "Outbrain", description: "Connect Outbrain and start with automation", category: "Advertising", status: "Not Connected", color: "#F47920", accounts: 0, icon: "ob" },
-  { name: "Spotify Ads", description: "Connect Spotify Ads to use this integration with your platform.", category: "Advertising", status: "Not Connected", color: "#1DB954", accounts: 0, icon: "sp" },
-  { name: "AdRoll", description: "Connect AdRoll to use this integration with Lifesight", category: "Advertising", status: "Not Connected", color: "#0DAEF0", accounts: 0, icon: "ar" },
-  { name: "Walmart Connect", description: "Connect Walmart Connect and start with automation", category: "Advertising", status: "Not Connected", color: "#0071DC", accounts: 0, icon: "wm" },
-  { name: "StackAdapt", description: "Connect StackAdapt to use this integration with your platform.", category: "Advertising", status: "Not Connected", color: "#4A3AFF", accounts: 0, icon: "sa" },
-  { name: "Moloco", description: "Connect Moloco and start with automation", category: "Advertising", status: "Not Connected", color: "#FF4B4B", accounts: 0, icon: "mo" },
-  { name: "Vibe", description: "Connect Vibe to use this integration with your platform.", category: "Advertising", status: "Not Connected", color: "#7C3AED", accounts: 0, icon: "vb" },
-  { name: "Facebook Lead Forms", description: "Connect Facebook Lead Forms and start with automation", category: "Advertising", status: "Not Connected", color: "#1877F2", accounts: 0, icon: "fl" },
-  { name: "Ad.net", description: "Connect Ad.net to use this integration with your platform.", category: "Advertising", status: "Not Connected", color: "#5C6BC0", accounts: 0, icon: "an" },
-  { name: "AdJoe", description: "Connect AdJoe and start with automation", category: "Advertising", status: "Not Connected", color: "#26A69A", accounts: 0, icon: "aj" },
-  { name: "Adform", description: "Connect Adform to use this integration with Lifesight", category: "Advertising", status: "Not Connected", color: "#00BCD4", accounts: 0, icon: "af" },
-  { name: "Adikteev", description: "Connect Adikteev and start with automation", category: "Advertising", status: "Not Connected", color: "#7986CB", accounts: 0, icon: "ak" },
-  { name: "Amazon DSP", description: "Connect Amazon DSP to use this integration with your platform.", category: "Advertising", status: "Partial", color: "#FF9900", accounts: 0, icon: "dsp" },
-  { name: "Appier", description: "Connect Appier and start with automation", category: "Advertising", status: "Not Connected", color: "#EF5350", accounts: 0, icon: "ap" },
-  { name: "Apple Search Ads", description: "Connect Apple Search Ads and start with automation", category: "Advertising", status: "Not Connected", color: "#555555", accounts: 0, icon: "asa" },
+const DATA_CATEGORY_ORDER: MetricCategory[] = ["kpi", "paid_marketing", "organic", "contextual", "halo"];
 
+const DATA_CATEGORY_ICONS: Record<MetricCategory, JSX.Element> = {
+  kpi: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2 12L6 4L10 9L14 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 2L14 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M14 2L11 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
+  paid_marketing: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="10" width="2.5" height="4" rx="0.5" fill="currentColor" opacity="0.5" />
+      <rect x="5.5" y="7" width="2.5" height="7" rx="0.5" fill="currentColor" opacity="0.7" />
+      <rect x="9" y="4" width="2.5" height="10" rx="0.5" fill="currentColor" opacity="0.85" />
+      <rect x="12.5" y="2" width="2.5" height="12" rx="0.5" fill="currentColor" />
+    </svg>
+  ),
+  organic: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 14V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 6C8 6 5 3 3 4C1 5 3 8 8 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+      <path d="M8 8C8 8 11 5 13 6C15 7 13 10 8 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+    </svg>
+  ),
+  contextual: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
+      <path d="M8 2.5V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M8 11V13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M2.5 8H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M11 8H13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  halo: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.3" fill="none" />
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" fill="none" />
+    </svg>
+  ),
+};
+
+const integrations: CatalogIntegrationWithCategory[] = [
+  // Paid Marketing - Advertising platforms
+  { name: "Facebook Ads", description: "Connect Facebook to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#1877F2", accounts: 21, icon: "fb" },
+  { name: "Google Ads", description: "Connect Google to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#34A853", accounts: 4, icon: "gad" },
+  { name: "Microsoft Ads", description: "Connect Microsoft to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#00A4EF", accounts: 0, icon: "ms" },
+  { name: "TikTok Ads", description: "Get potential customers with TikTok leads", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#EE1D52", accounts: 2, icon: "tt" },
+  { name: "Snapchat Ads", description: "Connect Snapchat to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#FFFC00", accounts: 2, icon: "sc" },
+  { name: "Pinterest Ads", description: "Connect Pinterest to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#E60023", accounts: 3, icon: "pi" },
+  { name: "LinkedIn Ads", description: "Connect LinkedIn to use this integration with Lifesight", category: "Advertising", dataCategory: "paid_marketing", status: "ACTION_REQUIRED", color: "#0A66C2", accounts: 1, icon: "in" },
+  { name: "X Ads (Twitter)", description: "Connect X Ads to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#1DA1F2", accounts: 2, icon: "x" },
+  { name: "Amazon Ads", description: "Connect Amazon to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#FF9900", accounts: 0, icon: "amz" },
+  { name: "Criteo", description: "Connect Criteo and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#F48120", accounts: 0, icon: "cr" },
+  { name: "Taboola", description: "Connect Taboola to use this integration with Lifesight", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#243B86", accounts: 0, icon: "tb" },
+  { name: "Outbrain", description: "Connect Outbrain and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#F47920", accounts: 0, icon: "ob" },
+  { name: "Spotify Ads", description: "Connect Spotify Ads to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#1DB954", accounts: 0, icon: "sp" },
+  { name: "AdRoll", description: "Connect AdRoll to use this integration with Lifesight", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#0DAEF0", accounts: 0, icon: "ar" },
+  { name: "Walmart Connect", description: "Connect Walmart Connect and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#0071DC", accounts: 0, icon: "wm" },
+  { name: "StackAdapt", description: "Connect StackAdapt to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#4A3AFF", accounts: 0, icon: "sa" },
+  { name: "Moloco", description: "Connect Moloco and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#FF4B4B", accounts: 0, icon: "mo" },
+  { name: "Vibe", description: "Connect Vibe to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#7C3AED", accounts: 0, icon: "vb" },
+  { name: "Facebook Lead Forms", description: "Connect Facebook Lead Forms and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#1877F2", accounts: 0, icon: "fl" },
+  { name: "Ad.net", description: "Connect Ad.net to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#5C6BC0", accounts: 0, icon: "an" },
+  { name: "AdJoe", description: "Connect AdJoe and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#26A69A", accounts: 0, icon: "aj" },
+  { name: "Adform", description: "Connect Adform to use this integration with Lifesight", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#00BCD4", accounts: 0, icon: "af" },
+  { name: "Adikteev", description: "Connect Adikteev and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#7986CB", accounts: 0, icon: "ak" },
+  { name: "Amazon DSP", description: "Connect Amazon DSP to use this integration with your platform.", category: "Advertising", dataCategory: "paid_marketing", status: "CONNECTED", color: "#FF9900", accounts: 0, icon: "dsp" },
+  { name: "Appier", description: "Connect Appier and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#EF5350", accounts: 0, icon: "ap" },
+  { name: "Apple Search Ads", description: "Connect Apple Search Ads and start with automation", category: "Advertising", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#555555", accounts: 0, icon: "asa" },
+  // CTV & OTT (paid media)
+  { name: "Roku", description: "Connect Roku to use this integration with your platform.", category: "CTV & OTT", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#6C3C97", accounts: 0, icon: "rk" },
+  { name: "Google DV360", description: "Connect Google DV360 and start with automation", category: "CTV & OTT", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "dv" },
   // Affiliate & Partnerships
-  { name: "Tradedoubler", description: "Connect Tradedoubler and start with automation", category: "Affiliate & Partnerships", status: "Not Connected", color: "#00A3E0", accounts: 0, icon: "td" },
-  { name: "Everflow", description: "Connect Everflow to use this integration with Lifesight", category: "Affiliate & Partnerships", status: "Not Connected", color: "#FF6B35", accounts: 0, icon: "ef" },
-  { name: "CJ Affiliate", description: "Connect CJ Affiliate and start with automation", category: "Affiliate & Partnerships", status: "Not Connected", color: "#003366", accounts: 0, icon: "cj" },
-  { name: "Impact", description: "Connect Impact to use this integration with your platform.", category: "Affiliate & Partnerships", status: "Not Connected", color: "#FF6D3A", accounts: 0, icon: "im" },
-
-  // Analytics
-  { name: "Google Analytics", description: "Connect Google Analytics to use this integration with your platform.", category: "Analytics", status: "Connected", color: "#F9AB00", accounts: 1, icon: "ga" },
-
-  // CRM
-  { name: "HubSpot", description: "Connect HubSpot to use this integration with your platform.", category: "CRM", status: "Connected", color: "#FF7A59", accounts: 1, icon: "hs" },
-  { name: "Salesforce", description: "Connect Salesforce to use this integration with Lifesight", category: "CRM", status: "Reconnect", color: "#00A1E0", accounts: 1, icon: "sf" },
-
-  // Custom
-  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", status: "Connected", color: "#6941c6", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
-
-  // Data
-  { name: "Google Sheets", description: "Sync data from Google Sheets into your platform.", category: "Data", status: "Connected", color: "#0F9D58", accounts: 2, icon: "gs", footerLabel: "8 Connected Sheets" },
-  { name: "Import CSV", description: "Import data through CSV files", category: "Data", status: "Connected", color: "#71717a", accounts: 0, icon: "csv" },
-  { name: "Snowflake", description: "Connect your Snowflake data warehouse to sync tables.", category: "Data", status: "Not Connected", color: "#29B5E8", accounts: 0, icon: "sf\u2744", footerLabel: "0 Tables" },
-  { name: "BigQuery", description: "Connect your BigQuery data warehouse to sync tables.", category: "Data", status: "Not Connected", color: "#4285F4", accounts: 0, icon: "bq", footerLabel: "0 Tables" },
-
-  // E-Commerce
-  { name: "Shopify", description: "Connect Shopify to use this integration with your platform.", category: "E-Commerce", status: "Connected", color: "#95BF47", accounts: 3, icon: "sh" },
-  { name: "WooCommerce", description: "Connect WooCommerce and start with automation", category: "E-Commerce", status: "Not Connected", color: "#96588A", accounts: 0, icon: "wc" },
-  { name: "Salesforce Commerce Cloud", description: "Connect Salesforce Commerce Cloud with Lifesight", category: "E-Commerce", status: "Not Connected", color: "#00A1E0", accounts: 0, icon: "scc" },
-
-  // Marketing
-  { name: "Klaviyo", description: "Get your data synced from Klaviyo to Moda", category: "Marketing", status: "Connected", color: "#2B2B2B", accounts: 0, icon: "kl" },
-  { name: "Salesforce Marketing Cloud", description: "Connect Salesforce Marketing Cloud with your platform.", category: "Marketing", status: "Not Connected", color: "#00A1E0", accounts: 0, icon: "smc" },
-  { name: "ActiveCampaign", description: "Connect ActiveCampaign and start with automation", category: "Marketing", status: "Not Connected", color: "#356AE6", accounts: 0, icon: "ac" },
-
+  { name: "Tradedoubler", description: "Connect Tradedoubler and start with automation", category: "Affiliate & Partnerships", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#00A3E0", accounts: 0, icon: "td" },
+  { name: "Everflow", description: "Connect Everflow to use this integration with Lifesight", category: "Affiliate & Partnerships", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#FF6B35", accounts: 0, icon: "ef" },
+  { name: "CJ Affiliate", description: "Connect CJ Affiliate and start with automation", category: "Affiliate & Partnerships", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#003366", accounts: 0, icon: "cj" },
+  { name: "Impact", description: "Connect Impact to use this integration with your platform.", category: "Affiliate & Partnerships", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#FF6D3A", accounts: 0, icon: "im" },
   // MMP
-  { name: "AppsFlyer", description: "Connect AppsFlyer to use this integration with your platform.", category: "MMP", status: "Not Connected", color: "#00C853", accounts: 0, icon: "af" },
+  { name: "AppsFlyer", description: "Connect AppsFlyer to use this integration with your platform.", category: "MMP", dataCategory: "paid_marketing", status: "NOT_CONNECTED", color: "#00C853", accounts: 0, icon: "af" },
 
-  // Payments & Subscription
-  { name: "Recharge", description: "Connect Recharge to use this integration with your platform.", category: "Payments & Subscription", status: "Not Connected", color: "#00BFA5", accounts: 0, icon: "rc" },
+  // KPI Sources
+  { name: "Shopify", description: "Connect Shopify to use this integration with your platform.", category: "E-Commerce", dataCategory: "kpi", status: "CONNECTED", color: "#95BF47", accounts: 3, icon: "sh" },
+  { name: "WooCommerce", description: "Connect WooCommerce and start with automation", category: "E-Commerce", dataCategory: "kpi", status: "NOT_CONNECTED", color: "#96588A", accounts: 0, icon: "wc" },
+  { name: "Salesforce Commerce Cloud", description: "Connect Salesforce Commerce Cloud with Lifesight", category: "E-Commerce", dataCategory: "kpi", status: "NOT_CONNECTED", color: "#00A1E0", accounts: 0, icon: "scc" },
+  { name: "Google Analytics", description: "Connect Google Analytics to use this integration with your platform.", category: "Analytics", dataCategory: "kpi", status: "CONNECTED", color: "#F9AB00", accounts: 1, icon: "ga" },
+  { name: "Recharge", description: "Connect Recharge to use this integration with your platform.", category: "Payments & Subscription", dataCategory: "kpi", status: "NOT_CONNECTED", color: "#00BFA5", accounts: 0, icon: "rc" },
 
-  // Reviews
-  { name: "Judge.me", description: "Connect Judge.me to use this integration with Lifesight", category: "Reviews", status: "Not Connected", color: "#FFC107", accounts: 0, icon: "jm" },
-  { name: "Fera.ai", description: "Connect Fera.ai and start with automation", category: "Reviews", status: "Not Connected", color: "#FF5252", accounts: 0, icon: "fa" },
+  // Organic
+  { name: "HubSpot", description: "Connect HubSpot to use this integration with your platform.", category: "CRM", dataCategory: "organic", status: "CONNECTED", color: "#FF7A59", accounts: 1, icon: "hs" },
+  { name: "Salesforce", description: "Connect Salesforce to use this integration with Lifesight", category: "CRM", dataCategory: "organic", status: "ACTION_REQUIRED", color: "#00A1E0", accounts: 1, icon: "sf" },
+  { name: "Klaviyo", description: "Get your data synced from Klaviyo to Moda", category: "Marketing", dataCategory: "organic", status: "CONNECTED", color: "#2B2B2B", accounts: 0, icon: "kl" },
+  { name: "Salesforce Marketing Cloud", description: "Connect Salesforce Marketing Cloud with your platform.", category: "Marketing", dataCategory: "organic", status: "NOT_CONNECTED", color: "#00A1E0", accounts: 0, icon: "smc" },
+  { name: "ActiveCampaign", description: "Connect ActiveCampaign and start with automation", category: "Marketing", dataCategory: "organic", status: "NOT_CONNECTED", color: "#356AE6", accounts: 0, icon: "ac" },
+  { name: "Judge.me", description: "Connect Judge.me to use this integration with Lifesight", category: "Reviews", dataCategory: "organic", status: "NOT_CONNECTED", color: "#FFC107", accounts: 0, icon: "jm" },
+  { name: "Fera.ai", description: "Connect Fera.ai and start with automation", category: "Reviews", dataCategory: "organic", status: "NOT_CONNECTED", color: "#FF5252", accounts: 0, icon: "fa" },
 
-  // CTV & OTT
-  { name: "Roku", description: "Connect Roku to use this integration with your platform.", category: "CTV & OTT", status: "Not Connected", color: "#6C3C97", accounts: 0, icon: "rk" },
-  { name: "Google DV360", description: "Connect Google DV360 and start with automation", category: "CTV & OTT", status: "Not Connected", color: "#4285F4", accounts: 0, icon: "dv" },
+  // Contextual
+  { name: "Google Sheets", description: "Sync data from Google Sheets into your platform.", category: "Data", dataCategory: "contextual", status: "CONNECTED", color: "#0F9D58", accounts: 2, icon: "gs", footerLabel: "8 Connected Sheets" },
+  { name: "Import CSV", description: "Import data through CSV files", category: "Data", dataCategory: "contextual", status: "CONNECTED", color: "#71717a", accounts: 0, icon: "csv" },
+  { name: "Snowflake", description: "Connect your Snowflake data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#29B5E8", accounts: 0, icon: "sf\u2744", footerLabel: "0 Tables" },
+  { name: "BigQuery", description: "Connect your BigQuery data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "bq", footerLabel: "0 Tables" },
+
+  // Halo
+  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", dataCategory: "halo", status: "CONNECTED", color: "#6941c6", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
 ];
 
 const allCategories = Array.from(new Set(integrations.map((i) => i.category)));
-const allStatuses: Integration["status"][] = ["Connected", "Reconnect", "Partial", "Not Connected"];
+const allStatuses: IntegrationStatus[] = ["NOT_CONNECTED", "SETUP_INCOMPLETE", "SYNCING", "CONNECTED", "SYNC_ERROR", "ACTION_REQUIRED"];
 
-const statusDotColor: Record<Integration["status"], string> = {
-  Connected: "bg-[#00bc7d]",
-  Reconnect: "bg-[#ff2056]",
-  Partial: "bg-[#3b82f6]",
-  "Not Connected": "bg-[#71717a]",
+const statusDotColor: Record<IntegrationStatus, string> = {
+  NOT_CONNECTED: "bg-[#71717a]",
+  SETUP_INCOMPLETE: "bg-[#fe9a00]",
+  SYNCING: "bg-[#a855f7]",
+  CONNECTED: "bg-[#00bc7d]",
+  SYNC_ERROR: "bg-[#ff2056]",
+  ACTION_REQUIRED: "bg-[#ff2056]",
 };
 
-// ─── Recognizable SVG icons for well-known integrations ──────────────────────
-function IntegrationIcon({ integration }: { integration: Integration }) {
+type ViewMode = "status" | "category";
+
+// ── Recognizable SVG icons for well-known integrations ──────────────────────
+function IntegrationIcon({ integration }: { integration: CatalogIntegration }) {
   const size = "w-10 h-10";
   const inner = "w-6 h-6";
 
@@ -277,7 +312,7 @@ function IntegrationIcon({ integration }: { integration: Integration }) {
   );
 }
 
-// ─── Dropdown ─────────────────────────────────────────────────────────────────
+// ── Dropdown ─────────────────────────────────────────────────────────────────
 function FilterDropdown({
   label,
   value,
@@ -334,7 +369,7 @@ function FilterDropdown({
   );
 }
 
-// ─── Three-Dot Menu ───────────────────────────────────────────────────────────
+// ── Three-Dot Menu ───────────────────────────────────────────────────────────
 function ThreeDotMenu() {
   return (
     <button className="p-1 rounded hover:bg-[var(--hover-item)] transition-colors text-[var(--text-dim)] hover:text-[var(--text-secondary)]">
@@ -347,11 +382,12 @@ function ThreeDotMenu() {
   );
 }
 
-// ─── Integration Card ─────────────────────────────────────────────────────────
-function IntegrationCard({ integration }: { integration: Integration }) {
+// ── Integration Card ─────────────────────────────────────────────────────────
+function IntegrationCard({ integration, showCategoryBadge }: { integration: CatalogIntegrationWithCategory; showCategoryBadge?: boolean }) {
   const hasFooter = integration.accounts > 0 || !!integration.footerLabel;
   const footerText = integration.footerLabel
     || `${integration.accounts} Connected Account${integration.accounts !== 1 ? "s" : ""}`;
+  const cat = METRIC_CATEGORIES[integration.dataCategory];
 
   return (
     <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl flex flex-col hover:border-[var(--border-secondary)] transition-colors">
@@ -365,6 +401,15 @@ function IntegrationCard({ integration }: { integration: Integration }) {
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor[integration.status]}`} />
               </div>
               <p className="text-[var(--text-dim)] text-xs mt-0.5 leading-relaxed">{integration.description}</p>
+              {showCategoryBadge && (
+                <span
+                  className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                  style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  {cat.label}
+                </span>
+              )}
             </div>
           </div>
           <ThreeDotMenu />
@@ -391,7 +436,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
   );
 }
 
-// ─── Section Header ───────────────────────────────────────────────────────────
+// ── Status Section Header ────────────────────────────────────────────────────
 function SectionHeader({
   title,
   count,
@@ -415,15 +460,127 @@ function SectionHeader({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ── Category Section Header ──────────────────────────────────────────────────
+function CategorySectionHeader({
+  categoryKey,
+  count,
+  connectedCount,
+  collapsed,
+  onToggle,
+}: {
+  categoryKey: MetricCategory;
+  count: number;
+  connectedCount: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const cat = METRIC_CATEGORIES[categoryKey];
+  const icon = DATA_CATEGORY_ICONS[categoryKey];
+
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-3 py-3 px-4 rounded-xl transition-colors hover:bg-[var(--hover-item)] group"
+      style={{ backgroundColor: `${cat.color}08` }}
+    >
+      {/* Category icon */}
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
+      >
+        {icon}
+      </div>
+
+      {/* Title and description */}
+      <div className="flex-1 text-left min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="text-[var(--text-primary)] text-sm font-semibold">{cat.label}</h3>
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+            style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
+          >
+            {count}
+          </span>
+          {connectedCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-[#00bc7d] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00bc7d]" />
+              {connectedCount} connected
+            </span>
+          )}
+        </div>
+        <p className="text-[var(--text-dim)] text-xs mt-0.5 truncate">{cat.description}</p>
+      </div>
+
+      {/* Collapse chevron */}
+      <svg
+        width="16" height="16" viewBox="0 0 16 16" fill="none"
+        className={`text-[var(--text-dim)] transition-transform duration-200 flex-shrink-0 ${collapsed ? "" : "rotate-180"}`}
+      >
+        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+// ── View Toggle ──────────────────────────────────────────────────────────────
+function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="flex items-center bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg p-0.5">
+      <button
+        onClick={() => onChange("status")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          view === "status"
+            ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-sm"
+            : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+        }`}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="4" cy="4" r="2" fill={view === "status" ? "#00bc7d" : "currentColor"} opacity={view === "status" ? 1 : 0.4} />
+          <circle cx="10" cy="4" r="2" fill={view === "status" ? "#fe9a00" : "currentColor"} opacity={view === "status" ? 1 : 0.4} />
+          <circle cx="7" cy="10" r="2" fill={view === "status" ? "#71717a" : "currentColor"} opacity={view === "status" ? 1 : 0.4} />
+        </svg>
+        Status
+      </button>
+      <button
+        onClick={() => onChange("category")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          view === "category"
+            ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-sm"
+            : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+        }`}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill={view === "category" ? "#2b7fff" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
+          <rect x="8" y="1" width="5" height="5" rx="1" fill={view === "category" ? "#00bc7d" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
+          <rect x="1" y="8" width="5" height="5" rx="1" fill={view === "category" ? "#fe9a00" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
+          <rect x="8" y="8" width="5" height="5" rx="1" fill={view === "category" ? "#6941c6" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
+        </svg>
+        Category
+      </button>
+    </div>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function IntegrationsTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [viewMode, setViewMode] = useState<ViewMode>("category");
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<MetricCategory>>(new Set());
+
+  const toggleCollapse = (cat: MetricCategory) => {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
 
   const filtered = integrations.filter((i) => {
     if (search && !i.name.toLowerCase().includes(search.toLowerCase()) && !i.category.toLowerCase().includes(search.toLowerCase())) return false;
-    if (statusFilter !== "All Statuses" && i.status !== statusFilter) return false;
+    if (statusFilter !== "All Statuses" && STATUS_LABELS[i.status] !== statusFilter) return false;
     if (categoryFilter !== "All Categories" && i.category !== categoryFilter) return false;
     return true;
   });
@@ -436,10 +593,23 @@ export default function IntegrationsTab() {
     setCategoryFilter("All Categories");
   };
 
-  // Group by status buckets
-  const connected = filtered.filter((i) => i.status === "Connected").sort((a, b) => a.name.localeCompare(b.name));
-  const attention = filtered.filter((i) => i.status === "Reconnect" || i.status === "Partial").sort((a, b) => a.name.localeCompare(b.name));
-  const notConnected = filtered.filter((i) => i.status === "Not Connected").sort((a, b) => a.name.localeCompare(b.name));
+  // Status view grouping
+  const connected = filtered.filter((i) => i.status === "CONNECTED" || i.status === "SYNCING").sort((a, b) => a.name.localeCompare(b.name));
+  const attention = filtered.filter((i) => i.status === "SYNC_ERROR" || i.status === "ACTION_REQUIRED" || i.status === "SETUP_INCOMPLETE").sort((a, b) => a.name.localeCompare(b.name));
+  const notConnected = filtered.filter((i) => i.status === "NOT_CONNECTED").sort((a, b) => a.name.localeCompare(b.name));
+
+  // Category view grouping
+  const categoryGroups = DATA_CATEGORY_ORDER.map((catKey) => {
+    const items = filtered.filter((i) => i.dataCategory === catKey).sort((a, b) => {
+      // Connected first, then by name
+      const aConnected = a.status === "CONNECTED" || a.status === "SYNCING" ? 0 : 1;
+      const bConnected = b.status === "CONNECTED" || b.status === "SYNCING" ? 0 : 1;
+      if (aConnected !== bConnected) return aConnected - bConnected;
+      return a.name.localeCompare(b.name);
+    });
+    const connectedCount = items.filter((i) => i.status === "CONNECTED" || i.status === "SYNCING").length;
+    return { key: catKey, items, connectedCount };
+  }).filter((g) => g.items.length > 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -459,65 +629,92 @@ export default function IntegrationsTab() {
               className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-60 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
             />
           </div>
-          <FilterDropdown label="Statuses" value={statusFilter} options={allStatuses} onChange={setStatusFilter} />
+          <FilterDropdown label="Statuses" value={statusFilter} options={allStatuses.map((s) => STATUS_LABELS[s])} onChange={setStatusFilter} />
           <FilterDropdown label="Categories" value={categoryFilter} options={allCategories} onChange={setCategoryFilter} />
         </div>
 
-        {hasActiveFilters && (
-          <button
-            onClick={resetFilters}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1.75 1.75L12.25 12.25M12.25 1.75L1.75 12.25" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            Reset
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1.75 1.75L12.25 12.25M12.25 1.75L1.75 12.25" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              Reset
+            </button>
+          )}
+          <ViewToggle view={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
-      {/* ── Connected ──────────────────────────────────────────────────────── */}
-      {connected.length > 0 && (
-        <div>
-          <SectionHeader
-            title="Connected"
-            count={connected.length}
-            dotColor="bg-[#00bc7d]"
-            description="Active integrations syncing data"
-          />
-          <div className="grid grid-cols-3 gap-4">
-            {connected.map((i) => <IntegrationCard key={i.name} integration={i} />)}
-          </div>
+      {/* ── Category View ──────────────────────────────────────────────────── */}
+      {viewMode === "category" && (
+        <div className="flex flex-col gap-2">
+          {categoryGroups.map(({ key, items, connectedCount }) => (
+            <div key={key}>
+              <CategorySectionHeader
+                categoryKey={key}
+                count={items.length}
+                connectedCount={connectedCount}
+                collapsed={collapsedCategories.has(key)}
+                onToggle={() => toggleCollapse(key)}
+              />
+              {!collapsedCategories.has(key) && (
+                <div className="grid grid-cols-3 gap-4 mt-3 mb-4 pl-1">
+                  {items.map((i) => <IntegrationCard key={i.name} integration={i} />)}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ── Needs Attention ────────────────────────────────────────────────── */}
-      {attention.length > 0 && (
-        <div>
-          <SectionHeader
-            title="Needs Attention"
-            count={attention.length}
-            dotColor="bg-[#fe9a00]"
-            description="Integrations that require action to resume syncing"
-          />
-          <div className="grid grid-cols-3 gap-4">
-            {attention.map((i) => <IntegrationCard key={i.name} integration={i} />)}
-          </div>
-        </div>
-      )}
+      {/* ── Status View ────────────────────────────────────────────────────── */}
+      {viewMode === "status" && (
+        <div className="flex flex-col gap-5">
+          {connected.length > 0 && (
+            <div>
+              <SectionHeader
+                title="Connected"
+                count={connected.length}
+                dotColor="bg-[#00bc7d]"
+                description="Active integrations syncing data"
+              />
+              <div className="grid grid-cols-3 gap-4">
+                {connected.map((i) => <IntegrationCard key={i.name} integration={i} showCategoryBadge />)}
+              </div>
+            </div>
+          )}
 
-      {/* ── Not Connected ──────────────────────────────────────────────────── */}
-      {notConnected.length > 0 && (
-        <div>
-          <SectionHeader
-            title="Available"
-            count={notConnected.length}
-            dotColor="bg-[#71717a]"
-            description="Integrations ready to connect"
-          />
-          <div className="grid grid-cols-3 gap-4">
-            {notConnected.map((i) => <IntegrationCard key={i.name} integration={i} />)}
-          </div>
+          {attention.length > 0 && (
+            <div>
+              <SectionHeader
+                title="Needs Attention"
+                count={attention.length}
+                dotColor="bg-[#fe9a00]"
+                description="Integrations that require action to resume syncing"
+              />
+              <div className="grid grid-cols-3 gap-4">
+                {attention.map((i) => <IntegrationCard key={i.name} integration={i} showCategoryBadge />)}
+              </div>
+            </div>
+          )}
+
+          {notConnected.length > 0 && (
+            <div>
+              <SectionHeader
+                title="Available"
+                count={notConnected.length}
+                dotColor="bg-[#71717a]"
+                description="Integrations ready to connect"
+              />
+              <div className="grid grid-cols-3 gap-4">
+                {notConnected.map((i) => <IntegrationCard key={i.name} integration={i} showCategoryBadge />)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
