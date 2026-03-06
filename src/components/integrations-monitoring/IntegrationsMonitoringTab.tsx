@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import type { IntegrationStatus, Integration, CatalogIntegration } from "../monitoringData";
-import { allIntegrations } from "../monitoringData";
+import type { IntegrationStatus, Integration, CatalogIntegration, DataCategory } from "../monitoringData";
+import { allIntegrations, DATA_CATEGORY_LABELS } from "../monitoringData";
 import { ATTENTION_STATUSES, SYNC_ERROR_STATUSES } from "./statusConfig";
 import { catalogIntegrations } from "./catalogData";
 import { IntegrationIconSmall, IntegrationIcon } from "./icons";
@@ -11,8 +11,11 @@ import IntegrationRow, { IntegrationTableHeader } from "./IntegrationRow";
 import DetailView from "./DetailView";
 import CatalogView from "./CatalogView";
 import DataSourceWizard from "./DataSourceWizard";
+import FileIntegrationWizard from "./FileIntegrationWizard";
 import { SupportModal, RequestedModal } from "./modals";
 import PostSyncOnboarding from "./PostSyncOnboarding";
+
+const FILE_INTEGRATION_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
 
 export type IntMonView = "main" | "catalog" | "detail" | "data-wizard";
 
@@ -27,6 +30,7 @@ export default function IntegrationsMonitoringTab({
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [openKebabName, setOpenKebabName] = useState<string | null>(null);
   const [mainSearch, setMainSearch] = useState("");
+  const [dataCategoryFilter, setDataCategoryFilter] = useState<DataCategory | null>(null);
   const [needsAttentionExpanded, setNeedsAttentionExpanded] = useState(true);
   const [syncErrorsExpanded, setSyncErrorsExpanded] = useState(true);
   const [connectedExpanded, setConnectedExpanded] = useState(true);
@@ -68,8 +72,9 @@ export default function IntegrationsMonitoringTab({
 
   const requestedIntegrations = catalogIntegrations.filter((i) => i.isRequested);
 
-  // Search filter
+  // Search + data category filter
   const filterBySearch = (integration: Integration) => {
+    if (dataCategoryFilter && integration.dataCategory !== dataCategoryFilter) return false;
     if (!mainSearch) return true;
     const q = mainSearch.toLowerCase();
     return (
@@ -110,24 +115,14 @@ export default function IntegrationsMonitoringTab({
 
   // ─── DATA SOURCE WIZARD ──────────────────────────────────────────────────
   if (view === "data-wizard" && wizardIntegration) {
-    return (
-      <DataSourceWizard
-        integration={wizardIntegration}
-        onBack={() => {
-          setWizardIntegration(null);
-          onViewChange("catalog");
-        }}
-        onGoHome={() => {
-          setWizardIntegration(null);
-          onViewChange("main");
-        }}
-        onComplete={(name) => {
-          handleConnect(name);
-          setWizardIntegration(null);
-          onViewChange("main");
-        }}
-      />
-    );
+    const isFileIntegration = FILE_INTEGRATION_NAMES.has(wizardIntegration.name);
+    const wizardProps = {
+      integration: wizardIntegration,
+      onBack: () => { setWizardIntegration(null); onViewChange("catalog"); },
+      onGoHome: () => { setWizardIntegration(null); onViewChange("main"); },
+      onComplete: (name: string) => { handleConnect(name); setWizardIntegration(null); onViewChange("main"); },
+    };
+    return isFileIntegration ? <FileIntegrationWizard {...wizardProps} /> : <DataSourceWizard {...wizardProps} />;
   }
 
   // ─── DETAIL VIEW ──────────────────────────────────────────────────────────
@@ -231,7 +226,7 @@ export default function IntegrationsMonitoringTab({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Dev toggle + Search bar */}
+      {/* Search bar + data category filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
@@ -245,6 +240,32 @@ export default function IntegrationsMonitoringTab({
             placeholder="Search"
             className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
           />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setDataCategoryFilter(null)}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border ${
+              dataCategoryFilter === null
+                ? "bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent"
+                : "bg-transparent text-[var(--text-muted)] border-[var(--border-secondary)] hover:border-[var(--text-dim)]"
+            }`}
+          >
+            All
+          </button>
+          {(Object.entries(DATA_CATEGORY_LABELS) as [DataCategory, { label: string; color: string }][]).map(([key, { label, color }]) => (
+            <button
+              key={key}
+              onClick={() => setDataCategoryFilter(dataCategoryFilter === key ? null : key)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border ${
+                dataCategoryFilter === key
+                  ? "border-transparent text-white"
+                  : "bg-transparent text-[var(--text-muted)] border-[var(--border-secondary)] hover:border-[var(--text-dim)]"
+              }`}
+              style={dataCategoryFilter === key ? { backgroundColor: color } : undefined}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <button
           onClick={() => setShowEmptyState(true)}

@@ -56,7 +56,19 @@ export interface Account {
   lastRefreshed: string;
   dataUntil: string;
   metrics: Record<string, string>;
+  earliestDate?: string;
+  latestDate?: string;
 }
+
+export type DataCategory = "kpi" | "paid_marketing" | "organic" | "contextual" | "halo";
+
+export const DATA_CATEGORY_LABELS: Record<DataCategory, { label: string; color: string }> = {
+  kpi: { label: "KPIs", color: "#00bc7d" },
+  paid_marketing: { label: "Paid Marketing", color: "#2b7fff" },
+  organic: { label: "Organic", color: "#fe9a00" },
+  contextual: { label: "Contextual", color: "#6941c6" },
+  halo: { label: "Halo", color: "#EE1D52" },
+};
 
 export interface Integration {
   name: string;
@@ -64,6 +76,7 @@ export interface Integration {
   color: string;
   connectionType: ConnectionType;
   category: IntegrationCategory;
+  dataCategory?: DataCategory;
   status: IntegrationStatus;
   subtitle: string;
   overviewMetrics: OverviewMetric[];
@@ -97,6 +110,7 @@ export interface CatalogIntegration {
   requestedDate?: string;
   isRecommended?: boolean;
   partnerBenefit?: string;
+  dataCategory?: DataCategory;
 }
 
 // ─── All Categories ─────────────────────────────────────────────────────────
@@ -132,6 +146,7 @@ export const allIntegrations: Integration[] = [
     color: "#1877F2",
     connectionType: "Source",
     category: "Advertising",
+    dataCategory: "paid_marketing",
     status: "CONNECTED",
     subtitle: "4 accounts · Last sync 2 min ago",
     refreshFrequency: "Every 6h",
@@ -158,10 +173,10 @@ export const allIntegrations: Integration[] = [
     alertMessage: "One account is stale and data is missing for 2 days.",
     alertType: "warning",
     accounts: [
-      { name: "US Brand Awareness", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:32 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$45.2K", Impressions: "3.1M", Clicks: "128K", "Attrib. Rev": "$312K" } },
-      { name: "Global Retargeting", status: "CONNECTED", lastRefreshed: "Jan 27, 2025, 08:30 AM", dataUntil: "Jan 27, 2025", metrics: { Spend: "$32.1K", Impressions: "2.4M", Clicks: "95K", "Attrib. Rev": "$245K" } },
-      { name: "EU Prospecting", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:28 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$28.8K", Impressions: "1.6M", Clicks: "72K", "Attrib. Rev": "$198K" } },
-      { name: "APAC Campaigns", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:25 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$18.4K", Impressions: "1.1M", Clicks: "47K", "Attrib. Rev": "$137K" } },
+      { name: "US Brand Awareness", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:32 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$45.2K", Impressions: "3.1M", Clicks: "128K", "Attrib. Rev": "$312K" }, earliestDate: "Jan 1, 2023", latestDate: "Jan 29, 2025" },
+      { name: "Global Retargeting", status: "CONNECTED", lastRefreshed: "Jan 27, 2025, 08:30 AM", dataUntil: "Jan 27, 2025", metrics: { Spend: "$32.1K", Impressions: "2.4M", Clicks: "95K", "Attrib. Rev": "$245K" }, earliestDate: "Mar 15, 2023", latestDate: "Jan 27, 2025" },
+      { name: "EU Prospecting", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:28 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$28.8K", Impressions: "1.6M", Clicks: "72K", "Attrib. Rev": "$198K" }, earliestDate: "Jun 1, 2023", latestDate: "Jan 29, 2025" },
+      { name: "APAC Campaigns", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 08:25 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$18.4K", Impressions: "1.1M", Clicks: "47K", "Attrib. Rev": "$137K" }, earliestDate: "Sep 1, 2023", latestDate: "Jan 29, 2025" },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["healthy", "healthy", "healthy", "warning", "warning", "healthy", "healthy"],
@@ -174,6 +189,7 @@ export const allIntegrations: Integration[] = [
     color: "#34A853",
     connectionType: "Source",
     category: "Advertising",
+    dataCategory: "paid_marketing",
     status: "CONNECTED",
     subtitle: "7 accounts · Last sync 5 min ago",
     refreshFrequency: "Every 6h",
@@ -198,13 +214,13 @@ export const allIntegrations: Integration[] = [
     latestDate: "Jan 29, 2025",
     reliableThrough: "Jan 28, 2025",
     accounts: [
-      { name: "Brand Search", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:55 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$22.1K", Impressions: "2.8M", Clicks: "142K", "Attrib. Rev": "$380K" } },
-      { name: "Shopping Campaigns", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:50 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$18.5K", Impressions: "2.1M", Clicks: "98K", "Attrib. Rev": "$295K" } },
-      { name: "Performance Max", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:48 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$15.2K", Impressions: "1.9M", Clicks: "82K", "Attrib. Rev": "$210K" } },
-      { name: "Display Network", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:45 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$14.8K", Impressions: "2.5M", Clicks: "75K", "Attrib. Rev": "$125K" } },
-      { name: "YouTube Ads", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:42 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$12.3K", Impressions: "1.5M", Clicks: "58K", "Attrib. Rev": "$98K" } },
-      { name: "Discovery Ads", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:40 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$8.7K", Impressions: "0.8M", Clicks: "38K", "Attrib. Rev": "$55K" } },
-      { name: "Demand Gen", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:38 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$6.7K", Impressions: "0.5M", Clicks: "28K", "Attrib. Rev": "$42K" } },
+      { name: "Brand Search", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:55 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$22.1K", Impressions: "2.8M", Clicks: "142K", "Attrib. Rev": "$380K" }, earliestDate: "Feb 1, 2023", latestDate: "Jan 29, 2025" },
+      { name: "Shopping Campaigns", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:50 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$18.5K", Impressions: "2.1M", Clicks: "98K", "Attrib. Rev": "$295K" }, earliestDate: "Feb 1, 2023", latestDate: "Jan 29, 2025" },
+      { name: "Performance Max", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:48 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$15.2K", Impressions: "1.9M", Clicks: "82K", "Attrib. Rev": "$210K" }, earliestDate: "May 1, 2023", latestDate: "Jan 29, 2025" },
+      { name: "Display Network", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:45 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$14.8K", Impressions: "2.5M", Clicks: "75K", "Attrib. Rev": "$125K" }, earliestDate: "Feb 1, 2023", latestDate: "Jan 28, 2025" },
+      { name: "YouTube Ads", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:42 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$12.3K", Impressions: "1.5M", Clicks: "58K", "Attrib. Rev": "$98K" }, earliestDate: "Apr 15, 2023", latestDate: "Jan 28, 2025" },
+      { name: "Discovery Ads", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:40 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$8.7K", Impressions: "0.8M", Clicks: "38K", "Attrib. Rev": "$55K" }, earliestDate: "Jul 1, 2023", latestDate: "Jan 28, 2025" },
+      { name: "Demand Gen", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:38 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$6.7K", Impressions: "0.5M", Clicks: "28K", "Attrib. Rev": "$42K" }, earliestDate: "Oct 1, 2023", latestDate: "Jan 28, 2025" },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["healthy", "healthy", "healthy", "healthy", "healthy", "healthy", "healthy"],
@@ -217,6 +233,7 @@ export const allIntegrations: Integration[] = [
     color: "#EE1D52",
     connectionType: "Source",
     category: "Advertising",
+    dataCategory: "paid_marketing",
     status: "ACTION_REQUIRED",
     subtitle: "2 accounts · Last sync 1 day ago",
     refreshFrequency: "Every 6h",
@@ -243,8 +260,8 @@ export const allIntegrations: Integration[] = [
     alertMessage: "Connection expired. Please re-authenticate your TikTok Ads account.",
     alertType: "error",
     accounts: [
-      { name: "TikTok US Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:15 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$28.5K", Impressions: "3.8M", Clicks: "132K", "Attrib. Rev": "$215K" } },
-      { name: "TikTok EU Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:10 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$13.6K", Impressions: "1.8M", Clicks: "66K", "Attrib. Rev": "$95K" } },
+      { name: "TikTok US Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:15 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$28.5K", Impressions: "3.8M", Clicks: "132K", "Attrib. Rev": "$215K" }, earliestDate: "Mar 15, 2023", latestDate: "Jan 28, 2025" },
+      { name: "TikTok EU Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:10 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$13.6K", Impressions: "1.8M", Clicks: "66K", "Attrib. Rev": "$95K" }, earliestDate: "Jun 1, 2023", latestDate: "Jan 28, 2025" },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["healthy", "healthy", "healthy", "healthy", "healthy", "warning", "failed"],
@@ -257,6 +274,7 @@ export const allIntegrations: Integration[] = [
     color: "#0A66C2",
     connectionType: "Source",
     category: "Advertising",
+    dataCategory: "paid_marketing",
     status: "SYNC_ERROR",
     subtitle: "1 account · Last sync 5 days ago",
     refreshFrequency: "Every 6h",
@@ -283,7 +301,7 @@ export const allIntegrations: Integration[] = [
     alertMessage: "API authentication failed. All syncs have been failing for 5 days.",
     alertType: "error",
     accounts: [
-      { name: "LinkedIn B2B Campaigns", status: "SYNC_ERROR", lastRefreshed: "Jan 24, 2025, 02:15 PM", dataUntil: "Jan 24, 2025", metrics: { Spend: "$18.2K", Impressions: "1.1M", Clicks: "42K", "Attrib. Rev": "$85K" } },
+      { name: "LinkedIn B2B Campaigns", status: "SYNC_ERROR", lastRefreshed: "Jan 24, 2025, 02:15 PM", dataUntil: "Jan 24, 2025", metrics: { Spend: "$18.2K", Impressions: "1.1M", Clicks: "42K", "Attrib. Rev": "$85K" }, earliestDate: "Aug 1, 2023", latestDate: "Jan 24, 2025" },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["failed", "failed", "failed", "failed", "failed", "failed", "failed"],
@@ -296,6 +314,7 @@ export const allIntegrations: Integration[] = [
     color: "#4FD1C5",
     connectionType: "Source",
     category: "MMP",
+    dataCategory: "paid_marketing",
     status: "CONNECTED",
     subtitle: "1 account · Last sync 8 min ago",
     refreshFrequency: "Real-time",
@@ -333,6 +352,7 @@ export const allIntegrations: Integration[] = [
     color: "#FF7A59",
     connectionType: "Source",
     category: "CRM",
+    dataCategory: "organic",
     status: "CONNECTED",
     subtitle: "1 account · Last sync 5 min ago",
     refreshFrequency: "Every 6h",
@@ -370,6 +390,7 @@ export const allIntegrations: Integration[] = [
     color: "#00A1E0",
     connectionType: "Source",
     category: "CRM",
+    dataCategory: "organic",
     status: "SYNC_ERROR",
     subtitle: "1 account · Last sync 3 days ago",
     refreshFrequency: "Every 6h",
@@ -409,6 +430,7 @@ export const allIntegrations: Integration[] = [
     color: "#4285F4",
     connectionType: "Destination",
     category: "Data Warehouse",
+    // No dataCategory — generic data container
     status: "CONNECTED",
     subtitle: "1 account · Last sync 1 min ago",
     refreshFrequency: "Scheduled",
@@ -446,6 +468,7 @@ export const allIntegrations: Integration[] = [
     color: "#0F9D58",
     connectionType: "Source",
     category: "Data Warehouse",
+    // No dataCategory — generic data container
     status: "CONNECTED",
     subtitle: "3 sheets · Last sync 15 min ago",
     refreshFrequency: "Hourly",
@@ -485,6 +508,7 @@ export const allIntegrations: Integration[] = [
     color: "#FFFC00",
     connectionType: "Source",
     category: "Advertising",
+    dataCategory: "paid_marketing",
     status: "CONNECTED",
     subtitle: "1 of 3 accounts selected · Last sync 1h ago",
     refreshFrequency: "Every 6h",
@@ -511,9 +535,9 @@ export const allIntegrations: Integration[] = [
     alertMessage: "2 accounts have not been selected for data pull.",
     alertType: "warning",
     accounts: [
-      { name: "Snapchat US Brand", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:30 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$8.4K", Impressions: "1.2M", Clicks: "45K", "Attrib. Rev": "$62K" } },
-      { name: "Snapchat EU Growth", status: "NOT_CONNECTED", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" } },
-      { name: "Snapchat APAC Test", status: "NOT_CONNECTED", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" } },
+      { name: "Snapchat US Brand", status: "CONNECTED", lastRefreshed: "Jan 29, 2025, 07:30 AM", dataUntil: "Jan 29, 2025", metrics: { Spend: "$8.4K", Impressions: "1.2M", Clicks: "45K", "Attrib. Rev": "$62K" }, earliestDate: "Oct 1, 2024", latestDate: "Jan 29, 2025" },
+      { name: "Snapchat EU Growth", status: "NOT_CONNECTED", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" }, earliestDate: "—", latestDate: "—" },
+      { name: "Snapchat APAC Test", status: "NOT_CONNECTED", lastRefreshed: "Not selected", dataUntil: "—", metrics: { Spend: "—", Impressions: "—", Clicks: "—", "Attrib. Rev": "—" }, earliestDate: "—", latestDate: "—" },
     ],
     accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
     syncHealthDays: ["healthy", "healthy", "healthy", "warning", "warning", "healthy", "healthy"],
@@ -526,6 +550,7 @@ export const allIntegrations: Integration[] = [
     color: "#2D2D2D",
     connectionType: "Source",
     category: "CRM",
+    dataCategory: "organic",
     status: "SYNCING",
     subtitle: "Initial sync in progress · Connected Jan 24",
     refreshFrequency: "Every 6h",
@@ -561,6 +586,7 @@ export const allIntegrations: Integration[] = [
     color: "#635BFF",
     connectionType: "Source",
     category: "Payments",
+    dataCategory: "kpi",
     status: "SETUP_INCOMPLETE",
     subtitle: "0 accounts · Setup started Jan 28",
     refreshFrequency: "Every 6h",

@@ -6,6 +6,7 @@ import type { CatalogIntegration, IntegrationStatus } from "../monitoringData";
 import { catalogIntegrations, plannedIntegrations, type PlannedIntegration } from "./catalogData";
 import { IntegrationIcon } from "./icons";
 import DataSourceWizard from "./DataSourceWizard";
+import FileIntegrationWizard from "./FileIntegrationWizard";
 import { RequestFormModal } from "./modals";
 import PostSyncOnboarding from "./PostSyncOnboarding";
 
@@ -24,7 +25,7 @@ const TAB_LABELS: Record<AddIntegrationTab, string> = {
 
 // ─── Classification helpers ─────────────────────────────────────────────────
 
-const FILE_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3"]);
+const FILE_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
 const WAREHOUSE_NAMES = new Set(["BigQuery", "Snowflake", "Amazon Redshift", "Databricks"]);
 
 function getTabsForIntegration(i: CatalogIntegration): AddIntegrationTab[] {
@@ -175,14 +176,24 @@ export default function AddIntegrationPage() {
 
   // ─── Wizard view ────────────────────────────────────────────────────────
   if (wizardIntegration) {
+    const isFileIntegration = FILE_NAMES.has(wizardIntegration.name);
     return (
       <div className="flex flex-col min-h-full">
-        <DataSourceWizard
-          integration={wizardIntegration}
-          onBack={() => setWizardIntegration(null)}
-          onGoHome={() => setWizardIntegration(null)}
-          onComplete={(name) => handleWizardComplete(name)}
-        />
+        {isFileIntegration ? (
+          <FileIntegrationWizard
+            integration={wizardIntegration}
+            onBack={() => setWizardIntegration(null)}
+            onGoHome={() => setWizardIntegration(null)}
+            onComplete={(name) => handleWizardComplete(name)}
+          />
+        ) : (
+          <DataSourceWizard
+            integration={wizardIntegration}
+            onBack={() => setWizardIntegration(null)}
+            onGoHome={() => setWizardIntegration(null)}
+            onComplete={(name) => handleWizardComplete(name)}
+          />
+        )}
         {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       </div>
     );

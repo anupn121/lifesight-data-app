@@ -104,8 +104,8 @@ export function IntegrationTableHeader() {
         <HeaderTooltip tooltip="Current connection and sync health" />
       </span>
       <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
-        Accounts Selected
-        <HeaderTooltip tooltip="Number of accounts chosen for data sync" />
+        Data Sources
+        <HeaderTooltip tooltip="Number of data sources chosen for data sync" />
       </span>
       <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
         Last Data Sync
@@ -173,28 +173,6 @@ export default function IntegrationRow({
         {/* Status column */}
         <div>
           <StatusBadge status={effectiveStatus} />
-          {effectiveStatus === "SYNCING" && (integration.connectedDate || integration.estimatedCompletionDate) && (
-            <div className="mt-1.5 flex items-center gap-3 text-[10px] text-[var(--text-dim)]">
-              {integration.connectedDate && (
-                <span className="flex items-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-                    <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1" />
-                    <path d="M6 3v3.5l2 1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {integration.connectedDate}
-                </span>
-              )}
-              {integration.estimatedCompletionDate && (
-                <span className="flex items-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-                    <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="#a855f7" strokeWidth="1" strokeLinecap="round" />
-                    <circle cx="6" cy="6" r="3" stroke="#a855f7" strokeWidth="1" />
-                  </svg>
-                  <span className="text-[#a855f7]">ETA {integration.estimatedCompletionDate}</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Accounts column */}
@@ -209,7 +187,9 @@ export default function IntegrationRow({
 
         {/* Frequency column */}
         <div>
-          <span className="text-[var(--text-dim)] text-xs">{integration.refreshFrequency}</span>
+          {effectiveStatus !== "SYNCING" && (
+            <span className="text-[var(--text-dim)] text-xs">{integration.refreshFrequency}</span>
+          )}
         </div>
 
         {/* Actions column */}
@@ -242,21 +222,39 @@ export default function IntegrationRow({
         </div>
       </div>
 
-      {/* Expanded: Accounts Table */}
+      {/* Expanded: Data Source Table */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
         style={{ maxHeight: isExpanded ? "1000px" : "0px", opacity: isExpanded ? 1 : 0 }}
       >
         <div className="border-t border-[var(--border-subtle)] px-5 pb-4 ml-8">
-          {/* Date range info */}
-          <div className="flex items-center gap-4 mt-3 mb-3">
-            <span className="text-[var(--text-dim)] text-[10px] uppercase tracking-wider font-semibold">Earliest: <span className="text-[#00bc7d]">{integration.earliestDate}</span></span>
-            <span className="text-[var(--text-dim)] text-[10px] uppercase tracking-wider font-semibold">Latest: <span className="text-[#00bc7d]">{integration.latestDate}</span></span>
-          </div>
+          {/* Syncing info — only shown in expanded view */}
+          {effectiveStatus === "SYNCING" && (integration.connectedDate || integration.estimatedCompletionDate) && (
+            <div className="mt-3 mb-1 flex items-center gap-3 text-[10px] text-[var(--text-dim)]">
+              {integration.connectedDate && (
+                <span className="flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+                    <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1" />
+                    <path d="M6 3v3.5l2 1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Integrated {integration.connectedDate}
+                </span>
+              )}
+              {integration.estimatedCompletionDate && (
+                <span className="flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+                    <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="#a855f7" strokeWidth="1" strokeLinecap="round" />
+                    <circle cx="6" cy="6" r="3" stroke="#a855f7" strokeWidth="1" />
+                  </svg>
+                  <span className="text-[#a855f7]">ETA {integration.estimatedCompletionDate}</span>
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Alert if present */}
           {integration.alertMessage && (
-            <div className={`mb-3 px-3 py-2 rounded-lg border text-xs flex items-center gap-2 ${
+            <div className={`mt-3 mb-3 px-3 py-2 rounded-lg border text-xs flex items-center gap-2 ${
               integration.alertType === "error"
                 ? "bg-[#ff2056]/5 border-[#ff2056]/20 text-[#ff2056]"
                 : "bg-[#fe9a00]/5 border-[#fe9a00]/20 text-[#fe9a00]"
@@ -268,24 +266,33 @@ export default function IntegrationRow({
             </div>
           )}
 
-          {integration.accounts.length > 0 && (
+          {integration.accounts.length > 0 && (() => {
+            const isAdChannel = integration.category === "Advertising";
+            const gridCols = `minmax(160px, 1.5fr) 100px ${integration.accountColumns.map(() => "1fr").join(" ")}${isAdChannel ? " 100px 100px" : ""}`;
+            return (
             <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden">
               {/* Header */}
-              <div className={`grid border-b border-[var(--border-subtle)] bg-[var(--bg-card-inner)]`} style={{ gridTemplateColumns: `minmax(160px, 1.5fr) 100px ${integration.accountColumns.map(() => "1fr").join(" ")}` }}>
-                <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Account</span></div>
+              <div className={`grid border-b border-[var(--border-subtle)] bg-[var(--bg-card-inner)]`} style={{ gridTemplateColumns: gridCols }}>
+                <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Data Source</span></div>
                 <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Status</span></div>
                 {integration.accountColumns.map((col) => (
                   <div key={col} className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">{col}</span></div>
                 ))}
+                {isAdChannel && (
+                  <>
+                    <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Earliest</span></div>
+                    <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Latest</span></div>
+                  </>
+                )}
               </div>
               {/* Overall row */}
               {integration.accounts.length > 1 && (() => {
                 const totals = aggregateMetrics(integration.accounts, integration.accountColumns);
                 return (
-                  <div className="grid border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]" style={{ gridTemplateColumns: `minmax(160px, 1.5fr) 100px ${integration.accountColumns.map(() => "1fr").join(" ")}` }}>
+                  <div className="grid border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]" style={{ gridTemplateColumns: gridCols }}>
                     <div className="px-4 py-2.5"><span className="text-[var(--text-primary)] text-xs font-semibold">Overall</span></div>
                     <div className="px-4 py-2.5">
-                      <span className="text-[var(--text-muted)] text-xs">{integration.accounts.length} accounts</span>
+                      <span className="text-[var(--text-muted)] text-xs">{integration.accounts.length} data sources</span>
                     </div>
                     {integration.accountColumns.map((col) => (
                       <div key={col} className="px-4 py-2.5">
@@ -294,12 +301,18 @@ export default function IntegrationRow({
                         </span>
                       </div>
                     ))}
+                    {isAdChannel && (
+                      <>
+                        <div className="px-4 py-2.5" />
+                        <div className="px-4 py-2.5" />
+                      </>
+                    )}
                   </div>
                 );
               })()}
-              {/* Account rows */}
+              {/* Data Source rows */}
               {integration.accounts.map((account) => (
-                <div key={account.name} className="grid border-b border-[var(--border-subtle)] last:border-b-0" style={{ gridTemplateColumns: `minmax(160px, 1.5fr) 100px ${integration.accountColumns.map(() => "1fr").join(" ")}` }}>
+                <div key={account.name} className="grid border-b border-[var(--border-subtle)] last:border-b-0" style={{ gridTemplateColumns: gridCols }}>
                   <div className="px-4 py-2.5"><span className="text-[var(--text-primary)] text-xs">{account.name}</span></div>
                   <div className="px-4 py-2.5">
                     <span className={`inline-flex items-center gap-1.5 text-xs ${statusConfig[account.status].color}`}>
@@ -314,10 +327,25 @@ export default function IntegrationRow({
                       </span>
                     </div>
                   ))}
+                  {isAdChannel && (
+                    <>
+                      <div className="px-4 py-2.5">
+                        <span className={`text-xs ${account.earliestDate && account.earliestDate !== "—" ? "text-[#00bc7d] font-medium" : "text-[var(--text-dim)]"}`}>
+                          {account.earliestDate || "—"}
+                        </span>
+                      </div>
+                      <div className="px-4 py-2.5">
+                        <span className={`text-xs ${account.latestDate && account.latestDate !== "—" ? "text-[#00bc7d] font-medium" : "text-[var(--text-dim)]"}`}>
+                          {account.latestDate || "—"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

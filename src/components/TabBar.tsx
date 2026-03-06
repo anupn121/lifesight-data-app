@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 export type TabId = "monitoring" | "integrations" | "integrations-monitoring" | "metrics-dimensions" | "tactic-mapper" | "data-models";
 
 interface TabBarProps {
@@ -7,16 +9,33 @@ interface TabBarProps {
   onTabChange: (tab: TabId) => void;
 }
 
-const tabs: { id: TabId; label: string }[] = [
-  { id: "monitoring", label: "Monitoring" },
-  { id: "integrations", label: "Integrations" },
-  { id: "integrations-monitoring", label: "Integrations & Monitoring" },
+const visibleTabs: { id: TabId; label: string }[] = [
+  { id: "integrations-monitoring", label: "Integrations" },
   { id: "metrics-dimensions", label: "Metrics & Dimensions" },
   { id: "tactic-mapper", label: "Tactic Mapper" },
   { id: "data-models", label: "Data Models" },
 ];
 
+const hiddenTabs: { id: TabId; label: string }[] = [
+  { id: "monitoring", label: "Monitoring (Legacy)" },
+  { id: "integrations", label: "Integrations (Legacy)" },
+];
+
 export default function TabBar({ activeTab, onTabChange }: TabBarProps) {
+  const [showHidden, setShowHidden] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "L") {
+        setShowHidden((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const tabs = showHidden ? [...visibleTabs, ...hiddenTabs] : visibleTabs;
+
   return (
     <div className="border-b border-[var(--border-tab)] flex items-start">
       <div className="flex gap-4">

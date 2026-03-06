@@ -30,7 +30,7 @@ const INITIAL_TACTICS = [
 ];
 
 export default function DataPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("monitoring");
+  const [activeTab, setActiveTab] = useState<TabId>("integrations-monitoring");
   const [fields, setFields] = useState<Field[]>(initialFields);
   const [tactics, setTactics] = useState<string[]>(INITIAL_TACTICS);
   const [dataModels, setDataModels] = useState<DataModel[]>(sampleDataModels);
