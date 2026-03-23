@@ -60,14 +60,13 @@ export interface Account {
   latestDate?: string;
 }
 
-export type DataCategory = "kpi" | "paid_marketing" | "organic" | "contextual" | "halo";
+export type DataCategory = "kpi" | "paid_marketing" | "organic" | "contextual";
 
 export const DATA_CATEGORY_LABELS: Record<DataCategory, { label: string; color: string }> = {
   kpi: { label: "KPIs", color: "#00bc7d" },
   paid_marketing: { label: "Paid Marketing", color: "#2b7fff" },
   organic: { label: "Organic", color: "#fe9a00" },
   contextual: { label: "Contextual", color: "#6941c6" },
-  halo: { label: "Halo", color: "#EE1D52" },
 };
 
 export interface Integration {

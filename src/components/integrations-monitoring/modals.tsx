@@ -258,3 +258,102 @@ export function RequestFormModal({
     </Modal>
   );
 }
+
+export function InviteUserModal({
+  open,
+  integrationName,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  integrationName: string;
+  onClose: () => void;
+  onSubmit: (email: string, message: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const handleClose = () => {
+    setEmail("");
+    setMessage("");
+    setSent(false);
+    onClose();
+  };
+
+  const handleSubmit = () => {
+    if (!email) return;
+    onSubmit(email, message);
+    setSent(true);
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose}>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[var(--text-primary)] text-lg font-semibold">
+            {sent ? "Invite Sent" : "Invite a teammate"}
+          </h3>
+          <button onClick={handleClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+        {sent ? (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 bg-[#00bc7d]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M10 16l4 4 8-8" stroke="#00bc7d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </div>
+            <p className="text-[var(--text-primary)] text-sm font-medium mb-1">Invite sent to {email}</p>
+            <p className="text-[var(--text-muted)] text-xs mb-6">They&apos;ll receive an email with instructions to connect {integrationName}.</p>
+            <button
+              onClick={handleClose}
+              className="w-full px-4 py-2.5 rounded-lg bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-[var(--text-muted)] text-sm mb-5">
+              Send an invite to someone who has access to <strong className="text-[var(--text-primary)]">{integrationName}</strong>.
+            </p>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-[var(--text-secondary)] text-sm font-medium block mb-1.5">Email address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="teammate@company.com"
+                  className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-[var(--text-secondary)] text-sm font-medium block mb-1.5">Message (optional)</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Hey, can you connect this integration?"
+                  rows={3}
+                  className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors resize-none"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button onClick={handleClose} className="px-4 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!email}
+                  className="px-4 py-2 rounded-lg bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send Invite
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}

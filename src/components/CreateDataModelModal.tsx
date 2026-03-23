@@ -289,17 +289,17 @@ export default function CreateDataModelModal({ isOpen, onClose, onSave, editMode
             <p className="text-[10px] text-[var(--text-label)] -mt-2">Select KPI categories and map each to a source. For Platform sources, pick a metric field.</p>
 
             {/* KPI category selector */}
-            <div className="flex flex-wrap gap-1.5">
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) addKpi(e.target.value as (typeof KPI_CATEGORIES)[number]); }}
+              className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-[11px] text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#6941c6] appearance-none w-full"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236941c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+            >
+              <option value="">+ Add KPI category...</option>
               {KPI_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => addKpi(cat)}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--bg-badge)] border border-[var(--border-secondary)] text-[var(--text-muted)] hover:border-[#6941c6] hover:text-[#a78bfa] transition-colors"
-                >
-                  + {cat}
-                </button>
+                <option key={cat} value={cat}>{cat}</option>
               ))}
-            </div>
+            </select>
 
             {/* Selected KPIs with source mapping */}
             {form.kpis.length > 0 && (

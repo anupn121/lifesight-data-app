@@ -13,7 +13,7 @@ type CatalogIntegrationWithCategory = CatalogIntegration & {
   dataCategory: MetricCategory;
 };
 
-const DATA_CATEGORY_ORDER: MetricCategory[] = ["kpi", "paid_marketing", "organic", "contextual", "halo"];
+const DATA_CATEGORY_ORDER: MetricCategory[] = ["kpi", "paid_marketing", "organic", "contextual"];
 
 const DATA_CATEGORY_ICONS: Record<MetricCategory, JSX.Element> = {
   kpi: (
@@ -45,12 +45,6 @@ const DATA_CATEGORY_ICONS: Record<MetricCategory, JSX.Element> = {
       <path d="M8 11V13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M2.5 8H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M11 8H13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  ),
-  halo: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.3" fill="none" />
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" fill="none" />
     </svg>
   ),
 };
@@ -116,8 +110,8 @@ const integrations: CatalogIntegrationWithCategory[] = [
   { name: "Snowflake", description: "Connect your Snowflake data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#29B5E8", accounts: 0, icon: "sf\u2744", footerLabel: "0 Tables" },
   { name: "BigQuery", description: "Connect your BigQuery data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "bq", footerLabel: "0 Tables" },
 
-  // Halo
-  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", dataCategory: "halo", status: "CONNECTED", color: "#6941c6", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
+  // Custom
+  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", dataCategory: "contextual", status: "CONNECTED", color: "#6941c6", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
 ];
 
 const allCategories = Array.from(new Set(integrations.map((i) => i.category)));

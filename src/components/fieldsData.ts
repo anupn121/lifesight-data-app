@@ -5,7 +5,7 @@
 export type DataTypeKey = "CURRENCY" | "FLOAT64" | "NUMERIC" | "INT64" | "STRING" | "DATE" | "BIGNUMERIC" | "JSON";
 
 // --- Metric Category System ---
-export type MetricCategory = "kpi" | "paid_marketing" | "organic" | "contextual" | "halo";
+export type MetricCategory = "kpi" | "paid_marketing" | "organic" | "contextual";
 export type VariableType = "Binary" | "Continuous" | "Categorical";
 export type KpiSubtype = "Revenue" | "Conversions" | "Installs" | "Orders" | "Store Visits" | "Registrations" | "Reach" | "Subscriptions" | "Admissions";
 export type PaidMarketingMetricType = "Spends" | "Impressions" | "Clicks" | "Other";
@@ -15,7 +15,6 @@ export const METRIC_CATEGORIES: Record<MetricCategory, { label: string; color: s
   paid_marketing: { label: "Paid Marketing", color: "#2b7fff", description: "Spends, Impressions, Clicks grouped by ad platform" },
   organic: { label: "Organic", color: "#fe9a00", description: "Binary, Continuous, Categorical variables" },
   contextual: { label: "Contextual", color: "#6941c6", description: "Binary, Continuous, Categorical variables" },
-  halo: { label: "Halo", color: "#EE1D52", description: "Binary, Continuous, Categorical variables" },
 };
 
 export const DATA_TYPES: Record<DataTypeKey, { display: string; bqType: string }> = {
@@ -177,6 +176,37 @@ export const SOURCE_STREAM_TABLES: Record<string, {
     color: "#F47920",
     streams: {
       "Ad Performance": { sources: ["Outbrain Ads"], tables: ["ob_ad_performance"] },
+    },
+  },
+  // Non-ad-platform sources
+  Shopify: {
+    color: "#95BF47",
+    streams: {
+      "Orders": { sources: ["Shopify Orders"], tables: ["shopify_orders", "shopify_order_items"] },
+      "Products": { sources: ["Shopify Products"], tables: ["shopify_products", "shopify_variants"] },
+      "Customers": { sources: ["Shopify Customers"], tables: ["shopify_customers"] },
+    },
+  },
+  HubSpot: {
+    color: "#FF7A59",
+    streams: {
+      "Contacts": { sources: ["HubSpot Contacts"], tables: ["hubspot_contacts"] },
+      "Email Campaigns": { sources: ["HubSpot Email"], tables: ["hubspot_email_events", "hubspot_campaigns"] },
+      "Deals": { sources: ["HubSpot Deals"], tables: ["hubspot_deals"] },
+    },
+  },
+  Klaviyo: {
+    color: "#2B2B2B",
+    streams: {
+      "Campaigns": { sources: ["Klaviyo Campaigns"], tables: ["klaviyo_campaigns", "klaviyo_campaign_stats"] },
+      "Flows": { sources: ["Klaviyo Flows"], tables: ["klaviyo_flows", "klaviyo_flow_stats"] },
+    },
+  },
+  "Google Analytics": {
+    color: "#F9AB00",
+    streams: {
+      "Web Traffic": { sources: ["GA4 Web"], tables: ["ga4_sessions", "ga4_events"] },
+      "Conversions": { sources: ["GA4 Conversions"], tables: ["ga4_conversions"] },
     },
   },
 };
@@ -379,17 +409,73 @@ const rawFields: RawField[] = [
 
   // Vibe Ads
   { name: "vibe_spend", displayName: "Spend", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "spend", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total ad spend" },
-  { name: "vibe_impressions", displayName: "Impressions", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
-  { name: "vibe_purchase", displayName: "Purchases", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_purchases", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Purchase events" },
-  { name: "vibe_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "amount_of_purchases", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue from purchases" },
-  { name: "vibe_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
+  { name: "vibe_impressions", displayName: "Impressions", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Total impressions" },
+  { name: "vibe_purchase", displayName: "Purchases", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "number_of_purchases", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Purchase events" },
+  { name: "vibe_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "amount_of_purchases", dataType: "Currency", transformation: "SUM", status: "Unmapped", description: "Revenue from purchases" },
+  { name: "vibe_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Vibe Ads", sourceColor: "#7C3AED", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Campaign name" },
 
   // Google DV 360
   { name: "dv360_spend", displayName: "Media Cost", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "media_cost_partner_currency", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total media cost" },
   { name: "dv360_impressions", displayName: "Impressions", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "impressions", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total impressions" },
-  { name: "dv360_clicks", displayName: "Clicks", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total clicks" },
-  { name: "dv360_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "revenue_partner_currency", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue in partner currency" },
+  { name: "dv360_clicks", displayName: "Clicks", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "clicks", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Total clicks" },
+  { name: "dv360_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "revenue_partner_currency", dataType: "Currency", transformation: "SUM", status: "Unmapped", description: "Revenue in partner currency" },
   { name: "dv360_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Google DV 360", sourceColor: "#4285F4", sourceKey: "campaign_name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Campaign name" },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // SHOPIFY (KPI category)
+  // ══════════════════════════════════════════════════════════════════════
+  { name: "shopify_total_revenue", displayName: "Attributed Revenue", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.total_price", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total order revenue including tax and shipping" },
+  { name: "shopify_orders_count", displayName: "Purchases", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.count", dataType: "Number", transformation: "COUNT", status: "Mapped", description: "Total number of completed orders" },
+  { name: "shopify_aov", displayName: "Average Order Value", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.total_price", dataType: "Currency", transformation: "AVG", status: "Mapped", description: "Average revenue per order" },
+  { name: "shopify_refund_amount", displayName: "Refund Amount", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "refunds.total_amount", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Total refunded amount" },
+  { name: "shopify_discount_amount", displayName: "Discount Amount", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.total_discounts", dataType: "Currency", transformation: "SUM", status: "Unmapped", description: "Total discounts applied" },
+  { name: "shopify_new_customers", displayName: "New Customers", kind: "metric", source: "Shopify Customers", sourceColor: "#95BF47", sourceKey: "customers.new_count", dataType: "Number", transformation: "COUNT", status: "Mapped", description: "First-time purchasers" },
+  { name: "shopify_repeat_rate", displayName: "Repeat Purchase Rate", kind: "metric", source: "Shopify Customers", sourceColor: "#95BF47", sourceKey: "customers.repeat_rate", dataType: "Percentage", transformation: "AVG", status: "Unmapped", description: "Percentage of returning customers" },
+  { name: "shopify_items_sold", displayName: "Items Sold", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "line_items.quantity", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total units sold across all orders" },
+  { name: "shopify_order_date", displayName: "Date", kind: "dimension", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.created_at", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Order creation date" },
+  { name: "shopify_product_title", displayName: "Product Name", kind: "dimension", source: "Shopify Products", sourceColor: "#95BF47", sourceKey: "products.title", dataType: "String", transformation: "NONE", status: "Mapped", description: "Product title" },
+  { name: "shopify_product_type", displayName: "Product Type", kind: "dimension", source: "Shopify Products", sourceColor: "#95BF47", sourceKey: "products.product_type", dataType: "String", transformation: "NONE", status: "Mapped", description: "Product category type" },
+  { name: "shopify_order_channel", displayName: "Sales Channel", kind: "dimension", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.source_name", dataType: "String", transformation: "NONE", status: "Unmapped", description: "Channel the order originated from" },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // HUBSPOT (Organic category)
+  // ══════════════════════════════════════════════════════════════════════
+  { name: "hs_email_delivered", displayName: "Emails Delivered", kind: "metric", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.num_delivered", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total emails successfully delivered" },
+  { name: "hs_email_opens", displayName: "Email Opens", kind: "metric", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.num_opens", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total email open events" },
+  { name: "hs_email_clicks", displayName: "Email Clicks", kind: "metric", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.num_clicks", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total click events from emails" },
+  { name: "hs_email_unsubs", displayName: "Unsubscribes", kind: "metric", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.num_unsubscribes", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Total email unsubscribe events" },
+  { name: "hs_contacts_created", displayName: "New Contacts", kind: "metric", source: "HubSpot Contacts", sourceColor: "#FF7A59", sourceKey: "contacts.created_count", dataType: "Number", transformation: "COUNT", status: "Mapped", description: "New contacts created" },
+  { name: "hs_deals_won_revenue", displayName: "Deals Won Revenue", kind: "metric", source: "HubSpot Deals", sourceColor: "#FF7A59", sourceKey: "deals.amount", dataType: "Currency", transformation: "SUM", status: "Unmapped", description: "Total revenue from closed-won deals" },
+  { name: "hs_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Email campaign name" },
+  { name: "hs_send_date", displayName: "Date", kind: "dimension", source: "HubSpot Email", sourceColor: "#FF7A59", sourceKey: "campaigns.send_date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Campaign send date" },
+  { name: "hs_lifecycle_stage", displayName: "Lifecycle Stage", kind: "dimension", source: "HubSpot Contacts", sourceColor: "#FF7A59", sourceKey: "contacts.lifecyclestage", dataType: "String", transformation: "NONE", status: "Mapped", description: "Contact lifecycle stage" },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // KLAVIYO (Organic category)
+  // ══════════════════════════════════════════════════════════════════════
+  { name: "kl_campaign_revenue", displayName: "Campaign Revenue", kind: "metric", source: "Klaviyo Campaigns", sourceColor: "#2B2B2B", sourceKey: "campaigns.attributed_revenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue attributed to email/SMS campaigns" },
+  { name: "kl_campaign_recipients", displayName: "Recipients", kind: "metric", source: "Klaviyo Campaigns", sourceColor: "#2B2B2B", sourceKey: "campaigns.num_recipients", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total campaign recipients" },
+  { name: "kl_campaign_opens", displayName: "Campaign Opens", kind: "metric", source: "Klaviyo Campaigns", sourceColor: "#2B2B2B", sourceKey: "campaigns.num_unique_opens", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Unique opens per campaign" },
+  { name: "kl_flow_revenue", displayName: "Flow Revenue", kind: "metric", source: "Klaviyo Flows", sourceColor: "#2B2B2B", sourceKey: "flows.attributed_revenue", dataType: "Currency", transformation: "SUM", status: "Mapped", description: "Revenue attributed to automated flows" },
+  { name: "kl_flow_recipients", displayName: "Flow Recipients", kind: "metric", source: "Klaviyo Flows", sourceColor: "#2B2B2B", sourceKey: "flows.num_recipients", dataType: "Number", transformation: "SUM", status: "Unmapped", description: "Total flow recipients" },
+  { name: "kl_campaign_name", displayName: "Campaign Name", kind: "dimension", source: "Klaviyo Campaigns", sourceColor: "#2B2B2B", sourceKey: "campaigns.name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Klaviyo campaign name" },
+  { name: "kl_flow_name", displayName: "Flow Name", kind: "dimension", source: "Klaviyo Flows", sourceColor: "#2B2B2B", sourceKey: "flows.name", dataType: "String", transformation: "NONE", status: "Mapped", description: "Automation flow name" },
+  { name: "kl_send_date", displayName: "Date", kind: "dimension", source: "Klaviyo Campaigns", sourceColor: "#2B2B2B", sourceKey: "campaigns.send_time", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Campaign send date" },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // GOOGLE ANALYTICS 4 (Contextual category)
+  // ══════════════════════════════════════════════════════════════════════
+  { name: "ga4_sessions", displayName: "Sessions", kind: "metric", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.session_count", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total website sessions" },
+  { name: "ga4_users", displayName: "Active Users", kind: "metric", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.active_users", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Unique active users" },
+  { name: "ga4_page_views", displayName: "Page Views", kind: "metric", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.page_view_count", dataType: "Number", transformation: "SUM", status: "Mapped", description: "Total page view events" },
+  { name: "ga4_bounce_rate", displayName: "Bounce Rate", kind: "metric", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.bounce_rate", dataType: "Percentage", transformation: "AVG", status: "Unmapped", description: "Percentage of single-page sessions" },
+  { name: "ga4_avg_session_duration", displayName: "Avg Session Duration", kind: "metric", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.avg_session_duration", dataType: "Number", transformation: "AVG", status: "Unmapped", description: "Average time spent per session in seconds" },
+  { name: "ga4_conversion_rate", displayName: "Conversion Rate", kind: "metric", source: "GA4 Conversions", sourceColor: "#F9AB00", sourceKey: "conversions.rate", dataType: "Percentage", transformation: "AVG", status: "Mapped", description: "Session-level conversion rate" },
+  { name: "ga4_date", displayName: "Date", kind: "dimension", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.event_date", dataType: "Date", transformation: "CAST", status: "Mapped", description: "Event date" },
+  { name: "ga4_source_medium", displayName: "Source / Medium", kind: "dimension", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "traffic_source.source_medium", dataType: "String", transformation: "NONE", status: "Mapped", description: "Traffic source and medium" },
+  { name: "ga4_landing_page", displayName: "Landing Page", kind: "dimension", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "events.page_location", dataType: "String", transformation: "NONE", status: "Unmapped", description: "First page URL of the session" },
+  { name: "ga4_device_category", displayName: "Device Category", kind: "dimension", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "device.category", dataType: "String", transformation: "NONE", status: "Mapped", description: "Desktop, mobile, or tablet" },
+  { name: "ga4_country", displayName: "Country", kind: "dimension", source: "GA4 Web", sourceColor: "#F9AB00", sourceKey: "geo.country", dataType: "String", transformation: "NONE", status: "Mapped", description: "User country" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -408,53 +494,54 @@ export function deriveMetricCategory(displayName: string, source: string): {
   kpiSubtype?: KpiSubtype;
   paidMarketingMetricType?: PaidMarketingMetricType;
 } {
-  const dn = displayName.toLowerCase();
+  // Paid Marketing — all ad-platform metrics go here (including conversions/revenue)
+  if (AD_PLATFORM_SOURCES.has(source)) {
+    if (/^spend$|^media cost$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" };
+    }
+    if (/^impressions$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" };
+    }
+    if (/^clicks$|^link clicks$|^all clicks$|^swipe ups$|^clickthroughs$/i.test(displayName)) {
+      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Clicks" };
+    }
+    return { metricCategory: "paid_marketing", paidMarketingMetricType: "Other" };
+  }
 
-  // KPI: Revenue
+  // KPI — only from non-ad sources (e-commerce, CRM, etc.)
   if (/attributed revenue|conversions? value/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Revenue" };
   }
-  // KPI: Conversions
   if (/^purchases$|^all conversions$|^add to cart$|^begin checkout$|^initiated checkout$|^checkout$|^checkouts$|^leads$|^one-click leads$|^qualified leads$|^converted leads$|^lead form submits$|^all clicks$/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Conversions" };
   }
-  // KPI: Installs
   if (/^app installs$|^app activations$/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Installs" };
   }
-  // KPI: Registrations
   if (/^registrations$|^signups$|^complete registration$/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Registrations" };
   }
-  // KPI: Reach
   if (/^page views$|^page visits$|^site visits$|^sessions$/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Reach" };
   }
-  // KPI: Subscriptions
   if (/^paid subscriptions$|^subscribe$/i.test(displayName)) {
     return { metricCategory: "kpi", kpiSubtype: "Subscriptions" };
   }
 
-  // Paid Marketing (only from ad platforms)
-  if (AD_PLATFORM_SOURCES.has(source)) {
-    // Spends
-    if (/^spend$|^media cost$/i.test(displayName)) {
-      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" };
-    }
-    // Impressions
-    if (/^impressions$/i.test(displayName)) {
-      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" };
-    }
-    // Clicks
-    if (/^clicks$|^link clicks$|^all clicks$|^swipe ups$|^clickthroughs$/i.test(displayName)) {
-      return { metricCategory: "paid_marketing", paidMarketingMetricType: "Clicks" };
-    }
-    // Other ad platform metrics
-    return { metricCategory: "paid_marketing", paidMarketingMetricType: "Other" };
-  }
-
-  // Default: contextual / continuous for non-ad-platform metrics
+  // Default: contextual / continuous for non-ad, non-KPI metrics
   return { metricCategory: "contextual", variableType: "Continuous" };
+}
+
+// ---------------------------------------------------------------------------
+// Derive category for dimension fields based on source
+// ---------------------------------------------------------------------------
+function deriveDimensionCategory(source: string): MetricCategory {
+  if (AD_PLATFORM_SOURCES.has(source)) return "paid_marketing";
+  const src = source.toLowerCase();
+  if (/shopify|woocommerce|salesforce commerce|recharge/i.test(src)) return "kpi";
+  if (/hubspot|salesforce(?! commerce)|klaviyo|activecampaign|judge|fera/i.test(src)) return "organic";
+  if (/google sheets|csv|snowflake|bigquery/i.test(src)) return "contextual";
+  return "contextual";
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +552,7 @@ function migrateField(raw: RawField): Field {
   const info = getSourceStreamInfo(raw.source);
   const derived = raw.kind === "metric"
     ? deriveMetricCategory(raw.displayName, raw.source)
-    : { metricCategory: undefined, variableType: undefined, kpiSubtype: undefined, paidMarketingMetricType: undefined };
+    : { metricCategory: deriveDimensionCategory(raw.source), variableType: undefined, kpiSubtype: undefined, paidMarketingMetricType: undefined };
   return {
     ...raw,
     columnName: raw.name, // existing name is already snake_case + unique

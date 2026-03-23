@@ -71,7 +71,7 @@ export default function DataPage() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h1 className="text-[var(--text-primary)] text-xl font-semibold tracking-[-0.5px]">Data</h1>
-                <p className="text-[var(--text-muted)] text-sm mt-1">Track connection status, sync progress, and data completeness across all connected sources</p>
+                <p className="text-[var(--text-muted)] text-sm mt-1">Manage connections, define metrics, map tactics, and configure data models across your marketing stack</p>
               </div>
               {activeTab === "integrations-monitoring" && intMonView === "main" && (
                 <Link

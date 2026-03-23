@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import Pagination from "./Pagination";
+import { useState, useMemo } from "react";
 import FlowView from "./FlowView";
 import BulkAddModal from "./BulkAddModal";
 import {
@@ -23,7 +22,6 @@ import {
 } from "./fieldsData";
 
 type SubTab = "metrics" | "dimensions" | "metrics-flow" | "dimensions-flow";
-type ViewMode = "field" | "source" | "category";
 type StatusFilter = "all" | "mapped" | "unmapped";
 
 
@@ -225,16 +223,6 @@ function parseExistingTransform(field: Field): { aggregation: string; steps: Tra
 }
 
 // --- Badge components ---
-const StatusBadge = ({ status }: { status: "Mapped" | "Unmapped" }) => (
-  <span
-    className={`inline-flex items-center gap-1.5 text-xs ${status === "Mapped" ? "text-[#00bc7d]" : "text-[var(--text-label)]"}`}
-  >
-    <span
-      className={`w-1.5 h-1.5 rounded-full ${status === "Mapped" ? "bg-[#00bc7d]" : "bg-[#475467]"}`}
-    />
-    {status}
-  </span>
-);
 
 const DataTypeBadge = ({ type }: { type: string }) => {
   const colors: Record<string, string> = {
@@ -246,7 +234,6 @@ const DataTypeBadge = ({ type }: { type: string }) => {
     DATE: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
     BIGNUMERIC: "bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20",
     JSON: "bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20",
-    // Legacy type mappings
     Currency: "bg-[#00bc7d]/10 text-[#00bc7d] border-[#00bc7d]/20",
     Percentage: "bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20",
     Ratio: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
@@ -255,7 +242,18 @@ const DataTypeBadge = ({ type }: { type: string }) => {
     Enum: "bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20",
     Date: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
   };
-  const display = DATA_TYPES[type as DataTypeKey]?.display || type;
+  // Marketer-friendly display names
+  const friendlyNames: Record<string, string> = {
+    CURRENCY: "Currency",
+    FLOAT64: "Decimal",
+    NUMERIC: "Number",
+    INT64: "Number",
+    STRING: "Text",
+    DATE: "Date",
+    BIGNUMERIC: "Number",
+    JSON: "Object",
+  };
+  const display = friendlyNames[type] || DATA_TYPES[type as DataTypeKey]?.display || type;
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${colors[type] || "bg-[var(--hover-item)] text-[var(--text-muted)] border-[var(--border-subtle)]"}`}
@@ -264,25 +262,6 @@ const DataTypeBadge = ({ type }: { type: string }) => {
     </span>
   );
 };
-
-const TransformBadge = ({ transform }: { transform: string }) => {
-  if (transform === "NONE") return null;
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border bg-[var(--hover-item)] text-[var(--text-secondary)] border-[var(--border-subtle)]">
-      {transform}
-    </span>
-  );
-};
-
-const SourceDot = ({ color, name }: { color: string; name: string }) => (
-  <div
-    className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
-    style={{ backgroundColor: color }}
-    title={name}
-  >
-    <span className="text-[6px] text-white font-bold">{name[0]}</span>
-  </div>
-);
 
 // --- Icons ---
 const SearchIcon = () => (
@@ -309,29 +288,6 @@ const SearchIcon = () => (
     />
   </svg>
 );
-
-const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 12 12"
-    fill="none"
-    className={`transition-transform ${expanded ? "rotate-90" : ""}`}
-  >
-    <path
-      d="M4.5 3L7.5 6L4.5 9"
-      stroke="#9CA3AF"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-// --- Helpers ---
-function getSourceColor(source: string): string {
-  return sourceOptions.find((s) => s.name === source)?.color || "#9CA3AF";
-}
 
 // --- Transformation Builder Sub-component ---
 function TransformationBuilder({
@@ -1065,30 +1021,6 @@ function FieldModal({
 }
 
 // --- Grouping Types ---
-interface FieldGroup {
-  key: string;
-  displayName: string;
-  fields: Field[];
-  mappedCount: number;
-  unmappedCount: number;
-}
-
-interface StreamGroup {
-  stream: string;
-  tables: string[];
-  fields: Field[];
-  mappedCount: number;
-  unmappedCount: number;
-}
-
-interface ParentSourceGroup {
-  parent: string;
-  color: string;
-  streams: StreamGroup[];
-  totalFields: number;
-  totalMapped: number;
-}
-
 interface CategorySubGroup {
   label: string;
   color?: string;
@@ -1106,121 +1038,66 @@ interface CategoryGroup {
   totalMapped: number;
 }
 
-// --- Edit button SVG shared ---
-const EditButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => (
-  <button
-    onClick={onClick}
-    className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--hover-item)] transition-all"
-    title="Edit"
-  >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path
-        d="M5.5 2.5H2.5C2.23478 2.5 1.98043 2.60536 1.79289 2.79289C1.60536 2.98043 1.5 3.23478 1.5 3.5V9.5C1.5 9.76522 1.60536 10.0196 1.79289 10.2071C1.98043 10.3946 2.23478 10.5 2.5 10.5H8.5C8.76522 10.5 9.01957 10.3946 9.20711 10.2071C9.39464 10.0196 9.5 9.76522 9.5 9.5V6.5"
-        stroke="#9CA3AF"
-        strokeWidth="1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8.75 1.75C8.94891 1.55109 9.2187 1.43934 9.5 1.43934C9.7813 1.43934 10.0511 1.55109 10.25 1.75C10.4489 1.94891 10.5607 2.2187 10.5607 2.5C10.5607 2.7813 10.4489 3.05109 10.25 3.25L5.5 8L3.5 8.5L4 6.5L8.75 1.75Z"
-        stroke="#9CA3AF"
-        strokeWidth="1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  </button>
-);
+// Grid template shared between header and rows
+const TABLE_GRID = "grid-cols-[1fr_130px_130px_180px_160px_80px_90px_36px]";
 
-// Shared field row for both views
-const FieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
-  const info = getSourceStreamInfo(field.source);
-  return (
-    <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors group">
-      <div className="px-2 py-2" />
-      <div className="px-4 py-2 flex items-center min-w-0">
-        <span
-          className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
-          style={{ backgroundColor: field.sourceColor }}
-        >
-          <span className="text-[6px] text-white font-bold">{field.source[0]}</span>
-        </span>
-      </div>
-      <div className="pl-8 pr-4 py-2 flex items-center min-w-0">
-        <span className="text-[var(--text-secondary)] text-[11px] truncate" title={info.parent}>{info.parent}</span>
-      </div>
-      <div className="px-4 py-2 flex items-center min-w-0">
-        <span className="text-[var(--text-muted)] text-[11px] truncate" title={info.stream}>{info.stream}</span>
-      </div>
-      <div className="px-4 py-2 flex items-center min-w-0">
-        <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate" title={field.sourceKey}>
-          {field.sourceKey}
-        </code>
-      </div>
-      <div className="px-4 py-2 flex items-center">
-        <DataTypeBadge type={field.dataType} />
-      </div>
-      <div className="px-4 py-2 flex items-center">
-        <EditButton onClick={(e) => { e.stopPropagation(); onEdit(field); }} />
-      </div>
-    </div>
-  );
-};
-
-// Category view field row — redesigned columns
-const CategoryFieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
+// Unified field row for collapsible category sections
+const NewFieldRow = ({ field, onEdit }: { field: Field; onEdit: (field: Field) => void }) => {
   const info = getSourceStreamInfo(field.source);
   return (
     <div
-      className="grid grid-cols-[32px_1fr_120px_140px_minmax(180px,1fr)_80px_80px_100px_40px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] transition-colors cursor-pointer group"
+      className={`grid ${TABLE_GRID} border-b border-[var(--border-subtle)] hover:bg-[var(--hover-item)] transition-colors cursor-pointer group`}
       onClick={() => onEdit(field)}
     >
-      <div className="px-2 py-2" />
-      {/* Mapped Column — displayName or columnName */}
-      <div className="px-4 py-2 flex items-center gap-2 min-w-0">
+      {/* Display Name */}
+      <div className="px-4 py-2.5 flex items-center gap-2.5 min-w-0">
         <span
-          className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
+          className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center"
           style={{ backgroundColor: field.sourceColor }}
         >
-          <span className="text-[6px] text-white font-bold">{field.source[0]}</span>
+          <span className="text-[7px] text-white font-bold">{info.parent[0]}</span>
         </span>
-        <span className="text-[var(--text-primary)] text-[11px] font-medium truncate" title={field.displayName || field.columnName}>
+        <span className="text-[var(--text-primary)] text-xs font-medium truncate" title={field.displayName || field.columnName}>
           {field.displayName || field.columnName}
         </span>
       </div>
-      {/* Stream */}
-      <div className="px-4 py-2 flex items-center min-w-0">
+      {/* Source Name */}
+      <div className="px-3 py-2.5 flex items-center min-w-0">
+        <span className="text-[var(--text-secondary)] text-[11px] truncate" title={info.parent}>{info.parent}</span>
+      </div>
+      {/* Stream Name */}
+      <div className="px-3 py-2.5 flex items-center min-w-0">
         <span className="text-[var(--text-muted)] text-[11px] truncate" title={info.stream}>{info.stream}</span>
       </div>
-      {/* Source Column */}
-      <div className="px-4 py-2 flex items-center min-w-0">
+      {/* Source Field */}
+      <div className="px-3 py-2.5 flex items-center min-w-0">
         <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate" title={field.sourceKey}>
           {field.sourceKey}
         </code>
       </div>
-      {/* Status — Mapped/Unmapped */}
-      <div className="px-4 py-2 flex items-center">
-        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-          field.status === "Mapped"
-            ? "bg-[#00bc7d]/10 text-[#00bc7d]"
-            : "bg-[var(--bg-badge)] text-[var(--text-muted)]"
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${field.status === "Mapped" ? "bg-[#00bc7d]" : "bg-[var(--text-dim)]"}`} />
-          {field.status}
-        </span>
+      {/* Target Key */}
+      <div className="px-3 py-2.5 flex items-center min-w-0">
+        <code className="text-[var(--text-muted)] text-[10px] bg-[var(--bg-badge)] px-1.5 py-0.5 rounded font-mono truncate" title={field.columnName}>
+          {field.columnName}
+        </code>
       </div>
       {/* Data Type */}
-      <div className="px-4 py-2 flex items-center">
+      <div className="px-3 py-2.5 flex items-center">
         <DataTypeBadge type={field.dataType} />
       </div>
-      {/* Transformation */}
-      <div className="px-4 py-2 flex items-center">
-        <span className="text-[var(--text-muted)] text-[10px] bg-[var(--bg-badge)] px-1.5 py-0.5 rounded font-mono">
-          {field.transformation || "NONE"}
+      {/* Status */}
+      <div className="px-3 py-2.5 flex items-center">
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium ${
+          field.status === "Mapped"
+            ? "bg-[#00bc7d]/10 text-[#00bc7d]"
+            : "bg-[#fe9a00]/10 text-[#fe9a00]"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${field.status === "Mapped" ? "bg-[#00bc7d]" : "bg-[#fe9a00]"}`} />
+          {field.status === "Mapped" ? "Active" : "Needs Setup"}
         </span>
       </div>
-      {/* Edit — always visible */}
-      <div className="px-2 py-2 flex items-center justify-center">
+      {/* Edit */}
+      <div className="px-1 py-2.5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(field); }}
           className="w-6 h-6 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-all"
@@ -1247,53 +1124,28 @@ export default function MetricsDimensionsTab({
   onFieldsChange,
 }: MetricsDimensionsTabProps) {
   const [subTab, setSubTab] = useState<SubTab>("metrics");
-  const [viewMode, setViewMode] = useState<ViewMode>("category");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set(["kpi", "paid_marketing", "organic", "contextual"]));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [editField, setEditField] = useState<Field | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(15);
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
-  // Dimensions unified view state
-  const [dimensionDefinitions, setDimensionDefinitions] = useState<DimensionDefinition[]>(() => SYSTEM_DIMENSIONS);
-  const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
-  const [isAddDimensionOpen, setIsAddDimensionOpen] = useState(false);
-  const [newDimensionName, setNewDimensionName] = useState("");
-  const [newDimensionDesc, setNewDimensionDesc] = useState("");
-
   const switchSubTab = (tab: SubTab) => {
     setSubTab(tab);
     setSearch("");
-    setExpandedGroups(new Set());
-    setCurrentPage(1);
-    setSelectedCategory(null);
-    // Dimensions tab doesn't support category view — auto-switch to field
-    if (tab === "dimensions" && viewMode === "category") {
-      setViewMode("field");
-    }
-  };
-
-  const switchViewMode = (mode: ViewMode) => {
-    setViewMode(mode);
-    setExpandedGroups(new Set());
-    setCurrentPage(1);
-    setSearch("");
-    setSelectedCategory(null);
+    setStatusFilter("all");
+    setSourceFilter("all");
   };
 
   const isFlowTab = subTab === "metrics-flow" || subTab === "dimensions-flow";
 
-  // Filter fields
+  // Filter fields — applies to both metrics and dimensions
   const filteredFields = useMemo(() => {
     if (isFlowTab) return [];
+    const kind = subTab === "metrics" ? "metric" : "dimension";
     return fields.filter((f) => {
-      if (f.kind !== (subTab === "metrics" ? "metric" : "dimension")) return false;
+      if (f.kind !== kind) return false;
       if (statusFilter === "mapped" && f.status !== "Mapped") return false;
       if (statusFilter === "unmapped" && f.status !== "Unmapped") return false;
       if (sourceFilter !== "all" && f.source !== sourceFilter) return false;
@@ -1304,12 +1156,12 @@ export default function MetricsDimensionsTab({
           f.name.toLowerCase().includes(q) ||
           f.sourceKey.toLowerCase().includes(q) ||
           f.source.toLowerCase().includes(q) ||
-          f.description.toLowerCase().includes(q)
+          f.columnName.toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [fields, subTab, statusFilter, sourceFilter, search]);
+  }, [fields, subTab, statusFilter, sourceFilter, search, isFlowTab]);
 
   const metricCount = fields.filter((f) => f.kind === "metric").length;
   const dimensionCount = fields.filter((f) => f.kind === "dimension").length;
@@ -1317,84 +1169,15 @@ export default function MetricsDimensionsTab({
   // Unique sources for filter dropdown
   const uniqueSources = useMemo(() => {
     if (isFlowTab) return [];
-    const kindFilter = subTab === "metrics" ? "metric" : "dimension";
-    const sources = new Set(fields.filter((f) => f.kind === kindFilter).map((f) => f.source));
+    const kind = subTab === "metrics" ? "metric" : "dimension";
+    const sources = new Set(fields.filter((f) => f.kind === kind).map((f) => f.source));
     return Array.from(sources).sort();
-  }, [fields, subTab]);
+  }, [fields, subTab, isFlowTab]);
 
-  // Field View grouping
-  const fieldGroups = useMemo((): FieldGroup[] => {
-    if (viewMode !== "field") return [];
-    const map = new Map<string, Field[]>();
-    filteredFields.forEach((f) => {
-      const key = f.displayName || `__unmapped_${f.sourceKey}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(f);
-    });
-    return Array.from(map.entries())
-      .map(([key, flds]) => ({
-        key,
-        displayName: flds[0].displayName || "(Unmapped)",
-        fields: flds,
-        mappedCount: flds.filter((f) => f.status === "Mapped").length,
-        unmappedCount: flds.filter((f) => f.status === "Unmapped").length,
-      }))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [filteredFields, viewMode]);
-
-  // Source View — 3-level hierarchy: Parent > Stream > Fields
-  const parentSourceGroups = useMemo((): ParentSourceGroup[] => {
-    if (viewMode !== "source") return [];
-
-    // Group fields by source
-    const sourceMap = new Map<string, Field[]>();
-    filteredFields.forEach((f) => {
-      if (!sourceMap.has(f.source)) sourceMap.set(f.source, []);
-      sourceMap.get(f.source)!.push(f);
-    });
-
-    // Build parent > stream hierarchy
-    const parentMap = new Map<string, { color: string; streamMap: Map<string, { tables: string[]; fields: Field[] }> }>();
-
-    for (const [source, flds] of Array.from(sourceMap.entries())) {
-      const info = getSourceStreamInfo(source);
-      if (!parentMap.has(info.parent)) {
-        parentMap.set(info.parent, { color: info.color, streamMap: new Map() });
-      }
-      const parent = parentMap.get(info.parent)!;
-      if (!parent.streamMap.has(info.stream)) {
-        parent.streamMap.set(info.stream, { tables: info.tables, fields: [] });
-      }
-      parent.streamMap.get(info.stream)!.fields.push(...flds);
-    }
-
-    return Array.from(parentMap.entries())
-      .map(([parentName, data]) => {
-        const streams: StreamGroup[] = Array.from(data.streamMap.entries()).map(([streamName, streamData]) => ({
-          stream: streamName,
-          tables: streamData.tables,
-          fields: streamData.fields,
-          mappedCount: streamData.fields.filter(f => f.status === "Mapped").length,
-          unmappedCount: streamData.fields.filter(f => f.status === "Unmapped").length,
-        }));
-        const totalFields = streams.reduce((sum, s) => sum + s.fields.length, 0);
-        const totalMapped = streams.reduce((sum, s) => sum + s.mappedCount, 0);
-        return {
-          parent: parentName,
-          color: data.color,
-          streams,
-          totalFields,
-          totalMapped,
-        };
-      })
-      .sort((a, b) => a.parent.localeCompare(b.parent));
-  }, [filteredFields, viewMode]);
-
-  // Category View grouping
+  // Category grouping — works for both metrics AND dimensions
   const categoryGroups = useMemo((): CategoryGroup[] => {
-    if (viewMode !== "category") return [];
-
-    const CATEGORY_ORDER: MetricCategory[] = ["kpi", "paid_marketing", "organic", "contextual", "halo"];
+    if (isFlowTab) return [];
+    const CATEGORY_ORDER: MetricCategory[] = ["kpi", "paid_marketing", "organic", "contextual"];
     const catMap = new Map<MetricCategory, Field[]>();
 
     filteredFields.forEach((f) => {
@@ -1404,62 +1187,38 @@ export default function MetricsDimensionsTab({
       catMap.get(cat)!.push(f);
     });
 
-    return CATEGORY_ORDER
-      .map((cat) => {
-        const flds = catMap.get(cat) || [];
-        const config = METRIC_CATEGORIES[cat];
-        // Sub-group by parent source (channel) for all categories
-        const subMap = new Map<string, { color: string; fields: Field[] }>();
-        flds.forEach((f) => {
-          const info = getSourceStreamInfo(f.source);
-          if (!subMap.has(info.parent)) subMap.set(info.parent, { color: info.color, fields: [] });
-          subMap.get(info.parent)!.fields.push(f);
-        });
-        const subGroups: CategorySubGroup[] = Array.from(subMap.entries()).map(([label, data]) => ({
-          label,
-          color: data.color,
-          fields: data.fields,
-          mappedCount: data.fields.filter((f) => f.status === "Mapped").length,
-          unmappedCount: data.fields.filter((f) => f.status === "Unmapped").length,
-        }));
+    return CATEGORY_ORDER.map((cat) => {
+      const flds = catMap.get(cat) || [];
+      const config = METRIC_CATEGORIES[cat];
+      return {
+        category: cat,
+        label: config.label,
+        color: config.color,
+        subGroups: [],
+        totalFields: flds.length,
+        totalMapped: flds.filter((f) => f.status === "Mapped").length,
+      };
+    });
+  }, [filteredFields, isFlowTab]);
 
-        return {
-          category: cat,
-          label: config.label,
-          color: config.color,
-          subGroups,
-          totalFields: flds.length,
-          totalMapped: flds.filter((f) => f.status === "Mapped").length,
-        };
-      });
-  }, [filteredFields, viewMode]);
+  // Flat fields per category for rendering inside sections
+  const fieldsByCategory = useMemo(() => {
+    if (isFlowTab) return new Map<MetricCategory, Field[]>();
+    const map = new Map<MetricCategory, Field[]>();
+    filteredFields.forEach((f) => {
+      const cat = f.metricCategory;
+      if (!cat) return;
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(f);
+    });
+    return map;
+  }, [filteredFields, isFlowTab]);
 
-  // Category view: flat list of sub-groups for the selected category (used for pagination)
-  const categorySubGroupsFlat = useMemo(() => {
-    if (viewMode !== "category") return [];
-    if (selectedCategory === null) {
-      // "All" — flatten all sub-groups, tagged with parent category info
-      return categoryGroups.flatMap((cg) =>
-        cg.subGroups.map((sg) => ({ ...sg, categoryKey: cg.category, categoryLabel: cg.label, categoryColor: cg.color }))
-      );
-    }
-    const cg = categoryGroups.find((g) => g.category === selectedCategory);
-    if (!cg) return [];
-    return cg.subGroups.map((sg) => ({ ...sg, categoryKey: cg.category, categoryLabel: cg.label, categoryColor: cg.color }));
-  }, [viewMode, selectedCategory, categoryGroups]);
-
-  // Pagination
-  const groups = viewMode === "field" ? fieldGroups : viewMode === "source" ? parentSourceGroups : categoryGroups;
-  const totalGroups = viewMode === "category" ? categorySubGroupsFlat.length : groups.length;
-  const paginatedGroups = viewMode === "category"
-    ? categorySubGroupsFlat.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    : groups.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const toggleGroup = (key: string) => {
-    setExpandedGroups((prev) => {
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
       return next;
     });
   };
@@ -1470,856 +1229,210 @@ export default function MetricsDimensionsTab({
   };
 
   return (
-    <div className="flex flex-col gap-0">
-      {/* Single card container */}
-      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
-        {/* Toolbar row */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-primary)]">
-          <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
-            <button
-              onClick={() => switchSubTab("metrics")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                subTab === "metrics"
-                  ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Metrics ({metricCount})
-            </button>
-            <button
-              onClick={() => switchSubTab("dimensions")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                subTab === "dimensions"
-                  ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Dimensions ({dimensionCount})
-            </button>
-            <button
-              onClick={() => switchSubTab("metrics-flow")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                subTab === "metrics-flow"
-                  ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Metrics (Flow)
-            </button>
-            <button
-              onClick={() => switchSubTab("dimensions-flow")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                subTab === "dimensions-flow"
-                  ? "bg-[#6941c6] text-white shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Dimensions (Flow)
-            </button>
-          </div>
-          {!isFlowTab && <div className="flex items-center gap-2">
-            <div className="relative">
-              <SearchIcon />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder={`Search ${subTab}...`}
-                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] pl-8 pr-3 py-1.5 w-52 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
-              />
-            </div>
-
-            {/* Status filter */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowStatusDropdown((v) => !v);
-                  setShowSourceDropdown(false);
-                }}
-                className={`bg-[var(--hover-item)] border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--hover-item)] transition-colors ${
-                  statusFilter !== "all"
-                    ? "border-[#6941c6] text-[#a78bfa]"
-                    : "border-[var(--border-secondary)] text-[var(--text-secondary)]"
-                }`}
-              >
-                {statusFilter === "all"
-                  ? "Status"
-                  : statusFilter === "mapped"
-                    ? "Mapped"
-                    : "Unmapped"}
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M2.5 3.75L5 6.25L7.5 3.75" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {showStatusDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg shadow-lg z-20 min-w-[120px]">
-                  {(
-                    [
-                      ["all", "All"],
-                      ["mapped", "Mapped"],
-                      ["unmapped", "Unmapped"],
-                    ] as const
-                  ).map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => {
-                        setStatusFilter(val);
-                        setShowStatusDropdown(false);
-                        setCurrentPage(1);
-                      }}
-                      className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
-                        statusFilter === val
-                          ? "text-[#6941c6] bg-[#6941c6]/10"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Source filter */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowSourceDropdown((v) => !v);
-                  setShowStatusDropdown(false);
-                }}
-                className={`bg-[var(--hover-item)] border rounded-md flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--hover-item)] transition-colors max-w-[160px] ${
-                  sourceFilter !== "all"
-                    ? "border-[#6941c6] text-[#a78bfa]"
-                    : "border-[var(--border-secondary)] text-[var(--text-secondary)]"
-                }`}
-              >
-                <span className="truncate">
-                  {sourceFilter === "all" ? "Source" : sourceFilter}
-                </span>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0">
-                  <path d="M2.5 3.75L5 6.25L7.5 3.75" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {showSourceDropdown && (
-                <div className="absolute top-full right-0 mt-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg shadow-lg z-20 min-w-[180px] max-h-[300px] overflow-y-auto">
-                  <button
-                    onClick={() => {
-                      setSourceFilter("all");
-                      setShowSourceDropdown(false);
-                      setCurrentPage(1);
-                    }}
-                    className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
-                      sourceFilter === "all"
-                        ? "text-[#6941c6] bg-[#6941c6]/10"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
-                    }`}
-                  >
-                    All Sources
-                  </button>
-                  {uniqueSources.map((src) => (
-                    <button
-                      key={src}
-                      onClick={() => {
-                        setSourceFilter(src);
-                        setShowSourceDropdown(false);
-                        setCurrentPage(1);
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                        sourceFilter === src
-                          ? "text-[#6941c6] bg-[#6941c6]/10"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
-                      }`}
-                    >
-                      <SourceDot color={getSourceColor(src)} name={src} />
-                      <span className="truncate">{src}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Add Field */}
-            <button
-              onClick={() => {
-                setEditField(null);
-                setIsModalOpen(true);
-              }}
-              className="bg-[#6941c6] hover:bg-[#5b34b5] text-white rounded-md flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 2.5V9.5M2.5 6H9.5" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Add Field
-            </button>
-
-            {/* Bulk Add */}
-            <button
-              onClick={() => setIsBulkModalOpen(true)}
-              className="bg-[var(--bg-badge)] hover:bg-[var(--hover-item)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-primary)] rounded-md flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 3.5h8M2 6h8M2 8.5h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              Bulk Add
-            </button>
-          </div>}
+    <div className="flex flex-col gap-5">
+      {/* ── Filter bar above content ── */}
+      <div className="flex items-center gap-3">
+        {/* Metrics / Dimensions segmented control */}
+        <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
+          <button
+            onClick={() => switchSubTab("metrics")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              subTab === "metrics" || subTab === "metrics-flow"
+                ? "bg-[#6941c6] text-white shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            Metrics ({metricCount})
+          </button>
+          <button
+            onClick={() => switchSubTab("dimensions")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              subTab === "dimensions" || subTab === "dimensions-flow"
+                ? "bg-[#6941c6] text-white shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            Dimensions ({dimensionCount})
+          </button>
         </div>
 
-        {/* View toggle row — hidden for Data Flow tab and Dimensions tab */}
-        {!isFlowTab && subTab !== "dimensions" && <div className="flex items-center px-6 py-2 border-b border-[var(--border-primary)]">
-          <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-lg p-0.5">
-            <button
-              onClick={() => switchViewMode("field")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "field"
-                  ? "bg-[var(--active-item)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Field View
-            </button>
-            <button
-              onClick={() => switchViewMode("source")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "source"
-                  ? "bg-[var(--active-item)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Source View
-            </button>
-            <button
-              onClick={() => switchViewMode("category")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "category"
-                  ? "bg-[var(--active-item)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Category View
-            </button>
+        {/* Data Flow toggle */}
+        <button
+          onClick={() => {
+            const base = subTab === "metrics-flow" ? "metrics" : subTab === "dimensions-flow" ? "dimensions" : subTab;
+            switchSubTab(isFlowTab ? (base as SubTab) : (`${base}-flow` as SubTab));
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+            isFlowTab
+              ? "bg-[#6941c6]/10 text-[#6941c6] border border-[#6941c6]/30"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)]"
+          }`}
+          title="View data flow"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 4h3l2 3-2 3H2M9 4h3M9 10h3M7 7h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {isFlowTab && <span>Data Flow</span>}
+        </button>
+
+        {/* Search — grows to fill space */}
+        {!isFlowTab && (
+          <div className="relative flex-1 max-w-sm">
+            <SearchIcon />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${subTab.startsWith("metrics") ? "metrics" : "dimensions"}...`}
+              className="w-full bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-8 pr-3 py-2 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+            />
           </div>
-          <span className="text-[var(--text-label)] text-xs ml-3">
-            {totalGroups} {viewMode === "field" ? "fields" : viewMode === "source" ? "sources" : "categories"} &middot;{" "}
-            {filteredFields.length} mappings
-          </span>
-        </div>}
-
-        {/* Data Flow tab content */}
-        {isFlowTab && (
-          <FlowView
-            fields={fields}
-            kind={subTab === "metrics-flow" ? "metric" : "dimension"}
-            onBulkAdd={() => setIsBulkModalOpen(true)}
-          />
         )}
 
-        {/* Table content — metrics/dimensions only */}
-        {!isFlowTab && viewMode === "field" && (
-          <>
-            {/* Field View Header */}
-            <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-primary)]">
-              <div className="px-2 py-3" />
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Source</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
-              </div>
-              <div className="px-4 py-3" />
-            </div>
-
-            {/* Field View Groups */}
-            {(paginatedGroups as FieldGroup[]).map((group) => {
-              const isExpanded = expandedGroups.has(group.key);
-              const primaryField = group.fields[0];
-              const uniqueDataTypes = Array.from(new Set(group.fields.map((f) => f.dataType)));
-              const uniqueTransforms = Array.from(new Set(group.fields.map((f) => f.transformation)));
-
-              return (
-                <div key={group.key}>
-                  {/* Parent row */}
-                  <div
-                    className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                    onClick={() => toggleGroup(group.key)}
-                  >
-                    <div className="px-2 py-2.5 flex items-center justify-center">
-                      <ChevronIcon expanded={isExpanded} />
-                    </div>
-                    <div className="px-4 py-2.5 flex flex-col justify-center min-w-0">
-                      <span className="text-[var(--text-primary)] text-xs font-medium truncate">
-                        {group.displayName}
-                      </span>
-                      <span className="text-[var(--text-dim)] text-[10px] mt-0.5">
-                        {primaryField.description}
-                      </span>
-                    </div>
-                    <div className="px-4 py-2.5 flex items-center gap-1 min-w-0">
-                      <div className="flex items-center -space-x-1">
-                        {group.fields.slice(0, 5).map((f, i) => (
-                          <div
-                            key={i}
-                            className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)]"
-                            style={{ backgroundColor: f.sourceColor }}
-                            title={f.source}
-                          >
-                            <span className="text-[5px] text-white font-bold">{f.source[0]}</span>
-                          </div>
-                        ))}
-                        {group.fields.length > 5 && (
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] bg-[#333] text-[8px] text-[var(--text-secondary)]">
-                            +{group.fields.length - 5}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-[var(--text-dim)] text-[10px] ml-1">{group.fields.length}</span>
-                    </div>
-                    <div className="px-4 py-2.5" />
-                    <div className="px-4 py-2.5" />
-                    <div className="px-4 py-2.5 flex items-center">
-                      <DataTypeBadge type={uniqueDataTypes[0]} />
-                    </div>
-                    <div className="px-4 py-2.5" />
-                  </div>
-
-                  {/* Expanded child rows */}
-                  {isExpanded && group.fields.map((field, idx) => (
-                    <FieldRow key={idx} field={field} onEdit={handleEdit} />
-                  ))}
-                </div>
-              );
-            })}
-          </>
+        {/* Status filter */}
+        {!isFlowTab && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg text-xs text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#6941c6] transition-colors appearance-none cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="mapped">Active</option>
+            <option value="unmapped">Needs Setup</option>
+          </select>
         )}
 
-        {!isFlowTab && viewMode === "source" && (
-          <>
-            {/* Source View Header */}
-            <div className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-primary)]">
-              <div className="px-2 py-3" />
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Name</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Source</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
-              </div>
-              <div className="px-4 py-3" />
-            </div>
-
-            {/* Source View — 3-level hierarchy */}
-            {(paginatedGroups as ParentSourceGroup[]).map((parentGroup) => {
-              const parentKey = parentGroup.parent;
-              const isParentExpanded = expandedGroups.has(parentKey);
-
-              return (
-                <div key={parentKey}>
-                  {/* Level 1: Parent row */}
-                  <div
-                    className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                    onClick={() => toggleGroup(parentKey)}
-                  >
-                    <div className="px-2 py-2.5 flex items-center justify-center">
-                      <ChevronIcon expanded={isParentExpanded} />
-                    </div>
-                    <div className="col-span-6 px-4 py-2.5 flex items-center gap-2 min-w-0">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: parentGroup.color }}
-                      />
-                      <span className="text-[var(--text-primary)] text-xs font-medium">
-                        {parentGroup.parent}
-                      </span>
-                      <span className="text-[var(--text-label)] text-[10px]">
-                        {parentGroup.streams.length} {parentGroup.streams.length === 1 ? "stream" : "streams"} &middot; {parentGroup.totalFields} fields &middot; {parentGroup.totalMapped} mapped
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Level 2: Stream rows */}
-                  {isParentExpanded && parentGroup.streams.map((streamGroup) => {
-                    const streamKey = `${parentKey}::${streamGroup.stream}`;
-                    const isStreamExpanded = expandedGroups.has(streamKey);
-
-                    return (
-                      <div key={streamKey}>
-                        {/* Stream row */}
-                        <div
-                          className="grid grid-cols-[32px_1fr_140px_140px_minmax(200px,1fr)_80px_48px] border-b border-[var(--border-subtle)] bg-[var(--hover-bg)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                          onClick={() => toggleGroup(streamKey)}
-                        >
-                          <div className="px-2 py-2 flex items-center justify-center pl-6">
-                            <ChevronIcon expanded={isStreamExpanded} />
-                          </div>
-                          <div className="col-span-6 px-4 py-2 flex items-center gap-2 min-w-0">
-                            <span className="text-[var(--text-secondary)] text-xs font-medium">
-                              {streamGroup.stream}
-                            </span>
-                            <span className="text-[var(--text-label)] text-[10px]">
-                              {streamGroup.fields.length} fields
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Level 3: Field rows */}
-                        {isStreamExpanded && streamGroup.fields.map((field, idx) => (
-                          <FieldRow key={idx} field={field} onEdit={handleEdit} />
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </>
+        {/* Source filter */}
+        {!isFlowTab && (
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-lg text-xs text-[var(--text-secondary)] px-3 py-2 max-w-[180px] focus:outline-none focus:border-[#6941c6] transition-colors appearance-none cursor-pointer"
+          >
+            <option value="all">All Sources</option>
+            {uniqueSources.map((src) => (
+              <option key={src} value={src}>{src}</option>
+            ))}
+          </select>
         )}
 
-        {/* Category View */}
-        {!isFlowTab && viewMode === "category" && (
-          <>
-            {/* Category Cards Strip */}
-            <div className="flex gap-2 px-4 py-3 border-b border-[var(--border-primary)] overflow-x-auto">
-              {/* "All" card */}
-              <button
-                onClick={() => { setSelectedCategory(null); setCurrentPage(1); setExpandedGroups(new Set()); }}
-                className={`flex-shrink-0 rounded-lg border px-3 py-2.5 text-left transition-all min-w-[120px] ${
-                  selectedCategory === null
-                    ? "border-[#6941c6] bg-[#6941c614] shadow-sm"
-                    : "border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)]"
-                }`}
-              >
-                <div className="text-[var(--text-primary)] text-xs font-semibold mb-1">All</div>
-                <div className="text-[var(--text-muted)] text-[10px]">
-                  {categoryGroups.reduce((s, g) => s + g.totalFields, 0)} fields
-                </div>
-              </button>
-
-              {categoryGroups.map((cg) => {
-                const isSelected = selectedCategory === cg.category;
-                const mappedPct = cg.totalFields > 0 ? (cg.totalMapped / cg.totalFields) * 100 : 0;
-                return (
-                  <button
-                    key={cg.category}
-                    onClick={() => { setSelectedCategory(cg.category); setCurrentPage(1); setExpandedGroups(new Set()); }}
-                    className={`flex-shrink-0 rounded-lg border px-3 py-2.5 text-left transition-all min-w-[130px] ${
-                      isSelected
-                        ? "border-[#6941c6] bg-[#6941c614] shadow-sm"
-                        : "border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)]"
-                    }`}
-                    style={{ borderLeftWidth: "3px", borderLeftColor: cg.color }}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cg.color }} />
-                      <span className="text-[var(--text-primary)] text-xs font-semibold truncate">{cg.label}</span>
-                    </div>
-                    <div className="text-[var(--text-muted)] text-[10px] mb-1.5">
-                      {cg.totalFields} fields &middot; {cg.subGroups.length} ch &middot; {cg.totalMapped} mapped
-                    </div>
-                    <div className="h-1 rounded-full bg-[var(--border-primary)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${mappedPct}%`, backgroundColor: cg.color }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Category View Table Header */}
-            <div className="grid grid-cols-[32px_1fr_120px_140px_minmax(180px,1fr)_80px_80px_100px_40px] border-b border-[var(--border-primary)]">
-              <div className="px-2 py-3" />
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Mapped Column</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Source Column</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
-              </div>
-              <div className="px-4 py-3">
-                <span className="text-[var(--text-label)] text-xs font-medium">Transform</span>
-              </div>
-              <div className="px-2 py-3" />
-            </div>
-
-            {/* Category View — sub-group rows with expand to field rows */}
-            {(paginatedGroups as (CategorySubGroup & { categoryKey: string; categoryLabel: string; categoryColor: string })[]).map((subGroup, idx) => {
-              const subKey = `${subGroup.categoryKey}::${subGroup.label}`;
-              const isSubExpanded = expandedGroups.has(subKey);
-
-              return (
-                <div key={subKey + idx}>
-                  {/* Sub-group (channel) row */}
-                  <div
-                    className="grid grid-cols-[32px_1fr_120px_140px_minmax(180px,1fr)_80px_80px_100px_40px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                    onClick={() => toggleGroup(subKey)}
-                  >
-                    <div className="px-2 py-2.5 flex items-center justify-center">
-                      <ChevronIcon expanded={isSubExpanded} />
-                    </div>
-                    <div className="col-span-7 px-4 py-2.5 flex items-center gap-3 min-w-0">
-                      {/* Channel icon — larger */}
-                      {subGroup.color && (
-                        <div
-                          className="w-6 h-6 rounded-md flex-shrink-0 flex items-center justify-center"
-                          style={{ backgroundColor: subGroup.color }}
-                        >
-                          <span className="text-[9px] text-white font-bold">{subGroup.label[0]}</span>
-                        </div>
-                      )}
-                      <span className="text-[var(--text-primary)] text-sm font-medium">
-                        {subGroup.label}
-                      </span>
-                      {selectedCategory === null && (
-                        <span
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium"
-                          style={{ backgroundColor: `${subGroup.categoryColor}14`, color: subGroup.categoryColor }}
-                        >
-                          {subGroup.categoryLabel}
-                        </span>
-                      )}
-                      {/* Mapped/total count */}
-                      <span className="text-[var(--text-secondary)] text-xs font-medium">
-                        {subGroup.mappedCount}/{subGroup.fields.length} mapped
-                      </span>
-                      {/* Inline progress bar */}
-                      <div className="w-16 h-1.5 rounded-full bg-[var(--border-primary)] overflow-hidden flex-shrink-0">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${subGroup.fields.length > 0 ? (subGroup.mappedCount / subGroup.fields.length) * 100 : 0}%`,
-                            backgroundColor: subGroup.color || "var(--text-muted)",
-                          }}
-                        />
-                      </div>
-                      {/* Expand arrow */}
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0 ml-auto">
-                        <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </div>
-                    <div />
-                  </div>
-
-                  {/* Field rows */}
-                  {isSubExpanded && subGroup.fields.map((field, fIdx) => (
-                    <CategoryFieldRow key={fIdx} field={field} onEdit={handleEdit} />
-                  ))}
-                </div>
-              );
-            })}
-
-            {/* Empty state for categories with no fields */}
-            {viewMode === "category" && paginatedGroups.length === 0 && selectedCategory !== null && (
-              <div className="px-6 py-10 text-center border-b border-[var(--border-subtle)]">
-                <div className="text-[var(--text-label)] text-sm mb-1">
-                  No metrics mapped to <span className="font-medium text-[var(--text-secondary)]">{METRIC_CATEGORIES[selectedCategory as MetricCategory]?.label}</span> yet
-                </div>
-                <div className="text-[var(--text-dim)] text-xs">
-                  Assign metrics to this category by editing a field and setting its category.
-                </div>
-              </div>
-            )}
-          </>
+        {/* Add button — pushed to right */}
+        {!isFlowTab && (
+          <button
+            onClick={() => {
+              setEditField(null);
+              setIsModalOpen(true);
+            }}
+            className="ml-auto bg-[#6941c6] hover:bg-[#5b34b5] text-white rounded-lg flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 2.5V9.5M2.5 6H9.5" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {subTab === "metrics" ? "Add Metric" : "Add Dimension"}
+          </button>
         )}
+      </div>
 
-        {/* Dimensions unified view */}
-        {subTab === "dimensions" && !isFlowTab && (() => {
-          const filteredDims = dimensionDefinitions.filter((d) => {
-            if (!search) return true;
-            const q = search.toLowerCase();
-            return d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q);
-          });
-          const totalChannels = Object.keys(SOURCE_STREAM_TABLES).length;
-          return (
-            <>
-              {/* Dimensions toolbar */}
-              <div className="flex items-center justify-between px-6 py-2.5 border-b border-[var(--border-primary)]">
-                <span className="text-[var(--text-label)] text-xs">
-                  {filteredDims.length} dimensions &middot; {totalChannels} channels available
-                </span>
+      {/* ── Data Flow tab content ── */}
+      {isFlowTab && (
+        <FlowView
+          fields={fields}
+          kind={subTab === "metrics-flow" ? "metric" : "dimension"}
+          onBulkAdd={() => setIsBulkModalOpen(true)}
+        />
+      )}
+
+      {/* ── Collapsible Category Sections ── */}
+      {!isFlowTab && (
+        <div className="flex flex-col gap-5">
+          {categoryGroups.map((cg) => {
+            const isExpanded = expandedCategories.has(cg.category);
+            const catFields = fieldsByCategory.get(cg.category) || [];
+            const mappedPct = cg.totalFields > 0 ? Math.round((cg.totalMapped / cg.totalFields) * 100) : 0;
+
+            return (
+              <div key={cg.category}>
+                {/* Section header — matches Integrations page pattern */}
                 <button
-                  onClick={() => setIsAddDimensionOpen(true)}
-                  className="bg-[#6941c6] hover:bg-[#5b35b5] text-white rounded-md flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
+                  onClick={() => toggleCategory(cg.category)}
+                  className="flex items-center gap-2 mb-3 group"
                 >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 2.5v7M2.5 6h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className={`transition-transform duration-200 flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`}
+                  >
+                    <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Add Dimension
+                  <div className="w-1 h-4 rounded-full" style={{ backgroundColor: cg.color }} />
+                  <span className="text-[var(--text-primary)] text-sm font-semibold">{cg.label}</span>
+                  <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    {cg.totalMapped}/{cg.totalFields}
+                  </span>
+                  <span className="text-[var(--text-dim)] text-[10px]">{mappedPct}% active</span>
                 </button>
-              </div>
 
-              {/* Add Dimension inline form */}
-              {isAddDimensionOpen && (
-                <div className="px-6 py-3 border-b border-[var(--border-primary)] bg-[var(--hover-bg)]">
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label className="text-[var(--text-label)] text-[10px] font-medium mb-1 block">Name</label>
-                      <input
-                        type="text"
-                        value={newDimensionName}
-                        onChange={(e) => setNewDimensionName(e.target.value)}
-                        placeholder="e.g. Device Type"
-                        className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-md px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[#6941c6]"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[var(--text-label)] text-[10px] font-medium mb-1 block">Description</label>
-                      <input
-                        type="text"
-                        value={newDimensionDesc}
-                        onChange={(e) => setNewDimensionDesc(e.target.value)}
-                        placeholder="What this dimension represents"
-                        className="w-full bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-md px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[#6941c6]"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!newDimensionName.trim()) return;
-                        const newDim: DimensionDefinition = {
-                          id: `dim_user_${Date.now()}`,
-                          name: newDimensionName.trim(),
-                          description: newDimensionDesc.trim() || `User-defined dimension: ${newDimensionName.trim()}`,
-                          isSystem: false,
-                          channelMappings: [],
-                        };
-                        setDimensionDefinitions((prev) => [...prev, newDim]);
-                        setNewDimensionName("");
-                        setNewDimensionDesc("");
-                        setIsAddDimensionOpen(false);
-                      }}
-                      className="bg-[#6941c6] hover:bg-[#5b35b5] text-white rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                    >
-                      Create
-                    </button>
-                    <button
-                      onClick={() => { setIsAddDimensionOpen(false); setNewDimensionName(""); setNewDimensionDesc(""); }}
-                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-md px-2 py-1.5 text-xs transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Dimensions table header */}
-              <div className="grid grid-cols-[32px_1fr_200px_120px_40px] border-b border-[var(--border-primary)]">
-                <div className="px-2 py-3" />
-                <div className="px-4 py-3">
-                  <span className="text-[var(--text-label)] text-xs font-medium">Dimension</span>
-                </div>
-                <div className="px-4 py-3">
-                  <span className="text-[var(--text-label)] text-xs font-medium">Description</span>
-                </div>
-                <div className="px-4 py-3">
-                  <span className="text-[var(--text-label)] text-xs font-medium">Channels</span>
-                </div>
-                <div className="px-2 py-3" />
-              </div>
-
-              {/* Dimension rows */}
-              {filteredDims.map((dim) => {
-                const isExpanded = expandedDimensions.has(dim.id);
-                const mappedChannels = dim.channelMappings.filter((m) => m.status === "Mapped").length;
-                return (
-                  <div key={dim.id}>
-                    {/* Dimension parent row */}
-                    <div
-                      className="grid grid-cols-[32px_1fr_200px_120px_40px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                      onClick={() => {
-                        setExpandedDimensions((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(dim.id)) next.delete(dim.id);
-                          else next.add(dim.id);
-                          return next;
-                        });
-                      }}
-                    >
-                      <div className="px-2 py-2.5 flex items-center justify-center">
-                        <ChevronIcon expanded={isExpanded} />
+                {/* Expanded card with table */}
+                {isExpanded && (
+                  <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
+                    {/* Table header */}
+                    <div className={`grid ${TABLE_GRID} border-b border-[var(--border-primary)]`}>
+                      <div className="px-4 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Display Name</span>
                       </div>
-                      <div className="px-4 py-2.5 flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-md bg-[#6941c6]/15 flex items-center justify-center flex-shrink-0">
-                          <span className="text-[10px] text-[#a78bfa] font-bold">{dim.name[0]}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-[var(--text-primary)] text-sm font-medium truncate block">{dim.name}</span>
-                        </div>
-                        {dim.isSystem && (
-                          <span className="text-[9px] text-[var(--text-dim)] bg-[var(--bg-badge)] px-1.5 py-0.5 rounded font-medium flex-shrink-0">System</span>
-                        )}
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Source</span>
                       </div>
-                      <div className="px-4 py-2.5 flex items-center min-w-0">
-                        <span className="text-[var(--text-muted)] text-xs truncate">{dim.description}</span>
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Stream</span>
                       </div>
-                      <div className="px-4 py-2.5 flex items-center gap-2">
-                        <span className="text-[var(--text-secondary)] text-xs font-medium">
-                          {mappedChannels}/{totalChannels}
-                        </span>
-                        <div className="w-12 h-1.5 rounded-full bg-[var(--border-primary)] overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-[#6941c6] transition-all"
-                            style={{ width: `${totalChannels > 0 ? (mappedChannels / totalChannels) * 100 : 0}%` }}
-                          />
-                        </div>
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Source Field</span>
                       </div>
-                      <div className="px-2 py-2.5 flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)]">
-                          <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Target Key</span>
                       </div>
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Type</span>
+                      </div>
+                      <div className="px-3 py-3">
+                        <span className="text-[var(--text-label)] text-xs font-medium">Status</span>
+                      </div>
+                      <div className="px-1 py-3" />
                     </div>
 
-                    {/* Expanded channel mappings */}
-                    {isExpanded && (
-                      <div className="bg-[var(--hover-bg)]">
-                        {/* Channel mapping header */}
-                        <div className="grid grid-cols-[56px_1fr_140px_minmax(160px,1fr)_80px_80px_40px] border-b border-[var(--border-subtle)]">
-                          <div className="px-2 py-2" />
-                          <div className="px-4 py-2">
-                            <span className="text-[var(--text-dim)] text-[10px] font-medium uppercase tracking-wider">Channel</span>
-                          </div>
-                          <div className="px-4 py-2">
-                            <span className="text-[var(--text-dim)] text-[10px] font-medium uppercase tracking-wider">Source</span>
-                          </div>
-                          <div className="px-4 py-2">
-                            <span className="text-[var(--text-dim)] text-[10px] font-medium uppercase tracking-wider">Source Column</span>
-                          </div>
-                          <div className="px-4 py-2">
-                            <span className="text-[var(--text-dim)] text-[10px] font-medium uppercase tracking-wider">Type</span>
-                          </div>
-                          <div className="px-4 py-2">
-                            <span className="text-[var(--text-dim)] text-[10px] font-medium uppercase tracking-wider">Status</span>
-                          </div>
-                          <div className="px-2 py-2" />
-                        </div>
-
-                        {/* Channel mapping rows */}
-                        {dim.channelMappings.length > 0 ? dim.channelMappings.map((mapping, mIdx) => {
-                          const channelInfo = SOURCE_STREAM_TABLES[mapping.channel];
-                          const channelColor = channelInfo?.color || "#9CA3AF";
-                          return (
-                            <div key={mIdx} className="grid grid-cols-[56px_1fr_140px_minmax(160px,1fr)_80px_80px_40px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-item)] transition-colors group">
-                              <div className="px-2 py-2" />
-                              <div className="px-4 py-2 flex items-center gap-2 min-w-0">
-                                <div
-                                  className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
-                                  style={{ backgroundColor: channelColor }}
-                                >
-                                  <span className="text-[7px] text-white font-bold">{mapping.channel[0]}</span>
-                                </div>
-                                <span className="text-[var(--text-primary)] text-[11px] font-medium truncate">{mapping.channel}</span>
-                              </div>
-                              <div className="px-4 py-2 flex items-center min-w-0">
-                                <span className="text-[var(--text-muted)] text-[11px] truncate" title={mapping.source}>{mapping.source}</span>
-                              </div>
-                              <div className="px-4 py-2 flex items-center min-w-0">
-                                <code className="text-[#a78bfa] text-[10px] bg-[#6941c6]/10 px-1.5 py-0.5 rounded font-mono truncate" title={mapping.sourceKey}>
-                                  {mapping.sourceKey}
-                                </code>
-                              </div>
-                              <div className="px-4 py-2 flex items-center">
-                                <DataTypeBadge type={mapping.dataType} />
-                              </div>
-                              <div className="px-4 py-2 flex items-center">
-                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                  mapping.status === "Mapped"
-                                    ? "bg-[#00bc7d]/10 text-[#00bc7d]"
-                                    : "bg-[var(--bg-badge)] text-[var(--text-muted)]"
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${mapping.status === "Mapped" ? "bg-[#00bc7d]" : "bg-[var(--text-dim)]"}`} />
-                                  {mapping.status}
-                                </span>
-                              </div>
-                              <div className="px-2 py-2 flex items-center justify-center">
-                                <button
-                                  className="w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[var(--hover-item)] transition-all"
-                                  title="Edit mapping"
-                                >
-                                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                                    <path d="M5.5 2.5H2.5C2.23478 2.5 1.98043 2.60536 1.79289 2.79289C1.60536 2.98043 1.5 3.23478 1.5 3.5V9.5C1.5 9.76522 1.60536 10.0196 1.79289 10.2071C1.98043 10.3946 2.23478 10.5 2.5 10.5H8.5C8.76522 10.5 9.01957 10.3946 9.20711 10.2071C9.39464 10.0196 9.5 9.76522 9.5 9.5V6.5" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M8.75 1.75C8.94891 1.55109 9.2187 1.43934 9.5 1.43934C9.7813 1.43934 10.0511 1.55109 10.25 1.75C10.4489 1.94891 10.5607 2.2187 10.5607 2.5C10.5607 2.7813 10.4489 3.05109 10.25 3.25L5.5 8L3.5 8.5L4 6.5L8.75 1.75Z" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }) : (
-                          <div className="px-14 py-6 text-center border-b border-[var(--border-subtle)]">
-                            <p className="text-[var(--text-label)] text-xs mb-1">No channel mappings yet</p>
-                            <p className="text-[var(--text-dim)] text-[10px]">Add channel mappings to link this dimension across your data sources.</p>
-                          </div>
-                        )}
+                    {/* Field rows */}
+                    {catFields.length > 0 ? (
+                      catFields.map((field, idx) => (
+                        <NewFieldRow key={`${field.source}-${field.sourceKey}-${idx}`} field={field} onEdit={handleEdit} />
+                      ))
+                    ) : (
+                      <div className="px-6 py-10 text-center">
+                        <p className="text-[var(--text-label)] text-sm mb-1">No {subTab === "metrics" ? "metrics" : "dimensions"} in {cg.label}</p>
+                        <p className="text-[var(--text-dim)] text-xs">
+                          {search ? `No results matching "${search}"` : "Fields will appear here once assigned to this category."}
+                        </p>
                       </div>
                     )}
                   </div>
-                );
-              })}
+                )}
+              </div>
+            );
+          })}
 
-              {/* Empty state for dimensions search */}
-              {filteredDims.length === 0 && (
-                <div className="px-6 py-10 text-center">
-                  <p className="text-[var(--text-label)] text-sm">
-                    {search ? `No dimensions matching "${search}"` : "No dimensions defined"}
-                  </p>
-                </div>
-              )}
-            </>
-          );
-        })()}
+          {/* Global empty state */}
+          {filteredFields.length === 0 && !search && !statusFilter && !sourceFilter && (
+            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-6 py-12 text-center">
+              <p className="text-[var(--text-label)] text-sm mb-1">No {subTab === "metrics" ? "metrics" : "dimensions"} configured yet</p>
+              <p className="text-[var(--text-dim)] text-xs">Add your first {subTab === "metrics" ? "metric" : "dimension"} to get started.</p>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Empty state — metrics only (dimensions handled above) */}
-        {!isFlowTab && subTab !== "dimensions" && paginatedGroups.length === 0 && (
-          <div className="px-6 py-12 text-center">
-            <p className="text-[var(--text-label)] text-sm">
-              {search
-                ? `No ${subTab} found matching "${search}"`
-                : `No ${subTab} match the current filters`}
-            </p>
-          </div>
-        )}
-
-        {/* Pagination — metrics only (dimensions uses its own list) */}
-        {!isFlowTab && subTab !== "dimensions" && <Pagination
-          currentPage={currentPage}
-          totalItems={totalGroups}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-          onItemsPerPageChange={(size) => {
-            setItemsPerPage(size);
-            setCurrentPage(1);
-          }}
-        />}
-      </div>
-
-      {/* Modal */}
+      {/* ── Modals ── */}
       <FieldModal
         isOpen={isModalOpen}
         onClose={() => {

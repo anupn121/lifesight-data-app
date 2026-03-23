@@ -8,7 +8,7 @@ import { IntegrationIcon } from "./icons";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type DataCategory = MetricCategory; // kpi | paid_marketing | organic | contextual | halo
+type DataCategory = MetricCategory; // kpi | paid_marketing | organic | contextual
 
 interface ColumnMapping {
   sourceColumn: string;
@@ -88,16 +88,6 @@ const CATEGORY_INFO: Record<DataCategory, { label: string; color: string; icon: 
     ),
     examples: "Weather index, Competitor activity, Economic indicators, Seasonality flags",
   },
-  halo: {
-    label: "Halo",
-    color: "#EE1D52",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
-      </svg>
-    ),
-    examples: "Brand lift, Awareness surveys, PR mentions, Influencer reach",
-  },
 };
 
 // ─── Mock Sample Data ──────────────────────────────────────────────────────
@@ -128,6 +118,7 @@ function StepDataTypeAlias({
   onToggleCategory,
   onChangeAlias,
   onNext,
+  isJspPreFilled,
 }: {
   integration: CatalogIntegration;
   selectedCategories: Set<DataCategory>;
@@ -135,6 +126,7 @@ function StepDataTypeAlias({
   onToggleCategory: (cat: DataCategory) => void;
   onChangeAlias: (v: string) => void;
   onNext: () => void;
+  isJspPreFilled?: boolean;
 }) {
   const canProceed = selectedCategories.size > 0 && aliasName.trim().length > 0;
 
@@ -203,6 +195,12 @@ function StepDataTypeAlias({
         <p className="text-[var(--text-dim)] text-xs mt-2">
           This name will appear on your integrations dashboard. Use something recognizable.
         </p>
+        {isJspPreFilled && (
+          <p className="text-[#6941c6] text-xs mt-1.5 flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.32 2.68L10 4.18l-2 1.95.47 2.75L6 7.7 3.53 8.88 4 6.13 2 4.18l2.68-.5L6 1z" fill="#6941c6" /></svg>
+            Pre-filled from your setup plan
+          </p>
+        )}
       </div>
 
       {selectedCategories.size > 1 && (
@@ -234,9 +232,11 @@ function StepDataTypeAlias({
 function StepConnect({
   integration,
   onNext,
+  onInviteUser,
 }: {
   integration: CatalogIntegration;
   onNext: () => void;
+  onInviteUser?: (name: string) => void;
 }) {
   const [fileName, setFileName] = useState("");
   const isUpload = UPLOAD_ONLY.has(integration.name);
@@ -291,6 +291,14 @@ function StepConnect({
         >
           Continue
         </button>
+        {onInviteUser && (
+          <button
+            onClick={() => onInviteUser(integration.name)}
+            className="w-full mt-3 text-center text-[#6941c6] text-sm hover:underline transition-colors"
+          >
+            Don&apos;t have access? Invite someone
+          </button>
+        )}
       </div>
     );
   }
@@ -394,6 +402,15 @@ function StepConnect({
       {!isGoogleSheets && !isS3 && !isGCS && !isSFTP && (
         <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
           Authorize Access
+        </button>
+      )}
+
+      {onInviteUser && (
+        <button
+          onClick={() => onInviteUser(integration.name)}
+          className="w-full mt-4 text-center text-[#6941c6] text-sm hover:underline transition-colors"
+        >
+          Don&apos;t have access? Invite someone
         </button>
       )}
     </div>
@@ -1176,11 +1193,15 @@ export default function FileIntegrationWizard({
   onBack,
   onGoHome,
   onComplete,
+  initialAlias = "",
+  onInviteUser,
 }: {
   integration: CatalogIntegration;
   onBack: () => void;
   onGoHome: () => void;
   onComplete: (name: string) => void;
+  initialAlias?: string;
+  onInviteUser?: (name: string) => void;
 }) {
   const skipSelectSource = SKIP_SELECT_SOURCE.has(integration.name);
   const skipConnect = false; // All sources need some form of connection/upload
@@ -1196,7 +1217,7 @@ export default function FileIntegrationWizard({
 
   const [step, setStep] = useState(1);
   const [selectedCategories, setSelectedCategories] = useState<Set<DataCategory>>(new Set());
-  const [aliasName, setAliasName] = useState("");
+  const [aliasName, setAliasName] = useState(initialAlias);
   const [selectedSource, setSelectedSource] = useState("");
   const [sampleMode, setSampleMode] = useState<SampleMode>("auto");
   const [skippedMapping, setSkippedMapping] = useState(false);
@@ -1325,10 +1346,11 @@ export default function FileIntegrationWizard({
             onToggleCategory={handleToggleCategory}
             onChangeAlias={setAliasName}
             onNext={() => setStep(step + 1)}
+            isJspPreFilled={!!initialAlias}
           />
         )}
         {currentStepName === "Connect" && (
-          <StepConnect integration={integration} onNext={() => setStep(step + 1)} />
+          <StepConnect integration={integration} onNext={() => setStep(step + 1)} onInviteUser={onInviteUser} />
         )}
         {currentStepName === "Select Source" && (
           <StepSelectSource

@@ -1,25 +1,26 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { CatalogIntegration, IntegrationStatus } from "../monitoringData";
 import { catalogIntegrations, plannedIntegrations, type PlannedIntegration } from "./catalogData";
 import { IntegrationIcon } from "./icons";
 import DataSourceWizard from "./DataSourceWizard";
 import FileIntegrationWizard from "./FileIntegrationWizard";
-import { RequestFormModal } from "./modals";
+import { RequestFormModal, InviteUserModal } from "./modals";
+import { IntegrationCard, InfoTooltip } from "./IntegrationCard";
+import { getJspPlan, getJspEntryForIntegration } from "./jspData";
 import PostSyncOnboarding from "./PostSyncOnboarding";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type AddIntegrationTab = "recommended" | "native" | "files" | "warehouses" | "partners" | "wishlist";
+type AddIntegrationTab = "recommended" | "native" | "files" | "warehouses" | "wishlist";
 
 const TAB_LABELS: Record<AddIntegrationTab, string> = {
   recommended: "Recommended",
   native: "Native Integrations",
   files: "Files & Spreadsheets",
   warehouses: "Data Warehouses",
-  partners: "Partner Integrations",
   wishlist: "App Wishlist",
 };
 
@@ -31,7 +32,6 @@ const WAREHOUSE_NAMES = new Set(["BigQuery", "Snowflake", "Amazon Redshift", "Da
 function getTabsForIntegration(i: CatalogIntegration): AddIntegrationTab[] {
   const tabs: AddIntegrationTab[] = [];
   if (i.isRecommended) tabs.push("recommended");
-  if (i.isPartner) tabs.push("partners");
   if (FILE_NAMES.has(i.name)) tabs.push("files");
   else if (WAREHOUSE_NAMES.has(i.name)) tabs.push("warehouses");
   if (!i.isRequested) tabs.push("native");
@@ -78,6 +78,8 @@ export default function AddIntegrationPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [requestFormModal, setRequestFormModal] = useState<{ open: boolean; name: string; details: string }>({ open: false, name: "", details: "" });
   const [onboardingFor, setOnboardingFor] = useState<string | null>(null);
+  const [inviteModal, setInviteModal] = useState<{ open: boolean; integrationName: string }>({ open: false, integrationName: "" });
+  const jspPlan = useMemo(() => getJspPlan(), []);
 
   // Wishlist: track which planned integrations have been requested
   const [requestedPlanned, setRequestedPlanned] = useState<Set<string>>(new Set());
@@ -103,10 +105,9 @@ export default function AddIntegrationPage() {
       native: 0,
       files: 0,
       warehouses: 0,
-      partners: 0,
       wishlist: 0,
     };
-    const tabs: AddIntegrationTab[] = ["recommended", "native", "files", "warehouses", "partners", "wishlist"];
+    const tabs: AddIntegrationTab[] = ["recommended", "native", "files", "warehouses", "wishlist"];
     for (const tab of tabs) {
       if (tab === "wishlist") {
         const available = plannedIntegrations.filter((p) => !requestedPlanned.has(p.name));
@@ -133,8 +134,8 @@ export default function AddIntegrationPage() {
   useEffect(() => {
     if (!search) return;
     const tabs: AddIntegrationTab[] = hasRecommended
-      ? ["recommended", "native", "files", "warehouses", "partners", "wishlist"]
-      : ["native", "files", "warehouses", "partners", "wishlist"];
+      ? ["recommended", "native", "files", "warehouses", "wishlist"]
+      : ["native", "files", "warehouses", "wishlist"];
 
     let bestTab = activeTab;
     let bestCount = tabCounts[activeTab];
@@ -164,10 +165,25 @@ export default function AddIntegrationPage() {
   }, []);
 
   const handleWizardComplete = useCallback((name: string) => {
-    setIntegrationStatuses((prev) => ({ ...prev, [name]: "CONNECTED" }));
+    // For file integrations, format as "AliasName (via Source)"
+    const source = wizardIntegration;
+    let displayName = name;
+    if (source && FILE_NAMES.has(source.name)) {
+      const viaLabel: Record<string, string> = {
+        "Google Sheets": "Google Sheets",
+        "Import CSV": "CSV",
+        "Amazon S3": "Amazon S3",
+        "Google Cloud Storage": "Google Cloud Storage",
+        "SFTP": "SFTP",
+        "Excel Upload": "Excel",
+      };
+      displayName = `${name} (via ${viaLabel[source.name] || source.name})`;
+    }
+    setIntegrationStatuses((prev) => ({ ...prev, [displayName]: "CONNECTED" }));
     setWizardIntegration(null);
-    setOnboardingFor(name);
-  }, []);
+    setOnboardingFor(displayName);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardIntegration]);
 
   const handleRequestPlanned = useCallback((name: string) => {
     setRequestedPlanned((prev) => new Set(prev).add(name));
@@ -177,23 +193,35 @@ export default function AddIntegrationPage() {
   // ─── Wizard view ────────────────────────────────────────────────────────
   if (wizardIntegration) {
     const isFileIntegration = FILE_NAMES.has(wizardIntegration.name);
+    const jspEntry = getJspEntryForIntegration(wizardIntegration.name, jspPlan);
+    const jspAlias = jspEntry?.alias || "";
     return (
       <div className="flex flex-col min-h-full">
         {isFileIntegration ? (
           <FileIntegrationWizard
             integration={wizardIntegration}
+            initialAlias={jspAlias}
             onBack={() => setWizardIntegration(null)}
             onGoHome={() => setWizardIntegration(null)}
             onComplete={(name) => handleWizardComplete(name)}
+            onInviteUser={(name) => setInviteModal({ open: true, integrationName: name })}
           />
         ) : (
           <DataSourceWizard
             integration={wizardIntegration}
+            initialAlias={jspAlias}
             onBack={() => setWizardIntegration(null)}
             onGoHome={() => setWizardIntegration(null)}
             onComplete={(name) => handleWizardComplete(name)}
+            onInviteUser={(name) => setInviteModal({ open: true, integrationName: name })}
           />
         )}
+        <InviteUserModal
+          open={inviteModal.open}
+          integrationName={inviteModal.integrationName}
+          onClose={() => setInviteModal({ open: false, integrationName: "" })}
+          onSubmit={() => {}}
+        />
         {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       </div>
     );
@@ -201,8 +229,8 @@ export default function AddIntegrationPage() {
 
   // ─── Visible tabs ────────────────────────────────────────────────────────
   const visibleTabs: AddIntegrationTab[] = hasRecommended
-    ? ["recommended", "native", "files", "warehouses", "partners", "wishlist"]
-    : ["native", "files", "warehouses", "partners", "wishlist"];
+    ? ["recommended", "native", "files", "warehouses", "wishlist"]
+    : ["native", "files", "warehouses", "wishlist"];
 
   return (
     <div className="flex flex-col gap-0 min-h-full">
@@ -268,9 +296,6 @@ export default function AddIntegrationPage() {
         )}
         {activeTab === "warehouses" && (
           <WarehousesTab items={currentItems} onConnect={handleConnect} />
-        )}
-        {activeTab === "partners" && (
-          <PartnersTab items={currentItems} onConnect={handleConnect} />
         )}
         {activeTab === "wishlist" && (
           <WishlistTab
@@ -356,7 +381,7 @@ function NativeTab({ items, onConnect }: { items: CatalogIntegration[]; onConnec
             </div>
             <div className="grid grid-cols-3 gap-4">
               {integrations.map((i) => (
-                <IntegrationCard key={i.name} integration={i} onConnect={() => onConnect(i)} />
+                <IntegrationCard key={i.name} integration={i} onConnect={() => onConnect(i)} showPartnerBadge={i.isPartner} />
               ))}
             </div>
           </div>
@@ -401,44 +426,6 @@ function WarehousesTab({ items, onConnect }: { items: CatalogIntegration[]; onCo
           <IntegrationCard key={i.name} integration={i} onConnect={() => onConnect(i)} />
         ))}
       </div>
-    </div>
-  );
-}
-
-// ─── Tab: Partners ──────────────────────────────────────────────────────────
-
-function PartnersTab({ items, onConnect }: { items: CatalogIntegration[]; onConnect: (i: CatalogIntegration) => void }) {
-  if (items.length === 0) {
-    return <EmptyTabState message="No partner integrations match your search." />;
-  }
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      {items.map((i) => (
-        <div
-          key={i.name}
-          onClick={() => onConnect(i)}
-          className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-5 flex flex-col hover:border-[#6941c6]/40 transition-colors cursor-pointer"
-        >
-          {i.partnerBenefit && (
-            <div className="bg-[#2b7fff]/10 text-[#2b7fff] text-[11px] font-semibold px-3 py-1.5 rounded-lg mb-3 -mt-1 text-center border border-[#2b7fff]/20">
-              {i.partnerBenefit}
-            </div>
-          )}
-          <div className="flex items-start gap-3">
-            <IntegrationIcon integration={i} />
-            <div className="min-w-0 flex-1 pt-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[var(--text-primary)] text-sm font-medium">{i.name}</span>
-                <span className="px-2 py-0.5 rounded-full bg-[#2b7fff]/10 text-[#2b7fff] text-[10px] font-semibold border border-[#2b7fff]/20">
-                  Partner
-                </span>
-                <InfoTooltip integration={i} />
-              </div>
-              <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{i.description}</p>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -580,74 +567,7 @@ function PlannedIntegrationCard({ integration, onRequest }: { integration: Plann
 }
 
 // ─── Shared Components ──────────────────────────────────────────────────────
-
-function InfoTooltip({ integration }: { integration: CatalogIntegration }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const docsSlug = integration.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors flex-shrink-0"
-        title="Integration info"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2" />
-          <path d="M7 6.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          <circle cx="7" cy="4.5" r="0.75" fill="currentColor" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-xl shadow-xl z-50 p-4">
-          <p className="text-[var(--text-primary)] text-xs font-semibold mb-1">{integration.name}</p>
-          <p className="text-[var(--text-muted)] text-[11px] leading-relaxed mb-3">{integration.description}</p>
-          <a
-            href={`https://docs.lifesight.io/integrations/${docsSlug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[#6941c6] text-[11px] font-medium hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            View documentation
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M3 1h6v6M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function IntegrationCard({ integration, onConnect }: { integration: CatalogIntegration; onConnect: () => void }) {
-  return (
-    <div
-      onClick={onConnect}
-      className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-5 flex items-start gap-3 hover:border-[#6941c6]/40 cursor-pointer transition-colors"
-    >
-      <IntegrationIcon integration={integration} />
-      <div className="min-w-0 pt-0.5 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[var(--text-primary)] text-sm font-medium">{integration.name}</span>
-          <InfoTooltip integration={integration} />
-        </div>
-        <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{integration.description}</p>
-      </div>
-    </div>
-  );
-}
+// IntegrationCard and InfoTooltip are imported from ./IntegrationCard.tsx
 
 function EmptyTabState({ message }: { message: string }) {
   return (

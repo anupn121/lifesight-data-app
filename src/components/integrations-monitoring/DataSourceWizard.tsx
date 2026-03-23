@@ -94,9 +94,11 @@ const DATA_SOURCE_INTEGRATIONS = new Set(["BigQuery", "Google Sheets"]);
 function StepAuthorize({
   integration,
   onNext,
+  onInviteUser,
 }: {
   integration: CatalogIntegration;
   onNext: () => void;
+  onInviteUser?: (name: string) => void;
 }) {
   const isGoogleSheets = integration.name === "Google Sheets";
   const [sheetUrl, setSheetUrl] = useState("");
@@ -183,6 +185,15 @@ function StepAuthorize({
             <path d="M9 5v4l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
           </svg>
           Authorize
+        </button>
+      )}
+
+      {onInviteUser && (
+        <button
+          onClick={() => onInviteUser(integration.name)}
+          className="w-full mt-4 text-center text-[#6941c6] text-sm hover:underline transition-colors"
+        >
+          Don&apos;t have access? Invite someone
         </button>
       )}
     </div>
@@ -526,10 +537,12 @@ function StepChannelName({
   channelName,
   onChangeChannelName,
   onNext,
+  isJspPreFilled,
 }: {
   channelName: string;
   onChangeChannelName: (v: string) => void;
   onNext: () => void;
+  isJspPreFilled?: boolean;
 }) {
   return (
     <div className="max-w-lg mx-auto">
@@ -550,6 +563,12 @@ function StepChannelName({
         <p className="text-[var(--text-dim)] text-xs mt-2">
           Name this data source to identify it (e.g., SkyScanner, Kayak, Internal CRM)
         </p>
+        {isJspPreFilled && (
+          <p className="text-[#6941c6] text-xs mt-1.5 flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.32 2.68L10 4.18l-2 1.95.47 2.75L6 7.7 3.53 8.88 4 6.13 2 4.18l2.68-.5L6 1z" fill="#6941c6" /></svg>
+            Pre-filled from your setup plan
+          </p>
+        )}
       </div>
 
       <button
@@ -965,18 +984,22 @@ export default function DataSourceWizard({
   onBack,
   onGoHome,
   onComplete,
+  initialAlias = "",
+  onInviteUser,
 }: {
   integration: CatalogIntegration;
   onBack: () => void;
   onGoHome: () => void;
   onComplete: (name: string) => void;
+  initialAlias?: string;
+  onInviteUser?: (name: string) => void;
 }) {
   const isDataSource = DATA_SOURCE_INTEGRATIONS.has(integration.name);
   const steps = isDataSource ? DATA_SOURCE_STEPS : STANDARD_STEPS;
 
   const [step, setStep] = useState(1);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
-  const [channelName, setChannelName] = useState("");
+  const [channelName, setChannelName] = useState(initialAlias);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [mappings, setMappings] = useState<ColumnMapping[]>(() => {
     if (!isDataSource) return [];
@@ -1076,7 +1099,7 @@ export default function DataSourceWizard({
         {isDataSource ? (
           <>
             {step === 1 && (
-              <StepAuthorize integration={integration} onNext={() => setStep(2)} />
+              <StepAuthorize integration={integration} onNext={() => setStep(2)} onInviteUser={onInviteUser} />
             )}
             {step === 2 && (
               <StepSelectTables
@@ -1091,6 +1114,7 @@ export default function DataSourceWizard({
                 channelName={channelName}
                 onChangeChannelName={setChannelName}
                 onNext={() => setStep(4)}
+                isJspPreFilled={!!initialAlias}
               />
             )}
             {step === 4 && (
@@ -1114,7 +1138,7 @@ export default function DataSourceWizard({
         ) : (
           <>
             {step === 1 && (
-              <StepAuthorize integration={integration} onNext={() => setStep(2)} />
+              <StepAuthorize integration={integration} onNext={() => setStep(2)} onInviteUser={onInviteUser} />
             )}
             {step === 2 && (
               <StepSelectAccounts

@@ -63,9 +63,9 @@ export const catalogIntegrations: CatalogIntegration[] = [
   { name: "AppsFlyer", description: "Connect AppsFlyer to use this integration with your platform.", category: "MMP", status: "NOT_CONNECTED", color: "#00C853", accounts: 0, icon: "af", dataCategory: "paid_marketing" },
   // Payments & Subscription → kpi
   { name: "Recharge", description: "Connect Recharge to use this integration with your platform.", category: "Payments & Subscription", status: "NOT_CONNECTED", color: "#00BFA5", accounts: 0, icon: "rc", dataCategory: "kpi" },
-  // Reviews → halo
-  { name: "Judge.me", description: "Connect Judge.me to use this integration with Lifesight", category: "Reviews", status: "NOT_CONNECTED", color: "#FFC107", accounts: 0, icon: "jm", dataCategory: "halo" },
-  { name: "Fera.ai", description: "Connect Fera.ai and start with automation", category: "Reviews", status: "NOT_CONNECTED", color: "#FF5252", accounts: 0, icon: "fa", dataCategory: "halo" },
+  // Reviews → contextual
+  { name: "Judge.me", description: "Connect Judge.me to use this integration with Lifesight", category: "Reviews", status: "NOT_CONNECTED", color: "#FFC107", accounts: 0, icon: "jm", dataCategory: "contextual" },
+  { name: "Fera.ai", description: "Connect Fera.ai and start with automation", category: "Reviews", status: "NOT_CONNECTED", color: "#FF5252", accounts: 0, icon: "fa", dataCategory: "contextual" },
   // CTV & OTT → paid_marketing
   { name: "Roku Ads", description: "Connect Roku Ads to use this integration with your platform.", category: "CTV & OTT", status: "NOT_CONNECTED", color: "#6C3C97", accounts: 0, icon: "rk", isPartner: true, partnerBenefit: "Free $200 ad credits", dataCategory: "paid_marketing" },
   { name: "Google DV360", description: "Connect Google DV360 and start with automation", category: "CTV & OTT", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "dv", isRequested: true, requestedDate: "2026-02-20", dataCategory: "paid_marketing" },
