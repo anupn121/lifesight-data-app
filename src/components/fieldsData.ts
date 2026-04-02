@@ -14,7 +14,7 @@ export const METRIC_CATEGORIES: Record<MetricCategory, { label: string; color: s
   kpi: { label: "KPIs", color: "#00bc7d", description: "Revenue, Conversions, Installs, Orders, etc." },
   paid_marketing: { label: "Paid Marketing", color: "#2b7fff", description: "Spends, Impressions, Clicks grouped by ad platform" },
   organic: { label: "Organic", color: "#fe9a00", description: "Binary, Continuous, Categorical variables" },
-  contextual: { label: "Contextual", color: "#6941c6", description: "Binary, Continuous, Categorical variables" },
+  contextual: { label: "Contextual", color: "#027b8e", description: "Binary, Continuous, Categorical variables" },
 };
 
 export const DATA_TYPES: Record<DataTypeKey, { display: string; bqType: string }> = {
@@ -528,6 +528,12 @@ export function deriveMetricCategory(displayName: string, source: string): {
     return { metricCategory: "kpi", kpiSubtype: "Subscriptions" };
   }
 
+  // KPI fallback — if source is a known e-commerce/CRM platform, classify as KPI
+  const srcLower = source.toLowerCase();
+  if (/shopify|woocommerce|salesforce commerce|recharge/i.test(srcLower)) {
+    return { metricCategory: "kpi", kpiSubtype: "Revenue" };
+  }
+
   // Default: contextual / continuous for non-ad, non-KPI metrics
   return { metricCategory: "contextual", variableType: "Continuous" };
 }
@@ -542,6 +548,24 @@ function deriveDimensionCategory(source: string): MetricCategory {
   if (/hubspot|salesforce(?! commerce)|klaviyo|activecampaign|judge|fera/i.test(src)) return "organic";
   if (/google sheets|csv|snowflake|bigquery/i.test(src)) return "contextual";
   return "contextual";
+}
+
+// ---------------------------------------------------------------------------
+// Classify a column as metric or dimension by name/dataType (used in wizards)
+// ---------------------------------------------------------------------------
+export function classifyColumn(name: string, dataType?: string): "metric" | "dimension" {
+  const n = name.toLowerCase();
+  // Definite dimensions: dates, IDs, names, categories, geographic
+  if (/^date$|_date$|^month$|^year$|^week$|^quarter$|^day$/i.test(n)) return "dimension";
+  if (/_(id|key)$|^id_|^account|^channel|^country|^region|^city|^state$/i.test(n)) return "dimension";
+  if (/^campaign|^ad_set|^ad_group|^objective|^device|^browser|^platform|^brand$/i.test(n)) return "dimension";
+  if (/_(name|type|category|stage|medium|page)$/i.test(n)) return "dimension";
+  if (dataType === "DATE" || dataType === "STRING") return "dimension";
+  // Definite metrics: numeric values with known patterns
+  if (/spend|cost|revenue|impressions|clicks|conversions|purchases|installs|opens|bounces/i.test(n)) return "metric";
+  if (/rate$|_count$|_amount$|_total$|_value$/i.test(n)) return "metric";
+  if (dataType && /INT|FLOAT|NUMERIC|CURRENCY|BIGNUMERIC/i.test(dataType)) return "metric";
+  return "dimension"; // default to dimension for safety
 }
 
 // ---------------------------------------------------------------------------
@@ -600,7 +624,7 @@ export const sourceOptions = [
   { name: "Google Analytics 4", color: "#F9AB00" },
   { name: "HubSpot", color: "#FF7A59" },
   { name: "Salesforce", color: "#00A1E0" },
-  { name: "Custom Connector", color: "#6941c6" },
+  { name: "Custom Connector", color: "#027b8e" },
   { name: "Google Sheets", color: "#0F9D58" },
   { name: "Import CSV", color: "#71717a" },
   { name: "Snowflake", color: "#29B5E8" },
@@ -653,6 +677,14 @@ function buildSystemDimensions(): DimensionDefinition[] {
     { id: "dim_account", name: "Account", description: "Advertising account identifier", patterns: /^Account( Name)?$/i },
     { id: "dim_brand", name: "Brand", description: "Brand or advertiser name", patterns: /^Brand$/i },
     { id: "dim_region", name: "Region / State", description: "Sub-country geographic region or state", patterns: /^Region$|^State$/i },
+    // Non-ad dimensions
+    { id: "dim_product", name: "Product Name", description: "Product or item name from e-commerce sources", patterns: /^Product( Name| Type)?$/i },
+    { id: "dim_sales_channel", name: "Sales Channel", description: "Sales or distribution channel", patterns: /^Sales Channel$/i },
+    { id: "dim_lifecycle", name: "Lifecycle Stage", description: "Customer lifecycle or funnel stage", patterns: /^Lifecycle Stage$/i },
+    { id: "dim_flow", name: "Flow Name", description: "Automation flow or sequence name", patterns: /^Flow Name$/i },
+    { id: "dim_source_medium", name: "Source / Medium", description: "Traffic source and medium combination", patterns: /^Source.?Medium$/i },
+    { id: "dim_landing_page", name: "Landing Page", description: "Entry page URL or path", patterns: /^Landing Page$/i },
+    { id: "dim_device", name: "Device Category", description: "Device type (desktop, mobile, tablet)", patterns: /^Device Category$/i },
   ];
 
   return dimensionDefs.map((def) => {
@@ -692,3 +724,79 @@ export const DEFAULT_TRANSFORMS: Record<DataTypeKey, string> = {
   DATE: "NONE",
   JSON: "NONE",
 };
+
+// ---------------------------------------------------------------------------
+// Demo mode: pre-built field sets injected when integrations connect
+// ---------------------------------------------------------------------------
+
+const DEMO_FIELDS: Record<string, Field[]> = {
+  "Facebook Ads": [
+    { name: "fb_spend", displayName: "Spend", columnName: "fb_spend", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.spend", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total ad spend", metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" },
+    { name: "fb_impressions", displayName: "Impressions", columnName: "fb_impressions", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.impressions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total impressions served", metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" },
+    { name: "fb_clicks", displayName: "Clicks", columnName: "fb_clicks", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.clicks", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total link clicks", metricCategory: "paid_marketing", paidMarketingMetricType: "Clicks" },
+    { name: "fb_conversions", displayName: "Conversions", columnName: "fb_conversions", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.conversions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total conversion events", metricCategory: "paid_marketing", paidMarketingMetricType: "Other" },
+    { name: "fb_purchase_value", displayName: "Purchase Value", columnName: "fb_purchase_value", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.purchase_value", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total purchase conversion value", metricCategory: "paid_marketing", paidMarketingMetricType: "Other" },
+    { name: "fb_cpm", displayName: "CPM", columnName: "fb_cpm", kind: "metric", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.cpm", dataType: "FLOAT64" as DataTypeKey, transformation: "AVG", status: "Mapped", description: "Cost per thousand impressions", metricCategory: "paid_marketing", paidMarketingMetricType: "Other" },
+    { name: "fb_campaign_name", displayName: "Campaign Name", columnName: "fb_campaign_name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.campaign_name", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Campaign name", metricCategory: "paid_marketing" },
+    { name: "fb_adset_name", displayName: "Ad Set", columnName: "fb_adset_name", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.adset_name", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Ad set name", metricCategory: "paid_marketing" },
+    { name: "fb_date", displayName: "Date", columnName: "fb_date", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.date_start", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Report date", metricCategory: "paid_marketing" },
+    { name: "fb_country", displayName: "Country", columnName: "fb_country", kind: "dimension", source: "Facebook Ads", sourceColor: "#1877F2", sourceKey: "ads.country", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Country targeting", metricCategory: "paid_marketing" },
+  ],
+  "Google Ads": [
+    { name: "gads_spend", displayName: "Spend", columnName: "gads_spend", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.cost", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total ad spend", metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" },
+    { name: "gads_impressions", displayName: "Impressions", columnName: "gads_impressions", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.impressions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total impressions", metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" },
+    { name: "gads_clicks", displayName: "Clicks", columnName: "gads_clicks", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.clicks", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total clicks", metricCategory: "paid_marketing", paidMarketingMetricType: "Clicks" },
+    { name: "gads_conversions", displayName: "Conversions", columnName: "gads_conversions", kind: "metric", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.conversions", dataType: "FLOAT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total conversions", metricCategory: "paid_marketing", paidMarketingMetricType: "Other" },
+    { name: "gads_campaign_name", displayName: "Campaign Name", columnName: "gads_campaign_name", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.campaign_name", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Campaign name", metricCategory: "paid_marketing" },
+    { name: "gads_date", displayName: "Date", columnName: "gads_date", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.date", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Report date", metricCategory: "paid_marketing" },
+    { name: "gads_device", displayName: "Device", columnName: "gads_device", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.device", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Device type", metricCategory: "paid_marketing" },
+    { name: "gads_keyword", displayName: "Keyword", columnName: "gads_keyword", kind: "dimension", source: "Google Ads", sourceColor: "#34A853", sourceKey: "ads.keyword_text", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Search keyword", metricCategory: "paid_marketing" },
+  ],
+  "Shopify": [
+    { name: "shopify_total_revenue", displayName: "Revenue", columnName: "shopify_total_revenue", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.total_price", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total order revenue", metricCategory: "kpi", kpiSubtype: "Revenue" },
+    { name: "shopify_orders_count", displayName: "Purchases", columnName: "shopify_orders_count", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.count", dataType: "INT64" as DataTypeKey, transformation: "COUNT", status: "Mapped", description: "Total completed orders", metricCategory: "kpi", kpiSubtype: "Conversions" },
+    { name: "shopify_aov", displayName: "Average Order Value", columnName: "shopify_aov", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.total_price", dataType: "CURRENCY" as DataTypeKey, transformation: "AVG", status: "Mapped", description: "Average revenue per order", metricCategory: "kpi", kpiSubtype: "Revenue" },
+    { name: "shopify_new_customers", displayName: "New Customers", columnName: "shopify_new_customers", kind: "metric", source: "Shopify Customers", sourceColor: "#95BF47", sourceKey: "customers.new_count", dataType: "INT64" as DataTypeKey, transformation: "COUNT", status: "Mapped", description: "First-time purchasers", metricCategory: "kpi", kpiSubtype: "Conversions" },
+    { name: "shopify_refund_amount", displayName: "Refund Amount", columnName: "shopify_refund_amount", kind: "metric", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "refunds.total_amount", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total refunded amount", metricCategory: "kpi", kpiSubtype: "Revenue" },
+    { name: "shopify_order_date", displayName: "Date", columnName: "shopify_order_date", kind: "dimension", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.created_at", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Order creation date", metricCategory: "kpi" },
+    { name: "shopify_product_title", displayName: "Product Name", columnName: "shopify_product_title", kind: "dimension", source: "Shopify Products", sourceColor: "#95BF47", sourceKey: "products.title", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Product title", metricCategory: "kpi" },
+    { name: "shopify_order_channel", displayName: "Sales Channel", columnName: "shopify_order_channel", kind: "dimension", source: "Shopify Orders", sourceColor: "#95BF47", sourceKey: "orders.source_name", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Sales channel", metricCategory: "kpi" },
+  ],
+  "StackAdapt": [
+    { name: "stackadapt_spend", displayName: "Spend", columnName: "stackadapt_spend", kind: "metric", source: "StackAdapt", sourceColor: "#4A3AFF", sourceKey: "ads.spend", dataType: "CURRENCY" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total ad spend", metricCategory: "paid_marketing", paidMarketingMetricType: "Spends" },
+    { name: "stackadapt_impressions", displayName: "Impressions", columnName: "stackadapt_impressions", kind: "metric", source: "StackAdapt", sourceColor: "#4A3AFF", sourceKey: "ads.impressions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total impressions served", metricCategory: "paid_marketing", paidMarketingMetricType: "Impressions" },
+    { name: "stackadapt_date", displayName: "Date", columnName: "stackadapt_date", kind: "dimension", source: "StackAdapt", sourceColor: "#4A3AFF", sourceKey: "ads.date", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Report date", metricCategory: "paid_marketing" },
+  ],
+  "Blogs": [
+    { name: "blog_pageviews", displayName: "Pageviews", columnName: "blog_pageviews", kind: "metric", source: "Blogs", sourceColor: "#0F9D58", sourceKey: "uploaded.blog_pageviews", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total blog pageviews", metricCategory: "contextual", variableType: "Continuous" },
+    { name: "blog_sessions", displayName: "Sessions", columnName: "blog_sessions", kind: "metric", source: "Blogs", sourceColor: "#0F9D58", sourceKey: "uploaded.blog_sessions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total blog sessions", metricCategory: "contextual", variableType: "Continuous" },
+    { name: "blog_bounce_rate", displayName: "Bounce Rate", columnName: "blog_bounce_rate", kind: "metric", source: "Blogs", sourceColor: "#0F9D58", sourceKey: "uploaded.blog_bounce_rate", dataType: "FLOAT64" as DataTypeKey, transformation: "AVG", status: "Mapped", description: "Average bounce rate", metricCategory: "contextual", variableType: "Continuous" },
+    { name: "blog_post_title", displayName: "Post Title", columnName: "blog_post_title", kind: "dimension", source: "Blogs", sourceColor: "#0F9D58", sourceKey: "uploaded.blog_post_title", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Blog post title", metricCategory: "contextual" },
+    { name: "blog_date", displayName: "Date", columnName: "blog_date", kind: "dimension", source: "Blogs", sourceColor: "#0F9D58", sourceKey: "uploaded.blog_date", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Publish date", metricCategory: "contextual" },
+  ],
+  "Events": [
+    { name: "event_registrations", displayName: "Registrations", columnName: "event_registrations", kind: "metric", source: "Events", sourceColor: "#DB4437", sourceKey: "uploaded.event_registrations", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total event registrations", metricCategory: "organic", variableType: "Continuous" },
+    { name: "event_attendees", displayName: "Attendees", columnName: "event_attendees", kind: "metric", source: "Events", sourceColor: "#DB4437", sourceKey: "uploaded.event_attendees", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Total event attendees", metricCategory: "organic", variableType: "Continuous" },
+    { name: "event_conversions", displayName: "Conversions", columnName: "event_conversions", kind: "metric", source: "Events", sourceColor: "#DB4437", sourceKey: "uploaded.event_conversions", dataType: "INT64" as DataTypeKey, transformation: "SUM", status: "Mapped", description: "Post-event conversions", metricCategory: "organic", variableType: "Continuous" },
+    { name: "event_name", displayName: "Event Name", columnName: "event_name", kind: "dimension", source: "Events", sourceColor: "#DB4437", sourceKey: "uploaded.event_name", dataType: "STRING" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Event name", metricCategory: "organic" },
+    { name: "event_date", displayName: "Date", columnName: "event_date", kind: "dimension", source: "Events", sourceColor: "#DB4437", sourceKey: "uploaded.event_date", dataType: "DATE" as DataTypeKey, transformation: "NONE", status: "Mapped", description: "Event date", metricCategory: "organic" },
+  ],
+};
+
+// Aliases for common name variations
+DEMO_FIELDS["Meta Ads"] = DEMO_FIELDS["Facebook Ads"];
+
+export function getDemoFieldsForIntegration(integrationName: string): Field[] {
+  return DEMO_FIELDS[integrationName] || [];
+}
+
+const DEMO_TACTICS: Record<string, string[]> = {
+  "Facebook Ads": ["Meta MOF", "Meta Retargeting", "Instagram Video"],
+  "Meta Ads": ["Meta MOF", "Meta Retargeting", "Instagram Video"],
+  "Google Ads": ["Google Shopping", "Google Search", "Google Display"],
+  "StackAdapt": ["StackAdapt Programmatic"],
+};
+
+export function getDemoTacticsForIntegration(integrationName: string): string[] {
+  return DEMO_TACTICS[integrationName] || [];
+}

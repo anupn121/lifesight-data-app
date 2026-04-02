@@ -77,7 +77,7 @@ export default function FeatureImportancePanel({ dataset }: Props) {
                     width={Math.max(2, barW)}
                     height={barH}
                     rx={3}
-                    fill="#6941c6"
+                    fill="#027b8e"
                     opacity={opacity}
                   />
                   {/* Score */}

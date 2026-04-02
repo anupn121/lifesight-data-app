@@ -19,59 +19,63 @@ export default function TopNav() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="bg-[var(--topnav-bg)] border-b border-[var(--topnav-border)] flex items-center justify-between px-4 h-[51px]">
-      {/* Left: Workspace */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-[#2b7fff] rounded shadow-sm flex items-center justify-center">
-            <div className="w-2.5 h-2.5 bg-white rounded-[1px]" />
-          </div>
-          <span className="text-[var(--text-secondary)] text-sm font-medium tracking-[-0.15px]">
-            Nexa
-          </span>
+    <div className="bg-[var(--topnav-bg)] border-b border-[var(--topnav-border)] flex items-center justify-between px-4 h-[44px]">
+      {/* Left: Logo + Workspace name + chevron */}
+      <div className="flex items-center gap-2">
+        <div className="w-[20px] h-[20px] bg-[#2b7fff] rounded-[4px] flex items-center justify-center">
+          <div className="w-2.5 h-2.5 bg-white rounded-[1px]" />
         </div>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--text-label)]">
+        <span className="text-[var(--text-secondary)] text-[14px] font-medium">Nexa</span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-[var(--text-label)]">
           <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-[7px]">
         {/* Ask Mia Button */}
-        <button className="bg-[#f9fafb] border border-[#d0d5dd] rounded-md flex items-center gap-2 px-3.5 py-1.5 h-8 hover:bg-gray-50 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#6932ef" strokeWidth="1.5"/>
-            <circle cx="8" cy="8" r="2" fill="#6932ef"/>
+        <button className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-[6px] flex items-center gap-2 px-3 h-[28px] hover:border-[var(--border-secondary)] transition-all duration-150">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#2dd4bf" strokeWidth="1.5"/>
+            <circle cx="8" cy="8" r="2" fill="#2dd4bf"/>
           </svg>
-          <span className="text-[#1d2939] text-sm font-medium">Ask Mia</span>
+          <span className="text-[var(--text-primary)] text-[12px] font-medium">Ask Mia</span>
         </button>
 
-        {/* Inbox Button */}
-        <div className="relative">
-          <button className="bg-[#f9fafb] border border-[#d0d5dd] rounded-md flex items-center gap-2 px-3.5 py-1.5 h-8 hover:bg-gray-50 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M14 8H10.6667L9.33333 10H6.66667L5.33333 8H2" stroke="#344054" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M3.63333 3.40667L2 8V12C2 12.3536 2.14048 12.6928 2.39052 12.9428C2.64057 13.1929 2.97971 13.3333 3.33333 13.3333H12.6667C13.0203 13.3333 13.3594 13.1929 13.6095 12.9428C13.8595 12.6928 14 12.3536 14 12V8L12.3667 3.40667C12.2793 3.14624 12.1122 2.92208 11.889 2.76474C11.6658 2.6074 11.3981 2.52448 11.1247 2.52667H4.87533C4.60187 2.52448 4.33421 2.6074 4.11101 2.76474C3.88782 2.92208 3.72068 3.14624 3.63333 3.40667Z" stroke="#344054" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="text-[#1d2939] text-sm font-medium">2 Unread</span>
-          </button>
-          <div className="absolute top-1 left-[17px] w-[5px] h-[5px] bg-[#f04438] rounded-full" />
-        </div>
+        {/* Divider */}
+        <div className="w-px h-[12px] bg-[var(--border-primary)]" />
 
-        {/* Separator */}
-        <div className="w-px h-3 bg-[var(--topnav-separator)]" />
+        {/* Bell / Notification icon */}
+        <button className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-[6px] flex items-center justify-center h-[28px] w-[28px] hover:border-[var(--border-secondary)] transition-all duration-150 text-[var(--text-muted)] relative">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M12 5.33C12 4.27 11.58 3.25 10.83 2.5C10.08 1.75 9.06 1.33 8 1.33C6.94 1.33 5.92 1.75 5.17 2.5C4.42 3.25 4 4.27 4 5.33C4 10 2 11.33 2 11.33H14C14 11.33 12 10 12 5.33Z" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M9.15 13.33C9.03 13.54 8.86 13.71 8.65 13.83C8.44 13.95 8.21 14.01 7.97 14.01C7.73 14.01 7.5 13.95 7.29 13.83C7.08 13.71 6.91 13.54 6.79 13.33" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {/* Green notification dot */}
+          <div className="absolute top-[5px] right-[5px] w-[3px] h-[3px] bg-[#00e388] rounded-full" />
+        </button>
+
+        {/* Divider */}
+        <div className="w-px h-[12px] bg-[var(--border-primary)]" />
 
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="w-8 h-8 rounded-md flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+          className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-[6px] flex items-center justify-center h-[28px] w-[28px] hover:border-[var(--border-secondary)] transition-all duration-150 text-[var(--text-muted)]"
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>
 
-        {/* Avatar */}
-        <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-purple-400 to-blue-500 border border-white/20" />
+        {/* Avatar + chevron */}
+        <button className="flex items-center gap-1.5 hover:opacity-80 transition-opacity duration-150">
+          <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-[#027b8e] to-[#012e36] flex items-center justify-center text-white text-[9px] font-semibold">
+            A
+          </div>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-[var(--text-label)]">
+            <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
     </div>
   );

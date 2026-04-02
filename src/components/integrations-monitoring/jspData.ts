@@ -147,8 +147,20 @@ const MOCK_JSP_PLAN: JspPlan = {
   ],
 };
 
-export function getJspPlan(): JspPlan {
-  return MOCK_JSP_PLAN;
+const DEMO_JSP_PLAN: JspPlan = {
+  clientName: "Demo Workspace",
+  createdDate: "2026-03-25",
+  integrations: [
+    { id: "demo-jsp-1", integrationName: "Facebook Ads", type: "native", dataCategory: "paid_marketing", priority: "high", notes: "Primary paid social channel", status: "pending" },
+    { id: "demo-jsp-2", integrationName: "Google Ads", type: "native", dataCategory: "paid_marketing", priority: "high", notes: "Search + Shopping campaigns", status: "pending" },
+    { id: "demo-jsp-3", integrationName: "Shopify", type: "native", dataCategory: "kpi", priority: "high", notes: "Main e-commerce storefront", status: "pending" },
+    { id: "demo-jsp-4", integrationName: "Blogs", type: "file", source: "Google Sheets", alias: "Blogs", dataCategory: "contextual", priority: "medium", notes: "Blog performance data via Google Sheets", status: "pending" },
+    { id: "demo-jsp-5", integrationName: "Events", type: "file", source: "Google Sheets", alias: "Events", dataCategory: "organic", priority: "medium", notes: "Event performance data via Google Sheets", status: "pending" },
+  ],
+};
+
+export function getJspPlan(isDemoMode?: boolean): JspPlan {
+  return isDemoMode ? DEMO_JSP_PLAN : MOCK_JSP_PLAN;
 }
 
 export function getPendingJspIntegrations(plan: JspPlan): JspIntegration[] {
@@ -157,4 +169,25 @@ export function getPendingJspIntegrations(plan: JspPlan): JspIntegration[] {
 
 export function getJspEntryForIntegration(name: string, plan: JspPlan): JspIntegration | undefined {
   return plan.integrations.find((j) => j.integrationName === name && j.status !== "connected");
+}
+
+// ─── Workspace Members ──────────────────────────────────────────────────────
+export interface WorkspaceMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarInitials: string;
+}
+
+const MOCK_WORKSPACE_MEMBERS: WorkspaceMember[] = [
+  { id: "wm-1", name: "Sarah Chen", email: "sarah@acmecommerce.com", role: "Admin", avatarInitials: "SC" },
+  { id: "wm-2", name: "Mike Torres", email: "mike@acmecommerce.com", role: "Editor", avatarInitials: "MT" },
+  { id: "wm-3", name: "Priya Sharma", email: "priya@acmecommerce.com", role: "Admin", avatarInitials: "PS" },
+  { id: "wm-4", name: "Alex Kim", email: "alex@acmecommerce.com", role: "Viewer", avatarInitials: "AK" },
+  { id: "wm-5", name: "Jordan Lee", email: "jordan@acmecommerce.com", role: "Editor", avatarInitials: "JL" },
+];
+
+export function getWorkspaceMembers(): WorkspaceMember[] {
+  return MOCK_WORKSPACE_MEMBERS;
 }

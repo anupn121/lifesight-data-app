@@ -41,7 +41,7 @@ export default function KebabMenu({
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+        <div className="absolute right-0 top-full mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-[var(--shadow-popover)] z-50 min-w-[180px] py-1">
           <button
             onClick={(e) => { e.stopPropagation(); onConfigure(); }}
             className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors flex items-center gap-2"

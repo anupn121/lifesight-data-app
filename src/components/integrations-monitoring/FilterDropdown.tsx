@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 function ChevronDown({ open }: { open: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-      <path d="M4 6L8 10L12 6" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -42,7 +42,7 @@ export default function FilterDropdown({
         <ChevronDown open={open} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+        <div className="absolute top-full left-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-[var(--shadow-popover)] z-50 min-w-[180px] py-1">
           <button
             onClick={() => { onChange(`All ${label}`); setOpen(false); }}
             className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--hover-item)] transition-colors ${value === `All ${label}` ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}

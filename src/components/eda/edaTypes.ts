@@ -25,7 +25,7 @@ export interface EDAComponentDef {
 export const CATEGORY_COLORS: Record<EDACategory, string> = {
   "Data Quality & Profiling": "#00bc7d",
   "Univariate Analysis": "#2b7fff",
-  "Bivariate & Multivariate": "#6941c6",
+  "Bivariate & Multivariate": "#027b8e",
   "Time Series": "#f59e0b",
   "Outlier & Anomaly Detection": "#ef4444",
   "Marketing AI Insights": "#ec4899",

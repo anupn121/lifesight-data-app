@@ -28,7 +28,6 @@ type StatusFilter = "all" | "mapped" | "unmapped";
 interface FlowViewProps {
   fields: Field[];
   kind: "metric" | "dimension";
-  onBulkAdd: () => void;
 }
 
 // ─── Field View: many sources → one unified metric/dimension ───
@@ -51,7 +50,7 @@ interface SourceGroup {
   fields: Field[];
 }
 
-export default function FlowView({ fields, kind, onBulkAdd }: FlowViewProps) {
+export default function FlowView({ fields, kind }: FlowViewProps) {
   const [viewMode, setViewMode] = useState<FlowViewMode>("field");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -257,25 +256,6 @@ export default function FlowView({ fields, kind, onBulkAdd }: FlowViewProps) {
             <option key={s} value={s} style={{ background: NOIR.bg }}>{s}</option>
           ))}
         </select>
-
-        {/* Bulk Add */}
-        <button
-          onClick={onBulkAdd}
-          style={{
-            padding: "6px 14px",
-            borderRadius: 6,
-            border: "none",
-            cursor: "pointer",
-            fontSize: 11,
-            fontFamily: NOIR.font,
-            letterSpacing: 0.5,
-            background: NOIR.accent,
-            color: "#fff",
-            transition: "all 0.2s",
-          }}
-        >
-          + Bulk Add
-        </button>
 
         {/* Count */}
         <span style={{ fontSize: 11, color: NOIR.textDim, marginLeft: "auto" }}>

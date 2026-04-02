@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Field } from "./fieldsData";
 import type { DataModel } from "./dataModelsData";
-import CreateDataModelModal from "./CreateDataModelModal";
+import CreateDataModelWizard from "./CreateDataModelModal";
 import DataPreviewView from "./DataPreviewView";
 import EDAView from "./EDAView";
 
@@ -51,23 +51,23 @@ const PlusIcon = () => (
 
 const EditIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path d="M5.5 2.5H2.5C2.23478 2.5 1.98043 2.60536 1.79289 2.79289C1.60536 2.98043 1.5 3.23478 1.5 3.5V9.5C1.5 9.76522 1.60536 10.0196 1.79289 10.2071C1.98043 10.3946 2.23478 10.5 2.5 10.5H8.5C8.76522 10.5 9.01957 10.3946 9.20711 10.2071C9.39464 10.0196 9.5 9.76522 9.5 9.5V6.5" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M8.75 1.75C8.94891 1.55109 9.2187 1.43934 9.5 1.43934C9.7813 1.43934 10.0511 1.55109 10.25 1.75C10.4489 1.94891 10.5607 2.2187 10.5607 2.5C10.5607 2.7813 10.4489 3.05109 10.25 3.25L5.5 8L3.5 8.5L4 6.5L8.75 1.75Z" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.5 2.5H2.5C2.23478 2.5 1.98043 2.60536 1.79289 2.79289C1.60536 2.98043 1.5 3.23478 1.5 3.5V9.5C1.5 9.76522 1.60536 10.0196 1.79289 10.2071C1.98043 10.3946 2.23478 10.5 2.5 10.5H8.5C8.76522 10.5 9.01957 10.3946 9.20711 10.2071C9.39464 10.0196 9.5 9.76522 9.5 9.5V6.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8.75 1.75C8.94891 1.55109 9.2187 1.43934 9.5 1.43934C9.7813 1.43934 10.0511 1.55109 10.25 1.75C10.4489 1.94891 10.5607 2.2187 10.5607 2.5C10.5607 2.7813 10.4489 3.05109 10.25 3.25L5.5 8L3.5 8.5L4 6.5L8.75 1.75Z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const DuplicateIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <rect x="4" y="4" width="7" height="7" rx="1" stroke="#9CA3AF" strokeWidth="1" />
-    <path d="M8 4V2.5C8 1.94772 7.55228 1.5 7 1.5H2.5C1.94772 1.5 1.5 1.94772 1.5 2.5V7C1.5 7.55228 1.94772 8 2.5 8H4" stroke="#9CA3AF" strokeWidth="1" />
+    <rect x="4" y="4" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" />
+    <path d="M8 4V2.5C8 1.94772 7.55228 1.5 7 1.5H2.5C1.94772 1.5 1.5 1.94772 1.5 2.5V7C1.5 7.55228 1.94772 8 2.5 8H4" stroke="currentColor" strokeWidth="1" />
   </svg>
 );
 
 const TrashIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path d="M1.5 3H10.5" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M9.5 3V10C9.5 10.5523 9.05228 11 8.5 11H3.5C2.94772 11 2.5 10.5523 2.5 10V3" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 3V2C4 1.44772 4.44772 1 5 1H7C7.55228 1 8 1.44772 8 2V3" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M1.5 3H10.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.5 3V10C9.5 10.5523 9.05228 11 8.5 11H3.5C2.94772 11 2.5 10.5523 2.5 10V3" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 3V2C4 1.44772 4.44772 1 5 1H7C7.55228 1 8 1.44772 8 2V3" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -94,17 +94,19 @@ const KebabIcon = () => (
   </svg>
 );
 
-type SubTab = "models" | "preview" | "eda";
+type SubTab = "models" | "preview" | "eda" | "create";
 
 interface DataModelsTabProps {
   fields: Field[];
   tactics: string[];
   dataModels: DataModel[];
   onDataModelsChange: (models: DataModel[]) => void;
+  hasConnectedIntegration?: boolean;
+  onNavigateToIntegrations?: () => void;
+  isDemoMode?: boolean;
 }
 
-export default function DataModelsTab({ fields, tactics, dataModels, onDataModelsChange }: DataModelsTabProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export default function DataModelsTab({ fields, tactics, dataModels, onDataModelsChange, hasConnectedIntegration = true, onNavigateToIntegrations, isDemoMode }: DataModelsTabProps) {
   const [editModel, setEditModel] = useState<DataModel | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<SubTab>("models");
   const [selectedModel, setSelectedModel] = useState<DataModel | null>(null);
@@ -128,7 +130,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
     } else {
       onDataModelsChange([...dataModels, model]);
     }
-    setIsModalOpen(false);
+    setActiveSubTab("models");
     setEditModel(null);
   };
 
@@ -170,6 +172,48 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
     setSelectedModel(null);
   };
 
+  // Empty state when no integrations connected
+  if (!hasConnectedIntegration) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4">
+        <div className="w-12 h-12 rounded-full bg-[var(--bg-badge)] flex items-center justify-center mb-4">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[var(--text-label)]">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M3 9h18M9 21V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No data models yet</h3>
+        <p className="text-[var(--text-muted)] text-xs text-center max-w-sm mb-4">
+          Connect your integrations and map your metrics first. Data models use your mapped fields to power MMM, experiments, and other analyses.
+        </p>
+        {onNavigateToIntegrations && (
+          <button
+            onClick={onNavigateToIntegrations}
+            className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-1.5 px-4 h-[28px] text-[12px] font-medium transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Set Up Integrations
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Wizard view for create/edit
+  if (activeSubTab === "create") {
+    return (
+      <CreateDataModelWizard
+        onSave={handleSave}
+        onBack={() => { setActiveSubTab("models"); setEditModel(null); }}
+        editModel={editModel}
+        fields={fields}
+        tactics={tactics}
+      />
+    );
+  }
+
   // Sub-tab bar for preview/eda mode
   if (activeSubTab !== "models" && selectedModel) {
     return (
@@ -180,7 +224,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             onClick={() => setActiveSubTab("preview")}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeSubTab === "preview"
-                ? "bg-[#6941c6] text-white"
+                ? "bg-[#027b8e] text-white"
                 : "text-[var(--text-muted)] hover:bg-[var(--hover-item)]"
             }`}
           >
@@ -190,7 +234,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             onClick={() => setActiveSubTab("eda")}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeSubTab === "eda"
-                ? "bg-[#6941c6] text-white"
+                ? "bg-[#027b8e] text-white"
                 : "text-[var(--text-muted)] hover:bg-[var(--hover-item)]"
             }`}
           >
@@ -201,7 +245,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
         {activeSubTab === "preview" ? (
           <DataPreviewView model={selectedModel} fields={fields} onBack={handleBack} />
         ) : (
-          <EDAView model={selectedModel} fields={fields} onBack={handleBack} />
+          <EDAView model={selectedModel} fields={fields} onBack={handleBack} isDemoMode={isDemoMode} />
         )}
       </div>
     );
@@ -216,8 +260,8 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
           <p className="text-[var(--text-muted)] text-sm">Configure reusable dataset definitions for MMM and Geo experiments</p>
         </div>
         <button
-          onClick={() => { setEditModel(null); setIsModalOpen(true); }}
-          className="bg-[#6941c6] hover:bg-[#5b34b5] text-white rounded-lg flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
+          onClick={() => { setEditModel(null); setActiveSubTab("create"); }}
+          className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-2 px-4 h-[28px] text-[12px] font-medium transition-colors"
         >
           <PlusIcon />
           Create Data Model
@@ -227,10 +271,10 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-3">
         <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#6941c6]/10 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-[#027b8e]/10 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="2" width="12" height="12" rx="2" stroke="#6941c6" strokeWidth="1.33" />
-              <path d="M5 8H11M8 5V11" stroke="#6941c6" strokeWidth="1.33" strokeLinecap="round" />
+              <rect x="2" y="2" width="12" height="12" rx="2" stroke="#027b8e" strokeWidth="1.33" />
+              <path d="M5 8H11M8 5V11" stroke="#027b8e" strokeWidth="1.33" strokeLinecap="round" />
             </svg>
           </div>
           <div>
@@ -280,10 +324,10 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
       {dataModels.length === 0 ? (
         /* Empty State */
         <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-6 py-16 text-center">
-          <div className="w-12 h-12 rounded-xl bg-[#6941c6]/10 flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 rounded-xl bg-[#027b8e]/10 flex items-center justify-center mx-auto mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="18" height="18" rx="3" stroke="#6941c6" strokeWidth="1.5" />
-              <path d="M8 12H16M12 8V16" stroke="#6941c6" strokeWidth="1.5" strokeLinecap="round" />
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="#027b8e" strokeWidth="1.5" />
+              <path d="M8 12H16M12 8V16" stroke="#027b8e" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
           <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No Data Models Yet</h3>
@@ -291,8 +335,8 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
             Create your first data model to define KPIs, spend variables, and dimensions for MMM or Geo experiments.
           </p>
           <button
-            onClick={() => { setEditModel(null); setIsModalOpen(true); }}
-            className="bg-[#6941c6] hover:bg-[#5b34b5] text-white rounded-lg inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
+            onClick={() => { setEditModel(null); setActiveSubTab("create"); }}
+            className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] inline-flex items-center gap-2 px-4 h-[28px] text-[12px] font-medium transition-colors"
           >
             <PlusIcon />
             Create Data Model
@@ -350,9 +394,9 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                     {kebabOpenId === model.id && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setKebabOpenId(null)} />
-                        <div className="absolute right-0 top-full mt-1 z-20 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-xl py-1 w-36">
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-[var(--shadow-popover)] py-1 w-36">
                           <button
-                            onClick={() => { setEditModel(model); setIsModalOpen(true); setKebabOpenId(null); }}
+                            onClick={() => { setEditModel(model); setActiveSubTab("create"); setKebabOpenId(null); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
                           >
                             <EditIcon />
@@ -389,7 +433,7 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
                 {model.kpis.map((kpi, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#6941c6]/10 text-[#a78bfa] border border-[#6941c6]/20"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#027b8e]/10 text-[#a78bfa] border border-[#027b8e]/20"
                   >
                     {kpi.category}
                     {kpi.fieldName && <span className="text-[var(--text-label)]">({getFieldDisplayName(kpi.fieldName)})</span>}
@@ -423,15 +467,6 @@ export default function DataModelsTab({ fields, tactics, dataModels, onDataModel
         </div>
       )}
 
-      {/* Modal */}
-      <CreateDataModelModal
-        isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setEditModel(null); }}
-        onSave={handleSave}
-        editModel={editModel}
-        fields={fields}
-        tactics={tactics}
-      />
     </div>
   );
 }

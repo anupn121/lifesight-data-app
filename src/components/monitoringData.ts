@@ -7,7 +7,8 @@ export type IntegrationStatus =
   | "SYNCING"
   | "CONNECTED"
   | "SYNC_ERROR"
-  | "ACTION_REQUIRED";
+  | "ACTION_REQUIRED"
+  | "INVITED";
 export type AccountStatus = IntegrationStatus;
 export type ConnectionType = "Source" | "Destination";
 export type IntegrationCategory =
@@ -30,7 +31,8 @@ export const STATUS_LABELS: Record<IntegrationStatus, string> = {
   SYNCING: "Syncing",
   CONNECTED: "Healthy",
   SYNC_ERROR: "Sync Error",
-  ACTION_REQUIRED: "Action Required",
+  ACTION_REQUIRED: "Reconnect",
+  INVITED: "Invited",
 };
 
 export type StatusCategory = "setup" | "operational" | "error_system" | "error_user";
@@ -42,6 +44,7 @@ export const STATUS_CATEGORY: Record<IntegrationStatus, StatusCategory> = {
   CONNECTED: "operational",
   SYNC_ERROR: "error_system",
   ACTION_REQUIRED: "error_user",
+  INVITED: "setup",
 };
 
 export interface OverviewMetric {
@@ -66,7 +69,7 @@ export const DATA_CATEGORY_LABELS: Record<DataCategory, { label: string; color: 
   kpi: { label: "KPIs", color: "#00bc7d" },
   paid_marketing: { label: "Paid Marketing", color: "#2b7fff" },
   organic: { label: "Organic", color: "#fe9a00" },
-  contextual: { label: "Contextual", color: "#6941c6" },
+  contextual: { label: "Contextual", color: "#027b8e" },
 };
 
 export interface Integration {
@@ -93,6 +96,14 @@ export interface Integration {
   metricsDateRange: string;
   connectedDate?: string;
   estimatedCompletionDate?: string;
+  connectedBy?: string;
+  connectedByEmail?: string;
+  alias?: string;
+  invitedBy?: string;
+  invitedByEmail?: string;
+  invitedUser?: string;
+  invitedUserEmail?: string;
+  invitedAt?: string;
 }
 
 export interface CatalogIntegration {
@@ -110,6 +121,8 @@ export interface CatalogIntegration {
   isRecommended?: boolean;
   partnerBenefit?: string;
   dataCategory?: DataCategory;
+  authType?: "oauth" | "api_key";
+  authFields?: { key: string; label: string; type: "text" | "password" | "textarea"; placeholder: string }[];
 }
 
 // ─── All Categories ─────────────────────────────────────────────────────────
@@ -134,6 +147,7 @@ export const ALL_STATUSES: IntegrationStatus[] = [
   "CONNECTED",
   "SYNC_ERROR",
   "ACTION_REQUIRED",
+  "INVITED",
 ];
 
 // ─── Sample Integrations ────────────────────────────────────────────────────
@@ -148,6 +162,8 @@ export const allIntegrations: Integration[] = [
     dataCategory: "paid_marketing",
     status: "CONNECTED",
     subtitle: "4 accounts · Last sync 2 min ago",
+    connectedBy: "Anup Kumar",
+    connectedByEmail: "anup@lifesight.io",
     refreshFrequency: "Every 6h",
     timezone: "UTC",
     syncHealthDetail: [
@@ -184,6 +200,8 @@ export const allIntegrations: Integration[] = [
   // 2. Google Ads — Source, Advertising, Connected
   {
     name: "Google Ads",
+    connectedBy: "Sarah Chen",
+    connectedByEmail: "sarah@lifesight.io",
     icon: "G",
     color: "#34A853",
     connectionType: "Source",
@@ -258,6 +276,7 @@ export const allIntegrations: Integration[] = [
     reliableThrough: "Jan 27, 2025",
     alertMessage: "Connection expired. Please re-authenticate your TikTok Ads account.",
     alertType: "error",
+    connectedBy: "Sarah Chen",
     accounts: [
       { name: "TikTok US Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:15 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$28.5K", Impressions: "3.8M", Clicks: "132K", "Attrib. Rev": "$215K" }, earliestDate: "Mar 15, 2023", latestDate: "Jan 28, 2025" },
       { name: "TikTok EU Campaigns", status: "NOT_CONNECTED", lastRefreshed: "Jan 28, 2025, 10:10 AM", dataUntil: "Jan 28, 2025", metrics: { Spend: "$13.6K", Impressions: "1.8M", Clicks: "66K", "Attrib. Rev": "$95K" }, earliestDate: "Jun 1, 2023", latestDate: "Jan 28, 2025" },
@@ -463,6 +482,7 @@ export const allIntegrations: Integration[] = [
   // 9. Google Sheets — Source, Data Warehouse, Connected
   {
     name: "Google Sheets",
+    alias: "Campaign Performance Q4",
     icon: "G",
     color: "#0F9D58",
     connectionType: "Source",
@@ -470,6 +490,8 @@ export const allIntegrations: Integration[] = [
     // No dataCategory — generic data container
     status: "CONNECTED",
     subtitle: "3 sheets · Last sync 15 min ago",
+    connectedBy: "Anup Kumar",
+    connectedByEmail: "anup@lifesight.io",
     refreshFrequency: "Hourly",
     timezone: "UTC",
     syncHealthDetail: [
@@ -588,6 +610,8 @@ export const allIntegrations: Integration[] = [
     dataCategory: "kpi",
     status: "SETUP_INCOMPLETE",
     subtitle: "0 accounts · Setup started Jan 28",
+    connectedBy: "James Wright",
+    connectedByEmail: "james@lifesight.io",
     refreshFrequency: "Every 6h",
     timezone: "UTC",
     syncHealthDetail: [
@@ -602,6 +626,34 @@ export const allIntegrations: Integration[] = [
     alertType: "warning",
     accounts: [],
     accountColumns: ["Revenue", "Charges", "Refunds", "Net"],
+    syncHealthDays: ["pending", "pending", "pending", "pending", "pending", "pending", "pending"],
+  },
+
+  // 13. Klaviyo — Source, CRM, Invited
+  {
+    name: "Klaviyo",
+    icon: "K",
+    color: "#2B2D42",
+    connectionType: "Source",
+    category: "CRM",
+    dataCategory: "organic",
+    status: "INVITED",
+    subtitle: "Invited by Sarah Chen",
+    invitedBy: "Sarah Chen",
+    invitedByEmail: "sarah@lifesight.io",
+    invitedUser: "anup@lifesight.io",
+    invitedUserEmail: "anup@lifesight.io",
+    invitedAt: "2025-01-28T14:30:00Z",
+    refreshFrequency: "—",
+    timezone: "UTC",
+    syncHealthDetail: ["—", "—", "—", "—", "—", "—", "—"],
+    metricsDateRange: "—",
+    overviewMetrics: [],
+    earliestDate: "—",
+    latestDate: "—",
+    reliableThrough: "—",
+    accounts: [],
+    accountColumns: [],
     syncHealthDays: ["pending", "pending", "pending", "pending", "pending", "pending", "pending"],
   },
 ];

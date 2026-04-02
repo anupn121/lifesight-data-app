@@ -32,7 +32,7 @@ export default function DataPreviewModal({ isOpen, onClose, model, fields }: Dat
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl w-full max-w-[900px] max-h-[80vh] flex flex-col mx-4">
+      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-[var(--shadow-xl)] w-full max-w-[900px] max-h-[80vh] flex flex-col mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-primary)]">
           <div>

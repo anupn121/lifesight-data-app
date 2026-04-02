@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lifesight Data OS — Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f0f0f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .canvas { width: 960px; padding: 40px; }
+</style>
+</head>
+<body>
+<div class="canvas">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 920" width="880" height="920">
+  <defs>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="#000" flood-opacity="0.06"/>
+    </filter>
+    <linearGradient id="grad-teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e0f5f0"/>
+      <stop offset="100%" stop-color="#d0f0ea"/>
+    </linearGradient>
+    <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8eeff"/>
+      <stop offset="100%" stop-color="#dce6fc"/>
+    </linearGradient>
+    <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0e8ff"/>
+      <stop offset="100%" stop-color="#e8dcfc"/>
+    </linearGradient>
+    <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e4f8e8"/>
+      <stop offset="100%" stop-color="#d4f0da"/>
+    </linearGradient>
+    <linearGradient id="grad-orange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff4e0"/>
+      <stop offset="100%" stop-color="#ffedd0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- OUTER CONTAINER — Data OS boundary                          -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <rect x="20" y="20" width="840" height="880" rx="20" fill="url(#grad-teal)" stroke="#88ccbb" stroke-width="1.5" stroke-dasharray="6,3"/>
+
+  <!-- Title -->
+  <text x="440" y="60" text-anchor="middle" font-size="22" font-weight="700" fill="#1a3a32">Data OS</text>
+  <text x="440" y="80" text-anchor="middle" font-size="11" fill="#5a8a7a">Built in lifesight-data-app</text>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 1 — Integration Sources                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="70" y="105" width="150" height="52" rx="10" fill="#f4ede6" stroke="#d4c4b4" stroke-width="1" filter="url(#shadow)"/>
+  <text x="145" y="128" text-anchor="middle" font-size="12" font-weight="600" fill="#3a2a1a">Native APIs</text>
+  <text x="145" y="145" text-anchor="middle" font-size="9" fill="#8a7a6a">Facebook, Google, TikTok…</text>
+
+  <rect x="248" y="105" width="150" height="52" rx="10" fill="#f4ede6" stroke="#d4c4b4" stroke-width="1" filter="url(#shadow)"/>
+  <text x="323" y="128" text-anchor="middle" font-size="12" font-weight="600" fill="#3a2a1a">File Uploads</text>
+  <text x="323" y="145" text-anchor="middle" font-size="9" fill="#8a7a6a">Import CSV, Excel</text>
+
+  <rect x="426" y="105" width="150" height="52" rx="10" fill="#f4ede6" stroke="#d4c4b4" stroke-width="1" filter="url(#shadow)"/>
+  <text x="501" y="128" text-anchor="middle" font-size="12" font-weight="600" fill="#3a2a1a">Warehouses</text>
+  <text x="501" y="145" text-anchor="middle" font-size="9" fill="#8a7a6a">BigQuery</text>
+
+  <rect x="604" y="105" width="150" height="52" rx="10" fill="#f4ede6" stroke="#d4c4b4" stroke-width="1" filter="url(#shadow)"/>
+  <text x="679" y="128" text-anchor="middle" font-size="12" font-weight="600" fill="#3a2a1a">Google Sheets</text>
+  <text x="679" y="145" text-anchor="middle" font-size="9" fill="#8a7a6a">Spreadsheet connector</text>
+
+  <text x="790" y="132" text-anchor="start" font-size="10" fill="#5a8a7a" font-style="italic">80+</text>
+
+  <!-- Arrows from sources down -->
+  <line x1="145" y1="157" x2="145" y2="175" stroke="#8aa" stroke-width="1.2"/>
+  <line x1="323" y1="157" x2="323" y2="175" stroke="#8aa" stroke-width="1.2"/>
+  <line x1="501" y1="157" x2="501" y2="175" stroke="#8aa" stroke-width="1.2"/>
+  <line x1="679" y1="157" x2="679" y2="175" stroke="#8aa" stroke-width="1.2"/>
+  <!-- Horizontal connector -->
+  <line x1="145" y1="175" x2="679" y2="175" stroke="#8aa" stroke-width="1.2"/>
+  <line x1="440" y1="175" x2="440" y2="195" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,193 440,201 445,193" fill="#8aa"/>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 2 — Ingestion & Classification                          -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="100" y="205" width="680" height="65" rx="12" fill="url(#grad-blue)" stroke="#a0b4e0" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="440" y="232" text-anchor="middle" font-size="14" font-weight="700" fill="#2a3a5a">Ingestion, Classification &amp; Column Mapping</text>
+  <text x="440" y="252" text-anchor="middle" font-size="10" fill="#5a6a8a">Data category selection (KPI, Paid Marketing, Organic, Contextual) · Smart column mapper · Platform auto-detection</text>
+
+  <!-- Arrow down -->
+  <line x1="440" y1="270" x2="440" y2="295" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,293 440,301 445,293" fill="#8aa"/>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 3 — Metrics & Dimensions                                -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="100" y="305" width="680" height="80" rx="12" fill="url(#grad-purple)" stroke="#b4a0e0" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="440" y="332" text-anchor="middle" font-size="14" font-weight="700" fill="#3a2a5a">Metrics &amp; Dimensions</text>
+  <text x="440" y="350" text-anchor="middle" font-size="10" fill="#6a5a8a">Field management — data types, transformations, source tracking, status (Mapped / Unmapped)</text>
+
+  <!-- Category pills -->
+  <rect x="210" y="360" width="60" height="18" rx="9" fill="#00bc7d22" stroke="#00bc7d" stroke-width="0.8"/>
+  <text x="240" y="373" text-anchor="middle" font-size="9" font-weight="600" fill="#00bc7d">KPI</text>
+
+  <rect x="282" y="360" width="105" height="18" rx="9" fill="#2b7fff22" stroke="#2b7fff" stroke-width="0.8"/>
+  <text x="334.5" y="373" text-anchor="middle" font-size="9" font-weight="600" fill="#2b7fff">Paid Marketing</text>
+
+  <rect x="399" y="360" width="70" height="18" rx="9" fill="#fe9a0022" stroke="#fe9a00" stroke-width="0.8"/>
+  <text x="434" y="373" text-anchor="middle" font-size="9" font-weight="600" fill="#fe9a00">Organic</text>
+
+  <rect x="481" y="360" width="80" height="18" rx="9" fill="#027b8e22" stroke="#027b8e" stroke-width="0.8"/>
+  <text x="521" y="373" text-anchor="middle" font-size="9" font-weight="600" fill="#027b8e">Contextual</text>
+
+  <!-- Arrow down -->
+  <line x1="440" y1="385" x2="440" y2="410" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,408 440,416 445,408" fill="#8aa"/>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 4 — Tactic Mapper                                       -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="160" y="420" width="560" height="55" rx="12" fill="url(#grad-orange)" stroke="#d4b480" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="440" y="445" text-anchor="middle" font-size="14" font-weight="700" fill="#5a4020">Tactic Mapper</text>
+  <text x="440" y="463" text-anchor="middle" font-size="10" fill="#8a7050">Map campaign strategies to sources — Source / Tactic granularity toggle</text>
+
+  <!-- Arrow down -->
+  <line x1="440" y1="475" x2="440" y2="500" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,498 440,506 445,498" fill="#8aa"/>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 5 — Data Models                                         -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="100" y="510" width="680" height="95" rx="12" fill="url(#grad-blue)" stroke="#a0b4e0" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="440" y="537" text-anchor="middle" font-size="14" font-weight="700" fill="#2a3a5a">Data Models</text>
+  <text x="440" y="555" text-anchor="middle" font-size="10" fill="#5a6a8a">Compose MMM-ready datasets from categorized fields</text>
+
+  <!-- Sub-boxes inside Data Models -->
+  <rect x="130" y="568" width="130" height="28" rx="6" fill="#fff" stroke="#a0b4e0" stroke-width="0.8"/>
+  <text x="195" y="587" text-anchor="middle" font-size="10" font-weight="600" fill="#2a3a5a">KPI Selection</text>
+
+  <rect x="275" y="568" width="160" height="28" rx="6" fill="#fff" stroke="#a0b4e0" stroke-width="0.8"/>
+  <text x="355" y="587" text-anchor="middle" font-size="10" font-weight="600" fill="#2a3a5a">Sources &amp; Tactics</text>
+
+  <rect x="450" y="568" width="130" height="28" rx="6" fill="#fff" stroke="#a0b4e0" stroke-width="0.8"/>
+  <text x="515" y="587" text-anchor="middle" font-size="10" font-weight="600" fill="#2a3a5a">Control Variables</text>
+
+  <rect x="595" y="568" width="155" height="28" rx="6" fill="#fff" stroke="#a0b4e0" stroke-width="0.8"/>
+  <text x="672.5" y="587" text-anchor="middle" font-size="10" font-weight="600" fill="#2a3a5a">Dimensions &amp; Granularity</text>
+
+  <!-- Arrow down -->
+  <line x1="440" y1="605" x2="440" y2="635" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,633 440,641 445,633" fill="#8aa"/>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 6 — Data Preview + EDA (side by side)                   -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="100" y="645" width="330" height="70" rx="12" fill="url(#grad-green)" stroke="#80c090" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="265" y="672" text-anchor="middle" font-size="14" font-weight="700" fill="#1a4a2a">Data Preview</text>
+  <text x="265" y="692" text-anchor="middle" font-size="10" fill="#3a7a4a">Synthetic data generation · Row-level inspection</text>
+
+  <rect x="450" y="645" width="330" height="70" rx="12" fill="url(#grad-green)" stroke="#80c090" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="615" y="672" text-anchor="middle" font-size="14" font-weight="700" fill="#1a4a2a">Exploratory Data Analysis</text>
+  <text x="615" y="692" text-anchor="middle" font-size="10" fill="#3a7a4a">30 panels · Quality, Stats, Time Series, Marketing AI</text>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- ROW 7 — Monitoring (spans full width, below)                -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <!-- Arrow from sources back to monitoring (feedback loop) -->
+  <line x1="440" y1="715" x2="440" y2="740" stroke="#8aa" stroke-width="1.2"/>
+  <polygon points="435,738 440,746 445,738" fill="#8aa"/>
+
+  <rect x="100" y="750" width="680" height="55" rx="12" fill="#f0f4ff" stroke="#b0c0e0" stroke-width="1.2" filter="url(#shadow)"/>
+  <text x="440" y="775" text-anchor="middle" font-size="14" font-weight="700" fill="#2a3a5a">Integration Monitoring</text>
+  <text x="440" y="793" text-anchor="middle" font-size="10" fill="#5a6a8a">Health checks · Sync status · Data freshness · Account-level detail views</text>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- LEGEND                                                       -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+  <rect x="180" y="840" width="14" height="14" rx="3" fill="#f4ede6" stroke="#d4c4b4" stroke-width="0.8"/>
+  <text x="200" y="852" font-size="10" fill="#5a5a5a">Sources</text>
+
+  <rect x="260" y="840" width="14" height="14" rx="3" fill="url(#grad-blue)" stroke="#a0b4e0" stroke-width="0.8"/>
+  <text x="280" y="852" font-size="10" fill="#5a5a5a">Processing</text>
+
+  <rect x="355" y="840" width="14" height="14" rx="3" fill="url(#grad-purple)" stroke="#b4a0e0" stroke-width="0.8"/>
+  <text x="375" y="852" font-size="10" fill="#5a5a5a">Field Management</text>
+
+  <rect x="475" y="840" width="14" height="14" rx="3" fill="url(#grad-orange)" stroke="#d4b480" stroke-width="0.8"/>
+  <text x="495" y="852" font-size="10" fill="#5a5a5a">Mapping</text>
+
+  <rect x="555" y="840" width="14" height="14" rx="3" fill="url(#grad-green)" stroke="#80c090" stroke-width="0.8"/>
+  <text x="575" y="852" font-size="10" fill="#5a5a5a">Analysis</text>
+
+  <rect x="635" y="840" width="14" height="14" rx="3" fill="#f0f4ff" stroke="#b0c0e0" stroke-width="0.8"/>
+  <text x="655" y="852" font-size="10" fill="#5a5a5a">Ops</text>
+
+  <!-- Footer -->
+  <text x="440" y="890" text-anchor="middle" font-size="9" fill="#8a8a8a">lifesight-data-app · Next.js 14 · React 18 · TypeScript · Tailwind CSS</text>
+</svg>
+</div>
+</body>
+</html>

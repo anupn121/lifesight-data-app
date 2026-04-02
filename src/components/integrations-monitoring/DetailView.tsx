@@ -37,7 +37,7 @@ export default function DetailView({
       {/* Breadcrumb */}
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-[#6941c6] hover:text-[#7c5bd2] text-sm font-medium transition-colors self-start"
+        className="flex items-center gap-1.5 text-[#027b8e] hover:text-[#02899e] text-sm font-medium transition-colors self-start"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M9 3L5 7L9 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -76,12 +76,12 @@ export default function DetailView({
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
               tab === t.id
-                ? "text-[#6941c6]"
+                ? "text-[#027b8e]"
                 : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             }`}
           >
             {t.label}
-            {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#6941c6] rounded-full" />}
+            {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#027b8e] rounded-full" />}
           </button>
         ))}
       </div>

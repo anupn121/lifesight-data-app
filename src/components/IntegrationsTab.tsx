@@ -111,7 +111,7 @@ const integrations: CatalogIntegrationWithCategory[] = [
   { name: "BigQuery", description: "Connect your BigQuery data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "bq", footerLabel: "0 Tables" },
 
   // Custom
-  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", dataCategory: "contextual", status: "CONNECTED", color: "#6941c6", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
+  { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", dataCategory: "contextual", status: "CONNECTED", color: "#027b8e", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
 ];
 
 const allCategories = Array.from(new Set(integrations.map((i) => i.category)));
@@ -124,6 +124,7 @@ const statusDotColor: Record<IntegrationStatus, string> = {
   CONNECTED: "bg-[#00bc7d]",
   SYNC_ERROR: "bg-[#ff2056]",
   ACTION_REQUIRED: "bg-[#ff2056]",
+  INVITED: "bg-[#a855f7]",
 };
 
 type ViewMode = "status" | "category";
@@ -337,11 +338,11 @@ function FilterDropdown({
       >
         <span>{value}</span>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-          <path d="M4 6L8 10L12 6" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+        <div className="absolute top-full left-0 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg shadow-[var(--shadow-popover)] z-50 min-w-[180px] py-1">
           <button
             onClick={() => { onChange(`All ${label}`); setOpen(false); }}
             className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--hover-item)] transition-colors ${value === `All ${label}` ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}
@@ -547,7 +548,7 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
           <rect x="1" y="1" width="5" height="5" rx="1" fill={view === "category" ? "#2b7fff" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
           <rect x="8" y="1" width="5" height="5" rx="1" fill={view === "category" ? "#00bc7d" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
           <rect x="1" y="8" width="5" height="5" rx="1" fill={view === "category" ? "#fe9a00" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
-          <rect x="8" y="8" width="5" height="5" rx="1" fill={view === "category" ? "#6941c6" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
+          <rect x="8" y="8" width="5" height="5" rx="1" fill={view === "category" ? "#027b8e" : "currentColor"} opacity={view === "category" ? 1 : 0.4} />
         </svg>
         Category
       </button>
@@ -620,7 +621,7 @@ export default function IntegrationsTab() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search"
-              className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-60 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+              className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-60 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
             />
           </div>
           <FilterDropdown label="Statuses" value={statusFilter} options={allStatuses.map((s) => STATUS_LABELS[s])} onChange={setStatusFilter} />
@@ -685,7 +686,7 @@ export default function IntegrationsTab() {
           {attention.length > 0 && (
             <div>
               <SectionHeader
-                title="Needs Attention"
+                title="Action Required"
                 count={attention.length}
                 dotColor="bg-[#fe9a00]"
                 description="Integrations that require action to resume syncing"
@@ -720,7 +721,7 @@ export default function IntegrationsTab() {
             <path d="M35 35L26.5 26.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <p className="text-[var(--text-muted)] text-sm">No integrations match your filters</p>
-          <button onClick={resetFilters} className="text-[#6941c6] text-sm font-medium mt-2 hover:underline">
+          <button onClick={resetFilters} className="text-[#027b8e] text-sm font-medium mt-2 hover:underline">
             Reset filters
           </button>
         </div>

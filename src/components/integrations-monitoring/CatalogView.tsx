@@ -13,10 +13,12 @@ export default function CatalogView({
   onBack,
   getEffectiveStatus,
   onStartWizard,
+  jspIntegrationNames,
 }: {
   onBack: () => void;
   getEffectiveStatus: (name: string, defaultStatus: IntegrationStatus) => IntegrationStatus;
   onStartWizard: (integration: CatalogIntegration) => void;
+  jspIntegrationNames?: Set<string>;
 }) {
   const [catalogTab, setCatalogTab] = useState<CatalogTab>("all");
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -58,7 +60,7 @@ export default function CatalogView({
       <div className="flex items-center border-b border-[var(--border-primary)] pb-0 -mx-4 px-4">
         {/* Left: Breadcrumb */}
         <div className="flex items-center gap-1.5 text-sm min-w-0 shrink-0">
-          <button onClick={onBack} className="text-[var(--text-muted)] hover:text-[#6941c6] transition-colors">
+          <button onClick={onBack} className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
             Integrations
           </button>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
@@ -72,21 +74,21 @@ export default function CatalogView({
           <button
             onClick={() => setCatalogTab("all")}
             className={`px-5 py-3 text-sm font-medium transition-colors relative ${
-              catalogTab === "all" ? "text-[#6941c6]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              catalogTab === "all" ? "text-[#027b8e]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             }`}
           >
             All Integrations
-            {catalogTab === "all" && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#6941c6] rounded-full" />}
+            {catalogTab === "all" && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#027b8e] rounded-full" />}
           </button>
           <button
             onClick={() => setCatalogTab("partner")}
             className={`px-5 py-3 text-sm font-medium transition-colors relative ${
-              catalogTab === "partner" ? "text-[#6941c6]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              catalogTab === "partner" ? "text-[#027b8e]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             }`}
           >
             Partner Integrations
             <span className="ml-1.5 text-[10px] bg-[#2b7fff]/10 text-[#2b7fff] px-1.5 py-0.5 rounded-full font-semibold">{partnerIntegrations.length}</span>
-            {catalogTab === "partner" && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#6941c6] rounded-full" />}
+            {catalogTab === "partner" && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#027b8e] rounded-full" />}
           </button>
         </div>
 
@@ -106,7 +108,7 @@ export default function CatalogView({
             value={catalogSearch}
             onChange={(e) => setCatalogSearch(e.target.value)}
             placeholder="Search integrations..."
-            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
           />
         </div>
         {catalogTab === "all" && (
@@ -132,23 +134,27 @@ export default function CatalogView({
                     <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{integrations.length}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                    {integrations.map((integration) => (
-                      <div key={integration.name} className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-4 flex items-center justify-between hover:border-[var(--border-secondary)] transition-colors">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <IntegrationIcon integration={integration} />
-                          <div className="min-w-0">
-                            <span className="text-[var(--text-primary)] text-sm font-medium block">{integration.name}</span>
-                            <p className="text-[var(--text-dim)] text-xs mt-0.5 truncate">{integration.description}</p>
+                    {integrations.map((integration) => {
+                      const inSetup = jspIntegrationNames?.has(integration.name);
+                      return (
+                        <div key={integration.name} className={`bg-[var(--bg-card)] border rounded-[8px] px-5 py-4 flex items-center justify-between hover:border-[var(--border-secondary)] transition-colors relative ${inSetup ? "border-[var(--border-primary)] ring-1 ring-[#027b8e]/15" : "border-[var(--border-primary)]"}`}>
+                          {inSetup && <span className="absolute top-2 right-2 text-[10px] font-medium text-[#027b8e] bg-[#027b8e]/8 px-2 py-[3px] rounded-[4px]">In your setup plan</span>}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <IntegrationIcon integration={integration} />
+                            <div className="min-w-0">
+                              <span className="text-[var(--text-primary)] text-sm font-medium block">{integration.name}</span>
+                              <p className="text-[var(--text-dim)] text-xs mt-0.5 truncate">{integration.description}</p>
+                            </div>
                           </div>
+                          <button
+                            onClick={() => handleConnect(integration)}
+                            className="flex-shrink-0 ml-3 px-3.5 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
+                          >
+                            Connect
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleConnect(integration)}
-                          className="flex-shrink-0 ml-3 px-4 py-1.5 rounded-lg bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-xs font-medium transition-colors"
-                        >
-                          Connect
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))
@@ -161,7 +167,7 @@ export default function CatalogView({
           {filteredPartner.length > 0 ? (
             <div className="grid grid-cols-3 gap-4">
               {filteredPartner.map((integration) => (
-                <div key={integration.name} className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-5 flex flex-col hover:border-[var(--border-secondary)] transition-colors">
+                <div key={integration.name} className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex flex-col hover:border-[var(--border-secondary)] transition-colors">
                   <div className="flex items-center gap-3 mb-3">
                     <IntegrationIcon integration={integration} />
                     <div className="min-w-0 flex-1">
@@ -176,7 +182,7 @@ export default function CatalogView({
                   </div>
                   <button
                     onClick={() => handleConnect(integration)}
-                    className="w-full px-4 py-1.5 rounded-lg bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-xs font-medium transition-colors mt-auto"
+                    className="w-full px-4 py-1.5 rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-xs font-medium transition-colors mt-auto"
                   >
                     Connect
                   </button>
@@ -184,7 +190,7 @@ export default function CatalogView({
               ))}
             </div>
           ) : (
-            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-12 text-center">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-12 text-center">
               <p className="text-[var(--text-muted)] text-sm">No partner integrations match your search.</p>
             </div>
           )}
@@ -207,7 +213,7 @@ export default function CatalogView({
 
 function EmptyState({ search, onSubmitRequest }: { search: string; onSubmitRequest: () => void }) {
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-12 text-center">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-12 text-center">
       <div className="w-16 h-16 bg-[var(--bg-badge)] rounded-full flex items-center justify-center mx-auto mb-4">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
           <circle cx="12" cy="12" r="9" stroke="var(--text-dim)" strokeWidth="1.5" />
@@ -217,12 +223,12 @@ function EmptyState({ search, onSubmitRequest }: { search: string; onSubmitReque
       <h3 className="text-[var(--text-primary)] text-base font-semibold mb-1">We don&apos;t support this yet</h3>
       <p className="text-[var(--text-muted)] text-sm mb-6">Can&apos;t find the integration you need? Build a custom connector or submit a request.</p>
       <div className="flex items-center justify-center gap-3">
-        <button className="px-4 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors font-medium">
+        <button className="px-4 py-2 rounded-[6px] border border-[var(--border-secondary)] text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors font-medium">
           Build Custom Connector
         </button>
         <button
           onClick={onSubmitRequest}
-          className="px-4 py-2 rounded-lg bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors"
+          className="px-4 py-2 rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors"
         >
           Submit Request
         </button>

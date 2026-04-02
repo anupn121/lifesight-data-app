@@ -20,6 +20,7 @@ const statusConfig: Record<IntegrationStatus, { color: string; dotColor: string;
   CONNECTED: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]", bg: "", borderColor: "" },
   SYNC_ERROR: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
   ACTION_REQUIRED: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]", bg: "bg-[#ff2056]/5", borderColor: "border-[#ff2056]/30" },
+  INVITED: { color: "text-[#a855f7]", dotColor: "bg-[#a855f7]", bg: "bg-[#a855f7]/5", borderColor: "border-[#a855f7]/30" },
 };
 
 const accountStatusConfig: Record<AccountStatus, { color: string; dotColor: string }> = {
@@ -29,6 +30,7 @@ const accountStatusConfig: Record<AccountStatus, { color: string; dotColor: stri
   CONNECTED: { color: "text-[#00bc7d]", dotColor: "bg-[#00bc7d]" },
   SYNC_ERROR: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
   ACTION_REQUIRED: { color: "text-[#ff2056]", dotColor: "bg-[#ff2056]" },
+  INVITED: { color: "text-[#a855f7]", dotColor: "bg-[#a855f7]" },
 };
 
 const ATTENTION_STATUSES: IntegrationStatus[] = ["SYNC_ERROR", "ACTION_REQUIRED", "SETUP_INCOMPLETE"];
@@ -59,7 +61,7 @@ const InfoIcon = ({ tooltip }: { tooltip?: string }) => (
 
 const ChevronDown = ({ open }: { open: boolean }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-    <path d="M4 6L8 10L12 6" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -109,7 +111,7 @@ function StatusLegendButton() {
         Status Guide
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1 bg-[var(--dropdown-bg)] border border-[var(--border-secondary)] rounded-xl shadow-xl z-50 w-[340px] py-3 px-4">
+        <div className="absolute top-full right-0 mt-1 bg-[var(--dropdown-bg)] border border-[var(--border-secondary)] rounded-xl shadow-[var(--shadow-popover)] z-50 w-[340px] py-3 px-4">
           <p className="text-[var(--text-primary)] text-xs font-semibold mb-3">Integration Statuses</p>
           <div className="flex flex-col gap-2.5">
             {statusLegendItems.map((item) => (
@@ -190,12 +192,12 @@ function MultiSelectDropdown({
         <ChevronDown open={open} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[var(--dropdown-bg)] border border-[var(--border-secondary)] rounded-lg shadow-xl z-50 min-w-[200px] py-1 max-h-[280px] overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 bg-[var(--dropdown-bg)] border border-[var(--border-secondary)] rounded-lg shadow-[var(--shadow-popover)] z-50 min-w-[200px] py-1 max-h-[280px] overflow-y-auto">
           <button
             onClick={() => onChange([])}
             className={`w-full text-left px-3 py-2 text-xs hover:bg-[var(--hover-item)] transition-colors flex items-center gap-2 ${selected.length === 0 ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}
           >
-            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] ${selected.length === 0 ? "bg-[#6941c6] border-[#6941c6] text-[var(--text-primary)]" : "border-[var(--border-secondary)]"}`}>
+            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] ${selected.length === 0 ? "bg-[#027b8e] border-[#027b8e] text-[var(--text-primary)]" : "border-[var(--border-secondary)]"}`}>
               {selected.length === 0 && "\u2713"}
             </span>
             All
@@ -208,7 +210,7 @@ function MultiSelectDropdown({
                 onClick={() => toggle(opt)}
                 className={`w-full text-left px-3 py-2 text-xs hover:bg-[var(--hover-item)] transition-colors flex items-center gap-2 ${isChecked ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-muted)]"}`}
               >
-                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] ${isChecked ? "bg-[#6941c6] border-[#6941c6] text-[var(--text-primary)]" : "border-[var(--border-secondary)]"}`}>
+                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] ${isChecked ? "bg-[#027b8e] border-[#027b8e] text-[var(--text-primary)]" : "border-[var(--border-secondary)]"}`}>
                   {isChecked && "\u2713"}
                 </span>
                 {opt}
@@ -282,7 +284,7 @@ export default function MonitoringTab() {
 
       {/* ─── 1. Alert Banner (collapsible) ─────────────────────────────── */}
       {needsAttention.length > 0 && (
-        <div className="bg-[var(--bg-card)] border border-[#fe9a00]/20 rounded-2xl relative overflow-hidden">
+        <div className="bg-[var(--bg-card)] border border-[#fe9a00]/20 rounded-xl relative overflow-hidden">
           <div className="absolute left-0 top-0 w-1 h-full bg-[#fe9a00]" />
           <button
             type="button"
@@ -295,7 +297,7 @@ export default function MonitoringTab() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[var(--text-primary)] text-lg font-semibold">{needsAttention.length} Integration(s) need attention</p>
+              <p className="text-[var(--text-primary)] text-lg font-semibold">{needsAttention.length} Integration(s) require action</p>
               <p className="text-[var(--text-muted)] text-sm">
                 {attentionSources > 0 && `${attentionSources} source(s)`}
                 {attentionSources > 0 && attentionDests > 0 && " \u00b7 "}
@@ -328,7 +330,7 @@ export default function MonitoringTab() {
                     </span>
                     <button
                       onClick={() => scrollToIntegration(integration.name)}
-                      className="flex-shrink-0 text-[#6941c6] hover:text-[#7c5bd2] text-xs font-medium px-3 py-1.5 rounded-lg border border-[#6941c6]/30 hover:border-[#6941c6]/50 transition-colors"
+                      className="flex-shrink-0 text-[#027b8e] hover:text-[#02899e] text-xs font-medium px-3 py-1.5 rounded-lg border border-[#027b8e]/30 hover:border-[#027b8e]/50 transition-colors"
                     >
                       View
                     </button>
@@ -390,19 +392,19 @@ export default function MonitoringTab() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-5 bg-[#6941c6] rounded-full" />
+            <div className="w-1 h-5 bg-[#027b8e] rounded-full" />
             <h3 className="text-[var(--text-primary)] text-lg font-semibold">Integrations ({filtered.length})</h3>
             <InfoIcon tooltip="Detailed view of each integration with accounts, metrics, and sync status" />
           </div>
           <StatusLegendButton />
         </div>
 
-        {/* Needs Attention Group */}
+        {/* Action Required Group */}
         {needsAttentionFiltered.length > 0 && (
           <div className="mb-5">
             <GroupHeader
               accentColor="bg-[#fe9a00]"
-              label="Needs Attention"
+              label="Action Required"
               count={needsAttentionFiltered.length}
               description="Integrations requiring immediate action"
             />

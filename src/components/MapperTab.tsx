@@ -46,10 +46,10 @@ function RuleHighlight({ text }: { text: string }) {
     <span>
       {parts.map((part, i) => {
         if (["campaign_name", "origin", "platform"].includes(part)) {
-          return <span key={i} className="text-[#6941c6] cursor-pointer hover:underline">{part}</span>;
+          return <span key={i} className="text-[#027b8e] cursor-pointer hover:underline">{part}</span>;
         }
         if (["shopping", "Shopping", "2D", "3D", "1D"].includes(part)) {
-          return <span key={i} className="text-[#6941c6] cursor-pointer hover:underline">{part}</span>;
+          return <span key={i} className="text-[#027b8e] cursor-pointer hover:underline">{part}</span>;
         }
         return <span key={i}>{part}</span>;
       })}
@@ -61,10 +61,39 @@ interface MapperTabProps {
   fields: Field[];
   tactics: string[];
   onTacticsChange: (tactics: string[]) => void;
+  hasConnectedIntegration?: boolean;
+  onNavigateToIntegrations?: () => void;
 }
 
-export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTabProps) {
+export default function MapperTab({ fields, tactics, onTacticsChange, hasConnectedIntegration = true, onNavigateToIntegrations }: MapperTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  if (!hasConnectedIntegration) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4">
+        <div className="w-12 h-12 rounded-full bg-[var(--bg-badge)] flex items-center justify-center mb-4">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[var(--text-label)]">
+            <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No tactics to map yet</h3>
+        <p className="text-[var(--text-muted)] text-xs text-center max-w-sm mb-4">
+          Connect your ad platforms and data sources first. Once your metrics are flowing, you can map campaigns to marketing tactics here.
+        </p>
+        {onNavigateToIntegrations && (
+          <button
+            onClick={onNavigateToIntegrations}
+            className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-1.5 px-4 h-[28px] text-[12px] font-medium transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Set Up Integrations
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -77,7 +106,7 @@ export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTa
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#6941c6] hover:bg-[#5b34b5] text-white rounded-lg flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
+            className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-2 px-4 h-[28px] text-[12px] font-medium transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3.33333V12.6667M3.33333 8H12.6667" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/>
@@ -113,7 +142,7 @@ export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTa
         {/* Table Header */}
         <div className="grid grid-cols-[50px_1fr_1.5fr_1fr_120px] border-b border-[var(--border-primary)]">
           <div className="px-4 py-3 flex items-center">
-            <input type="checkbox" className="w-4 h-4 rounded border-[#475467] bg-transparent accent-[#6941c6]" />
+            <input type="checkbox" className="w-4 h-4 rounded border-[#475467] bg-transparent accent-[#027b8e]" />
           </div>
           <div className="px-6 py-3"><span className="text-[var(--text-label)] text-xs font-medium">Campaign ID</span></div>
           <div className="px-6 py-3"><span className="text-[var(--text-label)] text-xs font-medium">Campaign Name</span></div>
@@ -125,7 +154,7 @@ export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTa
         {campaigns.map((campaign, idx) => (
           <div key={idx} className="grid grid-cols-[50px_1fr_1.5fr_1fr_120px] border-b border-[var(--border-subtle)] hover:bg-[var(--hover-bg)] transition-colors">
             <div className="px-4 py-2 flex items-center">
-              <input type="checkbox" className="w-4 h-4 rounded border-[#475467] bg-transparent accent-[#6941c6]" />
+              <input type="checkbox" className="w-4 h-4 rounded border-[#475467] bg-transparent accent-[#027b8e]" />
             </div>
             <div className="px-6 py-2 flex items-center">
               <span className="text-[var(--text-label)] text-xs">{campaign.id}</span>
@@ -155,7 +184,7 @@ export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTa
           <h3 className="text-[var(--text-primary)] text-base">Mapping Rules</h3>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="text-sm text-[#6941c6] hover:text-[#5b34b5] font-medium transition-colors flex items-center gap-1"
+            className="text-sm text-[#027b8e] hover:text-[#025e6d] font-medium transition-colors flex items-center gap-1"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3.5V10.5M3.5 7H10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
             Add New Rules
@@ -178,7 +207,7 @@ export default function MapperTab({ fields, tactics, onTacticsChange }: MapperTa
             <p className="text-[var(--text-muted)] text-xs leading-relaxed">
               <RuleHighlight text={rule.conditions} />
               {" set Tactic to "}
-              <span className="text-[#6941c6] cursor-pointer hover:underline">{rule.tactic}</span>
+              <span className="text-[#027b8e] cursor-pointer hover:underline">{rule.tactic}</span>
             </p>
           </div>
         ))}

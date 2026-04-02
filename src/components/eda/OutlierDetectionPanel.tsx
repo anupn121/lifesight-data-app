@@ -116,7 +116,7 @@ export default function OutlierDetectionPanel({ dataset }: Props) {
                           y={3}
                           width={Math.max(((d.q3 - d.q1) / range) * 110, 2)}
                           height={10}
-                          fill="#6941c6" opacity={0.15} rx={1}
+                          fill="#027b8e" opacity={0.15} rx={1}
                         />
                         {/* Strip dots */}
                         {allVals.slice(0, 50).map((v, j) => {
@@ -127,7 +127,7 @@ export default function OutlierDetectionPanel({ dataset }: Props) {
                               cx={((v - min) / range) * 110 + 5}
                               cy={8}
                               r={1.5}
-                              fill={isOutlier ? "#ef4444" : "#6941c6"}
+                              fill={isOutlier ? "#ef4444" : "#027b8e"}
                               opacity={isOutlier ? 0.8 : 0.3}
                             />
                           );

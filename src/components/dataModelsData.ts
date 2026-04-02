@@ -76,6 +76,9 @@ export interface DataModel {
   // Time granularity
   granularity: "Daily" | "Weekly" | "Monthly";
 
+  // Template type (optional — set when created from a template)
+  templateType?: "campaign_ad_level" | "aggregated";
+
   // Usage tracking (mocked)
   usedIn: { type: "MMM" | "Geo Experiment"; name: string }[];
 

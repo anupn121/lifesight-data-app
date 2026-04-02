@@ -154,7 +154,7 @@ export default function ScatterPlotPanel({ dataset }: Props) {
                       cx={scaleX(p.x)}
                       cy={scaleY(p.y)}
                       r={2.5}
-                      fill="#6941c6"
+                      fill="#027b8e"
                       opacity={0.5}
                     >
                       <title>{`(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`}</title>

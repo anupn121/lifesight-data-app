@@ -126,7 +126,7 @@ export default function TrendDecompositionPanel({ dataset }: Props) {
           <div className="flex flex-col gap-2">
             <LineChart data={decomposition.trend} color="#2b7fff" label="Trend" />
             <LineChart data={decomposition.seasonal} color="#f59e0b" label="Seasonal" />
-            <LineChart data={decomposition.residual} color="#6941c6" label="Residual" />
+            <LineChart data={decomposition.residual} color="#027b8e" label="Residual" />
           </div>
         )}
       </div>

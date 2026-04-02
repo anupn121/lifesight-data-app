@@ -29,11 +29,11 @@ export default function Pagination({ currentPage, totalItems, itemsPerPage, onPa
           >
             {itemsPerPage}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M3 4.5L6 7.5L9 4.5" stroke="#9CA3AF" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           {showDropdown && (
-            <div className="absolute bottom-full left-0 mb-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded shadow-lg z-10 min-w-[60px]">
+            <div className="absolute bottom-full left-0 mb-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded shadow-[var(--shadow-popover)] z-10 min-w-[60px]">
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <button
                   key={size}
@@ -43,7 +43,7 @@ export default function Pagination({ currentPage, totalItems, itemsPerPage, onPa
                   }}
                   className={`block w-full text-left px-3 py-1.5 text-xs transition-colors ${
                     size === itemsPerPage
-                      ? "text-[#6941c6] bg-[#6941c6]/10"
+                      ? "text-[#027b8e] bg-[#027b8e]/10"
                       : "text-[var(--text-secondary)] hover:bg-[var(--hover-item)]"
                   }`}
                 >
@@ -62,19 +62,19 @@ export default function Pagination({ currentPage, totalItems, itemsPerPage, onPa
           <button
             onClick={() => currentPage > 1 && onPageChange?.(currentPage - 1)}
             disabled={currentPage <= 1}
-            className="w-6 h-6 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-6 h-6 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-[var(--text-dim)]"
           >
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
-              <path d="M6 2L2 6L6 10" stroke="#6a7282" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 2L2 6L6 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           <button
             onClick={() => currentPage < totalPages && onPageChange?.(currentPage + 1)}
             disabled={currentPage >= totalPages}
-            className="w-6 h-6 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-6 h-6 rounded flex items-center justify-center hover:bg-[var(--hover-item)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-[var(--text-dim)]"
           >
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
-              <path d="M2 2L6 6L2 10" stroke="#6a7282" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 2L6 6L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>

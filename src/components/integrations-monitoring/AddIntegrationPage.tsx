@@ -54,16 +54,23 @@ function getIntegrationsForTab(tab: AddIntegrationTab, integrations: CatalogInte
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 3000);
+    const t = setTimeout(onDone, 5000);
     return () => clearTimeout(t);
   }, [onDone]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 bg-[#00bc7d] text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-[slideUp_0.3s_ease-out]">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M4 8l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      {message}
+    <div className="fixed top-6 right-6 z-[200] animate-[slideIn_0.3s_ease-out]">
+      <div className="flex items-start gap-3 px-5 py-4 rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-primary)] max-w-[345px]">
+        <div className="w-6 h-6 rounded-full bg-[#00bc7d]/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3.5 7l2.5 2.5L10.5 4.5" stroke="#00bc7d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-[var(--text-primary)] text-sm font-medium block">{message}</span>
+          <span className="text-[var(--text-muted)] text-xs mt-1 block">Data sync will take 24-48 hours. An email will be sent when successful.</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -83,6 +90,7 @@ export default function AddIntegrationPage() {
 
   // Wishlist: track which planned integrations have been requested
   const [requestedPlanned, setRequestedPlanned] = useState<Set<string>>(new Set());
+  const [wishlistModal, setWishlistModal] = useState<{ open: boolean; name: string; description: string }>({ open: false, name: "", description: "" });
 
   // Check if recommended tab has items
   const recommendedItems = useMemo(
@@ -237,7 +245,7 @@ export default function AddIntegrationPage() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-1.5 text-sm">
-          <Link href="/" className="text-[var(--text-muted)] hover:text-[#6941c6] transition-colors">
+          <Link href="/" className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
             Integrations
           </Link>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
@@ -255,7 +263,7 @@ export default function AddIntegrationPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search integrations..."
-            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
           />
         </div>
       </div>
@@ -267,18 +275,18 @@ export default function AddIntegrationPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-              activeTab === tab ? "text-[#6941c6]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              activeTab === tab ? "text-[#027b8e]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             }`}
           >
             {TAB_LABELS[tab]}
             <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
               search && tabCounts[tab] > 0
-                ? "bg-[#6941c6]/10 text-[#6941c6]"
+                ? "bg-[#027b8e]/10 text-[#027b8e]"
                 : "bg-[var(--bg-badge)] text-[var(--text-muted)]"
             }`}>
               {tabCounts[tab]}
             </span>
-            {activeTab === tab && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#6941c6] rounded-full" />}
+            {activeTab === tab && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#027b8e] rounded-full" />}
           </button>
         ))}
       </div>
@@ -301,7 +309,7 @@ export default function AddIntegrationPage() {
           <WishlistTab
             search={search}
             requestedPlanned={requestedPlanned}
-            onRequest={handleRequestPlanned}
+            onCardClick={(name) => setWishlistModal({ open: true, name, description: "" })}
             onOpenCustomRequest={() => setRequestFormModal({ open: true, name: "", details: "" })}
           />
         )}
@@ -317,6 +325,57 @@ export default function AddIntegrationPage() {
         onChangeDetails={(v) => setRequestFormModal((prev) => ({ ...prev, details: v }))}
         onSubmit={() => setRequestFormModal({ open: false, name: "", details: "" })}
       />
+
+      {/* Wishlist Request Modal */}
+      {wishlistModal.open && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setWishlistModal({ open: false, name: "", description: "" })}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center gap-3 mb-4">
+                {(() => {
+                  const planned = plannedIntegrations.find((p) => p.name === wishlistModal.name);
+                  return planned ? (
+                    <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${planned.color}18` }}>
+                      <div className="w-6 h-6 rounded-[6px] flex items-center justify-center" style={{ backgroundColor: planned.color }}>
+                        <span className="text-[8px] text-white font-bold uppercase leading-none">{planned.icon || planned.name.slice(0, 2)}</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                <div>
+                  <h3 className="text-[var(--text-primary)] text-base font-semibold">{wishlistModal.name}</h3>
+                  <p className="text-[var(--text-muted)] text-xs">Tell us what data you need</p>
+                </div>
+              </div>
+              <textarea
+                value={wishlistModal.description}
+                onChange={(e) => setWishlistModal((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="What data would you like to fetch from this integration?"
+                rows={4}
+                className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors resize-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-[var(--border-primary)]">
+              <button
+                onClick={() => setWishlistModal({ open: false, name: "", description: "" })}
+                className="px-4 h-[28px] rounded-[6px] border border-[var(--border-secondary)] text-[var(--text-secondary)] text-[12px] font-medium hover:bg-[var(--hover-item)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleRequestPlanned(wishlistModal.name);
+                  setWishlistModal({ open: false, name: "", description: "" });
+                }}
+                disabled={!wishlistModal.description.trim()}
+                className="px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Post-sync onboarding */}
       {onboardingFor && (
@@ -435,12 +494,12 @@ function WarehousesTab({ items, onConnect }: { items: CatalogIntegration[]; onCo
 function WishlistTab({
   search,
   requestedPlanned,
-  onRequest,
+  onCardClick,
   onOpenCustomRequest,
 }: {
   search: string;
   requestedPlanned: Set<string>;
-  onRequest: (name: string) => void;
+  onCardClick: (name: string) => void;
   onOpenCustomRequest: () => void;
 }) {
   // Filter out already-requested planned integrations
@@ -466,7 +525,7 @@ function WishlistTab({
         </p>
         <button
           onClick={onOpenCustomRequest}
-          className="flex items-center gap-2 px-4 py-2 bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0"
+          className="flex items-center gap-2 px-4 h-[28px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium rounded-[6px] transition-colors flex-shrink-0"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -479,11 +538,11 @@ function WishlistTab({
       {available.length > 0 ? (
         <div className="grid grid-cols-3 gap-4 mb-6">
           {available.map((p) => (
-            <PlannedIntegrationCard key={p.name} integration={p} onRequest={() => onRequest(p.name)} />
+            <PlannedIntegrationCard key={p.name} integration={p} onClick={() => onCardClick(p.name)} />
           ))}
         </div>
       ) : (
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-8 text-center mb-6">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-8 text-center mb-6">
           <p className="text-[var(--text-muted)] text-sm">
             {requestedPlanned.size > 0
               ? "You've requested all planned integrations! Use Custom Request for anything else."
@@ -503,7 +562,7 @@ function WishlistTab({
             {existingRequested.map((i) => (
               <div
                 key={i.name}
-                className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-4 flex items-center gap-3"
+                className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-4 flex items-center gap-3"
               >
                 <IntegrationIcon integration={i} />
                 <div className="flex-1 min-w-0">
@@ -528,39 +587,23 @@ function WishlistTab({
 
 // ─── Planned Integration Card ───────────────────────────────────────────────
 
-function PlannedIntegrationCard({ integration, onRequest }: { integration: PlannedIntegration; onRequest: () => void }) {
+function PlannedIntegrationCard({ integration, onClick }: { integration: PlannedIntegration; onClick: () => void }) {
   const abbr = integration.icon || integration.name.slice(0, 2);
 
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl flex flex-col hover:border-[var(--border-secondary)] transition-colors">
-      <div className="px-5 pt-5 pb-4 flex-1">
-        <div className="flex items-start gap-3">
-          {/* Icon */}
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: integration.color }}>
-              <span className="text-[8px] text-white font-bold uppercase leading-none">{abbr}</span>
-            </div>
-          </div>
-          <div className="min-w-0 pt-0.5 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--text-primary)] text-sm font-medium">{integration.name}</span>
-              {integration.eta && (
-                <span className="px-1.5 py-0.5 rounded-md bg-[#fe9a00]/10 text-[#fe9a00] text-[9px] font-semibold">
-                  {integration.eta}
-                </span>
-              )}
-            </div>
-            <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{integration.description}</p>
-          </div>
+    <div
+      onClick={onClick}
+      className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[var(--border-secondary)] cursor-pointer transition-colors"
+    >
+      <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
+        <div className="w-6 h-6 rounded-[6px] flex items-center justify-center" style={{ backgroundColor: integration.color }}>
+          <span className="text-[8px] text-white font-bold uppercase leading-none">{abbr}</span>
         </div>
       </div>
-      <div className="border-t border-[var(--border-primary)] px-5 py-3">
-        <button
-          onClick={onRequest}
-          className="px-4 py-1.5 rounded-lg border border-[#6941c6]/30 text-[#6941c6] text-xs font-medium hover:bg-[#6941c6]/5 transition-colors"
-        >
-          Request Integration
-        </button>
+      <div className="min-w-0 pt-0.5 flex-1">
+        <span className="text-[var(--text-primary)] text-sm font-medium block">{integration.name}</span>
+        <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{integration.description}</p>
+        <span className="text-[var(--text-label)] text-[10px] mt-2 block">{integration.category}</span>
       </div>
     </div>
   );
@@ -571,7 +614,7 @@ function PlannedIntegrationCard({ integration, onRequest }: { integration: Plann
 
 function EmptyTabState({ message }: { message: string }) {
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-12 text-center">
+    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-12 text-center">
       <div className="w-16 h-16 bg-[var(--bg-badge)] rounded-full flex items-center justify-center mx-auto mb-4">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
           <circle cx="12" cy="12" r="9" stroke="var(--text-dim)" strokeWidth="1.5" />

@@ -127,7 +127,7 @@ export default function DescriptiveCardsPanel({ dataset }: Props) {
                   <polyline
                     points={points}
                     fill="none"
-                    stroke="#6941c6"
+                    stroke="#027b8e"
                     strokeWidth="1.5"
                     strokeLinejoin="round"
                     strokeLinecap="round"

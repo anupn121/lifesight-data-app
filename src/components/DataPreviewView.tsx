@@ -63,7 +63,7 @@ export default function DataPreviewView({ model, fields, onBack }: DataPreviewVi
     date: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
     string: "bg-[#00bc7d]/10 text-[#00bc7d] border-[#00bc7d]/20",
     currency: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-    integer: "bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20",
+    integer: "bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20",
     decimal: "bg-[#ec4899]/10 text-[#f472b6] border-[#ec4899]/20",
   };
 
@@ -103,7 +103,7 @@ export default function DataPreviewView({ model, fields, onBack }: DataPreviewVi
             placeholder="Search rows..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-            className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[#6941c6]/50"
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-primary)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[#027b8e]/50"
           />
         </div>
 
@@ -121,19 +121,19 @@ export default function DataPreviewView({ model, fields, onBack }: DataPreviewVi
           {showColumnFilter && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowColumnFilter(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-xl py-2 w-64 max-h-80 overflow-y-auto">
+              <div className="absolute right-0 top-full mt-1 z-20 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-[var(--shadow-popover)] py-2 w-64 max-h-80 overflow-y-auto">
                 <div className="px-3 py-1.5 flex items-center justify-between border-b border-[var(--border-primary)] mb-1">
                   <span className="text-xs font-medium text-[var(--text-label)]">Toggle Columns</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setVisibleColumns(new Set(dataset.columns))}
-                      className="text-[10px] text-[#6941c6] hover:underline"
+                      className="text-[10px] text-[#027b8e] hover:underline"
                     >
                       All
                     </button>
                     <button
                       onClick={() => setVisibleColumns(new Set([dataset.columns[0]]))}
-                      className="text-[10px] text-[#6941c6] hover:underline"
+                      className="text-[10px] text-[#027b8e] hover:underline"
                     >
                       None
                     </button>
@@ -145,7 +145,7 @@ export default function DataPreviewView({ model, fields, onBack }: DataPreviewVi
                       type="checkbox"
                       checked={visibleColumns.has(col)}
                       onChange={() => toggleColumn(col)}
-                      className="rounded border-[var(--border-secondary)] accent-[#6941c6]"
+                      className="rounded border-[var(--border-secondary)] accent-[#027b8e]"
                     />
                     <span className="text-xs text-[var(--text-primary)] truncate">{col}</span>
                     <span className={`ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border ${typeBadgeColor[dataset.columnTypes[col]] || ""}`}>

@@ -9,7 +9,7 @@ import KebabMenu from "./KebabMenu";
 function StatusBadge({ status }: { status: IntegrationStatus }) {
   const cfg = statusConfig[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-semibold uppercase tracking-wide ${cfg.color} ${cfg.borderColor || "border-current/20"}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border text-[10px] font-semibold uppercase tracking-wide ${cfg.color} ${cfg.borderColor || "border-current/20"}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`} />
       {STATUS_LABELS[status]}
     </span>
@@ -23,9 +23,9 @@ function ChevronRight({ open }: { open: boolean }) {
       height="16"
       viewBox="0 0 16 16"
       fill="none"
-      className={`transition-transform duration-200 flex-shrink-0 ${open ? "rotate-90" : ""}`}
+      className={`transition-transform duration-200 flex-shrink-0 text-[var(--text-label)] ${open ? "rotate-90" : ""}`}
     >
-      <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -90,7 +90,7 @@ function aggregateMetrics(accounts: Integration["accounts"], columns: string[]):
   return result;
 }
 
-export const TABLE_GRID = "grid grid-cols-[minmax(0,2.5fr)_repeat(4,minmax(0,1fr))_140px] gap-x-4";
+export const TABLE_GRID = "grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_140px] gap-x-4";
 
 export function IntegrationTableHeader() {
   return (
@@ -104,16 +104,16 @@ export function IntegrationTableHeader() {
         <HeaderTooltip tooltip="Current connection and sync health" />
       </span>
       <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
+        Integrated By
+        <HeaderTooltip tooltip="Team member who connected this integration" />
+      </span>
+      <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
         Data Sources
         <HeaderTooltip tooltip="Number of data sources chosen for data sync" />
       </span>
       <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
         Last Data Sync
         <HeaderTooltip tooltip="Date of the most recent successful data sync" />
-      </span>
-      <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap">
-        Refresh Frequency
-        <HeaderTooltip tooltip="How often data is automatically refreshed" />
       </span>
       <span></span>
     </div>
@@ -131,7 +131,8 @@ export default function IntegrationRow({
   onViewDetails,
   onReportIssue,
   onSimulateSyncComplete,
-  variant = "connected",
+  onReconnect,
+  onCompleteSetup,
 }: {
   integration: Integration;
   catalogEntry?: CatalogIntegration;
@@ -143,16 +144,16 @@ export default function IntegrationRow({
   onViewDetails: () => void;
   onReportIssue: () => void;
   onSimulateSyncComplete?: () => void;
-  variant?: "connected" | "attention";
+  onReconnect?: () => void;
+  onCompleteSetup?: () => void;
 }) {
   const cfg = statusConfig[effectiveStatus];
-  const leftBorderColor = variant === "attention" ? (cfg.borderLeftColor || "#fe9a00") : "transparent";
 
   return (
-    <div className="border-b border-[var(--border-subtle)] last:border-b-0" style={{ borderLeft: `3px solid ${leftBorderColor}` }}>
+    <div className="border-b border-[var(--border-subtle)] last:border-b-0">
       {/* Table row */}
       <div
-        className={`${TABLE_GRID} items-center px-5 py-3 hover:bg-[var(--hover-bg)] transition-colors cursor-pointer`}
+        className={`${TABLE_GRID} items-center px-5 py-3 hover:bg-[var(--hover-bg)] transition-all duration-150 cursor-pointer`}
         onClick={onToggleExpand}
       >
         {/* Name column */}
@@ -167,12 +168,26 @@ export default function IntegrationRow({
               <span className="text-[8px] font-bold" style={{ color: integration.color }}>{integration.icon}</span>
             </div>
           )}
-          <span className="text-[var(--text-primary)] text-sm font-medium truncate">{integration.name}</span>
+          <span className="text-[var(--text-primary)] text-sm font-medium truncate">{integration.alias ? `${integration.alias} (${integration.name})` : integration.name}</span>
         </div>
 
         {/* Status column */}
         <div>
           <StatusBadge status={effectiveStatus} />
+        </div>
+
+        {/* Integrated By column */}
+        <div>
+          {integration.connectedBy ? (
+            <div className="flex items-center gap-1.5" title={integration.connectedByEmail || ""}>
+              <div className="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center flex-shrink-0">
+                <span className="text-[8px] font-semibold text-[var(--text-muted)]">{integration.connectedBy.split(" ").map(n => n[0]).join("")}</span>
+              </div>
+              <span className="text-[var(--text-secondary)] text-xs truncate">{integration.connectedBy}</span>
+            </div>
+          ) : (
+            <span className="text-[var(--text-dim)] text-xs">—</span>
+          )}
         </div>
 
         {/* Accounts column */}
@@ -185,24 +200,40 @@ export default function IntegrationRow({
           <span className="text-[var(--text-secondary)] text-xs">{integration.latestDate}</span>
         </div>
 
-        {/* Frequency column */}
-        <div>
-          {effectiveStatus !== "SYNCING" && (
-            <span className="text-[var(--text-dim)] text-xs">{integration.refreshFrequency}</span>
-          )}
-        </div>
-
         {/* Actions column */}
         <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={onViewDetails}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[#6941c6] border border-[#6941c6]/30 hover:border-[#6941c6]/50 hover:bg-[#6941c6]/5 text-[11px] font-medium transition-colors whitespace-nowrap"
-          >
-            View Details
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          {effectiveStatus === "ACTION_REQUIRED" && onReconnect ? (
+            <button
+              onClick={onReconnect}
+              className="flex items-center gap-1 px-2.5 h-[28px] rounded-[6px] text-[#ff2056] border border-[#ff2056]/30 hover:border-[#ff2056]/50 hover:bg-[#ff2056]/5 text-[11px] font-medium transition-colors whitespace-nowrap"
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M1 6a5 5 0 019-3M11 6a5 5 0 01-9 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <path d="M10 1v2.5H7.5M2 11V8.5h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Reconnect
+            </button>
+          ) : effectiveStatus === "SETUP_INCOMPLETE" && onCompleteSetup ? (
+            <button
+              onClick={onCompleteSetup}
+              className="flex items-center gap-1 px-2.5 h-[28px] rounded-[6px] text-[#fe9a00] border border-[#fe9a00]/30 hover:border-[#fe9a00]/50 hover:bg-[#fe9a00]/5 text-[11px] font-medium transition-colors whitespace-nowrap"
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              Complete Setup
+            </button>
+          ) : (
+            <button
+              onClick={onViewDetails}
+              className="flex items-center gap-1 px-2.5 h-[28px] rounded-[6px] text-[#027b8e] border border-[#027b8e]/30 hover:border-[#027b8e]/50 hover:bg-[#027b8e]/5 text-[11px] font-medium transition-colors whitespace-nowrap"
+            >
+              View Details
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
           {onSimulateSyncComplete && (
             <button
               onClick={onSimulateSyncComplete}
@@ -222,12 +253,49 @@ export default function IntegrationRow({
         </div>
       </div>
 
-      {/* Expanded: Data Source Table */}
+      {/* Expanded view */}
       <div
         className="overflow-hidden transition-all duration-200 ease-in-out"
         style={{ maxHeight: isExpanded ? "1000px" : "0px", opacity: isExpanded ? 1 : 0 }}
       >
         <div className="border-t border-[var(--border-subtle)] px-5 pb-4 ml-8">
+          {/* ACTION_REQUIRED: limited view — accounts, reason, last date */}
+          {effectiveStatus === "ACTION_REQUIRED" ? (
+            <div className="mt-3 flex flex-col gap-3">
+              {/* Reason / Alert */}
+              {integration.alertMessage && (
+                <div className="px-3 py-2 rounded-lg border bg-[#ff2056]/5 border-[#ff2056]/20 text-[#ff2056] text-xs flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                    <path d="M7 13A6 6 0 107 1a6 6 0 000 12zM7 4v3M7 9.5h.01" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                  {integration.alertMessage}
+                </div>
+              )}
+              {/* Accounts + last sync */}
+              {integration.accounts.length > 0 && (
+                <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden">
+                  <div className="grid grid-cols-[1.5fr_1fr_1fr] border-b border-[var(--border-subtle)] bg-[var(--bg-card-inner)]">
+                    <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Account</span></div>
+                    <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Status</span></div>
+                    <div className="px-4 py-2.5"><span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Last Synced</span></div>
+                  </div>
+                  {integration.accounts.map((account) => (
+                    <div key={account.name} className="grid grid-cols-[1.5fr_1fr_1fr] border-b border-[var(--border-subtle)] last:border-b-0">
+                      <div className="px-4 py-2.5"><span className="text-[var(--text-primary)] text-xs">{account.name}</span></div>
+                      <div className="px-4 py-2.5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs ${statusConfig[account.status].color}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusConfig[account.status].dotColor}`} />
+                          {STATUS_LABELS[account.status]}
+                        </span>
+                      </div>
+                      <div className="px-4 py-2.5"><span className="text-[var(--text-secondary)] text-xs">{account.lastRefreshed || "—"}</span></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+          <>
           {/* Syncing info — only shown in expanded view */}
           {effectiveStatus === "SYNCING" && (integration.connectedDate || integration.estimatedCompletionDate) && (
             <div className="mt-3 mb-1 flex items-center gap-3 text-[10px] text-[var(--text-dim)]">
@@ -346,6 +414,8 @@ export default function IntegrationRow({
             </div>
             );
           })()}
+          </>
+          )}
         </div>
       </div>
     </div>

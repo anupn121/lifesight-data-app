@@ -10,7 +10,7 @@ interface Props {
   dataset: MockDataset;
 }
 
-const CLUSTER_COLORS = ["#6941c6", "#2b7fff", "#00bc7d"];
+const CLUSTER_COLORS = ["#027b8e", "#2b7fff", "#00bc7d"];
 
 export default function ClusteringPanel({ dataset }: Props) {
   const analysis = useMemo(() => {

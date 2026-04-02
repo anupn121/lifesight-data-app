@@ -15,7 +15,7 @@ interface ChannelContrib {
   pct: number;
 }
 
-const COLORS = ["#6941c6", "#2b7fff", "#00bc7d", "#f59e0b", "#ef4444", "#ec4899"];
+const COLORS = ["#027b8e", "#2b7fff", "#00bc7d", "#f59e0b", "#ef4444", "#ec4899"];
 
 export default function ChannelContributionPanel({ dataset }: Props) {
   const contributions = useMemo(() => {

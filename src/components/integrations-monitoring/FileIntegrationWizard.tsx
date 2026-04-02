@@ -3,11 +3,12 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import type { CatalogIntegration } from "../monitoringData";
 import type { MetricCategory } from "../fieldsData";
-import { METRIC_CATEGORIES, initialFields } from "../fieldsData";
+import { METRIC_CATEGORIES, initialFields, classifyColumn, SYSTEM_DIMENSIONS } from "../fieldsData";
 import { IntegrationIcon } from "./icons";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+type FileDataType = "mmm" | "experiments" | "custom_costs" | "cogs" | "custom";
 type DataCategory = MetricCategory; // kpi | paid_marketing | organic | contextual
 
 interface ColumnMapping {
@@ -17,7 +18,39 @@ interface ColumnMapping {
   targetKey: string;
   displayName: string;
   isNewKey: boolean;
+  platform?: string;
 }
+
+// Auto-detect ad platform from column name patterns
+const PLATFORM_PATTERNS: { pattern: RegExp; id: string; name: string }[] = [
+  { pattern: /^(meta|fb|facebook)/i, id: "meta", name: "Meta" },
+  { pattern: /^(google|gads|ga_)/i, id: "google", name: "Google" },
+  { pattern: /^(tiktok|tt_)/i, id: "tiktok", name: "TikTok" },
+  { pattern: /^(snap|snapchat)/i, id: "snapchat", name: "Snapchat" },
+  { pattern: /^(pin|pinterest)/i, id: "pinterest", name: "Pinterest" },
+  { pattern: /^(li_|linkedin)/i, id: "linkedin", name: "LinkedIn" },
+  { pattern: /^stackadapt/i, id: "stackadapt", name: "StackAdapt" },
+  { pattern: /^(x_|twitter)/i, id: "x", name: "X" },
+];
+
+function detectPlatform(columnName: string): string {
+  for (const { pattern, id } of PLATFORM_PATTERNS) {
+    if (pattern.test(columnName)) return id;
+  }
+  return "";
+}
+
+const PLATFORM_OPTIONS = [
+  { id: "", label: "None" },
+  { id: "meta", label: "Meta" },
+  { id: "google", label: "Google" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "snapchat", label: "Snapchat" },
+  { id: "pinterest", label: "Pinterest" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "stackadapt", label: "StackAdapt" },
+  { id: "x", label: "X" },
+];
 
 interface SampleRow {
   [key: string]: string;
@@ -33,7 +66,6 @@ const STEPS = [
   "Select Source",
   "Sample Data",
   "Map Columns",
-  "Dedup Keys",
   "Schedule",
   "Review",
 ];
@@ -43,8 +75,71 @@ const SKIP_SELECT_SOURCE = new Set(["Import CSV", "Excel Upload"]);
 // Integrations that skip "Connect" step (file uploads authenticate implicitly)
 const UPLOAD_ONLY = new Set(["Import CSV", "Excel Upload"]);
 
-// ─── Category Card Data ────────────────────────────────────────────────────
+// ─── File Data Type Cards ──────────────────────────────────────────────────
 
+const FILE_DATA_TYPES: Record<FileDataType, { label: string; color: string; icon: JSX.Element; description: string; examples: string }> = {
+  mmm: {
+    label: "MMM",
+    color: "#2b7fff",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M3 20L7 8l5 8 4-12 5 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+    description: "Media Mix Modeling data — channel-level spend, impressions, and KPIs for statistical modeling.",
+    examples: "Daily spend by channel, Impressions, Clicks, Revenue, Conversions",
+  },
+  experiments: {
+    label: "Experiments",
+    color: "#00bc7d",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M9 3v6l-4 8a2 2 0 001.8 3h10.4a2 2 0 001.8-3l-4-8V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 3h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="10" cy="15" r="1" fill="currentColor" />
+        <circle cx="14" cy="13" r="1" fill="currentColor" />
+      </svg>
+    ),
+    description: "Incrementality and geo experiment results — test vs control group performance data.",
+    examples: "Test/Control groups, Geo regions, Lift metrics, Experiment dates",
+  },
+  custom_costs: {
+    label: "Custom Costs",
+    color: "#fe9a00",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+    description: "Additional marketing or operational costs not captured by native integrations.",
+    examples: "Agency fees, Influencer costs, Offline media spend, Production costs",
+  },
+  cogs: {
+    label: "COGS",
+    color: "#027b8e",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" strokeWidth="2" fill="none" />
+        <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" stroke="currentColor" strokeWidth="2" />
+      </svg>
+    ),
+    description: "Cost of Goods Sold — product-level costs for margin and profitability analysis.",
+    examples: "Product costs, Shipping costs, Fulfillment costs, Returns",
+  },
+  custom: {
+    label: "Custom",
+    color: "#9CA3AF",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91A6 6 0 0114.7 6.3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    ),
+    description: "Any other data that doesn't fit the categories above. Full flexibility for custom use cases.",
+    examples: "Weather data, Economic indicators, CRM data, Custom KPIs",
+  },
+};
+
+// Legacy category info (kept for column mapping compatibility)
 const CATEGORY_INFO: Record<DataCategory, { label: string; color: string; icon: JSX.Element; examples: string }> = {
   kpi: {
     label: "KPI",
@@ -79,7 +174,7 @@ const CATEGORY_INFO: Record<DataCategory, { label: string; color: string; icon: 
   },
   contextual: {
     label: "Contextual",
-    color: "#6941c6",
+    color: "#027b8e",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" stroke="currentColor" strokeWidth="2" fill="none" />
@@ -105,7 +200,17 @@ const MOCK_SAMPLE: Record<string, { columns: string[]; rows: SampleRow[] }> = {
   },
 };
 
-function getMockSample(_source: string) {
+const MOCK_SAMPLE_MMM = {
+  columns: ["date", "meta_spend", "google_spend", "tiktok_spend", "meta_impressions", "google_impressions", "tiktok_impressions", "meta_clicks", "google_clicks"],
+  rows: [
+    { date: "2025-01-06", meta_spend: "12500", google_spend: "8400", tiktok_spend: "4200", meta_impressions: "3100000", google_impressions: "2800000", tiktok_impressions: "1500000", meta_clicks: "128000", google_clicks: "142000" },
+    { date: "2025-01-13", meta_spend: "13200", google_spend: "9100", tiktok_spend: "4800", meta_impressions: "3400000", google_impressions: "2900000", tiktok_impressions: "1600000", meta_clicks: "135000", google_clicks: "148000" },
+    { date: "2025-01-20", meta_spend: "11800", google_spend: "8800", tiktok_spend: "3900", meta_impressions: "2900000", google_impressions: "2700000", tiktok_impressions: "1400000", meta_clicks: "118000", google_clicks: "139000" },
+  ],
+};
+
+function getMockSample(_source: string, dataType?: FileDataType | null) {
+  if (dataType === "mmm") return MOCK_SAMPLE_MMM;
   return MOCK_SAMPLE.default;
 }
 
@@ -113,22 +218,26 @@ function getMockSample(_source: string) {
 
 function StepDataTypeAlias({
   integration,
-  selectedCategories,
+  selectedFileDataType,
   aliasName,
-  onToggleCategory,
+  selectedCategories,
+  onSelectFileDataType,
   onChangeAlias,
+  onToggleCategory,
   onNext,
   isJspPreFilled,
 }: {
   integration: CatalogIntegration;
-  selectedCategories: Set<DataCategory>;
+  selectedFileDataType: FileDataType | null;
   aliasName: string;
-  onToggleCategory: (cat: DataCategory) => void;
+  selectedCategories: Set<DataCategory>;
+  onSelectFileDataType: (dt: FileDataType) => void;
   onChangeAlias: (v: string) => void;
+  onToggleCategory: (cat: DataCategory) => void;
   onNext: () => void;
   isJspPreFilled?: boolean;
 }) {
-  const canProceed = selectedCategories.size > 0 && aliasName.trim().length > 0;
+  const canProceed = selectedFileDataType !== null && aliasName.trim().length > 0 && selectedCategories.size > 0;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -137,19 +246,19 @@ function StepDataTypeAlias({
         <div>
           <h2 className="text-[var(--text-primary)] text-xl font-semibold">What kind of data is this?</h2>
           <p className="text-[var(--text-muted)] text-sm mt-0.5">
-            Help us understand your data so we can organize it correctly. Select one or more types.
+            Select the data type and categories. This determines how fields are organized in Metrics &amp; Dimensions.
           </p>
         </div>
       </div>
 
-      {/* Data type cards */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        {(Object.entries(CATEGORY_INFO) as [DataCategory, typeof CATEGORY_INFO[DataCategory]][]).map(([key, info]) => {
-          const isSelected = selectedCategories.has(key);
+      {/* File data type cards */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {(Object.entries(FILE_DATA_TYPES) as [FileDataType, typeof FILE_DATA_TYPES[FileDataType]][]).map(([key, info]) => {
+          const isSelected = selectedFileDataType === key;
           return (
             <button
               key={key}
-              onClick={() => onToggleCategory(key)}
+              onClick={() => onSelectFileDataType(key)}
               className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
                 isSelected
                   ? "border-current shadow-sm"
@@ -173,15 +282,55 @@ function StepDataTypeAlias({
                     </svg>
                   )}
                 </div>
-                <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{info.examples}</p>
+                <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{info.description}</p>
+                <p className="text-[var(--text-label)] text-[10px] mt-1.5 italic">{info.examples}</p>
               </div>
             </button>
           );
         })}
       </div>
 
+      {/* Data category multi-select */}
+      <div className="mb-6">
+        <label className="text-[var(--text-secondary)] text-sm font-medium block mb-2">Data Categories</label>
+        <p className="text-[var(--text-dim)] text-xs mb-3">Select one or more categories this data belongs to.</p>
+        <div className="grid grid-cols-4 gap-2">
+          {(Object.entries(CATEGORY_INFO) as [DataCategory, typeof CATEGORY_INFO[DataCategory]][]).map(([cat, info]) => {
+            const isSelected = selectedCategories.has(cat);
+            return (
+              <button
+                key={cat}
+                onClick={() => onToggleCategory(cat)}
+                className="flex flex-col items-start gap-1.5 p-2.5 rounded-[8px] border text-left transition-all duration-150"
+                style={{
+                  borderColor: isSelected ? `${info.color}60` : "var(--border-primary)",
+                  backgroundColor: isSelected ? `${info.color}10` : "transparent",
+                }}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <div
+                    className="w-3.5 h-3.5 rounded-[3px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors"
+                    style={{
+                      borderColor: isSelected ? info.color : "var(--border-secondary)",
+                      backgroundColor: isSelected ? info.color : "transparent",
+                    }}
+                  >
+                    {isSelected && (
+                      <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                        <path d="M2.5 5L4.5 7L7.5 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-[var(--text-primary)] text-[11px] font-semibold">{info.label}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Alias name */}
-      <div className="mb-8">
+      <div className="mb-6">
         <label className="text-[var(--text-secondary)] text-sm font-medium block mb-2">
           Integration Name
         </label>
@@ -190,36 +339,23 @@ function StepDataTypeAlias({
           value={aliasName}
           onChange={(e) => onChangeAlias(e.target.value)}
           placeholder={`e.g., Kayak via ${integration.name}, Instagram Organic Data`}
-          className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+          className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
         />
         <p className="text-[var(--text-dim)] text-xs mt-2">
           This name will appear on your integrations dashboard. Use something recognizable.
         </p>
         {isJspPreFilled && (
-          <p className="text-[#6941c6] text-xs mt-1.5 flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.32 2.68L10 4.18l-2 1.95.47 2.75L6 7.7 3.53 8.88 4 6.13 2 4.18l2.68-.5L6 1z" fill="#6941c6" /></svg>
+          <p className="text-[#027b8e] text-xs mt-1.5 flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.32 2.68L10 4.18l-2 1.95.47 2.75L6 7.7 3.53 8.88 4 6.13 2 4.18l2.68-.5L6 1z" fill="#027b8e" /></svg>
             Pre-filled from your setup plan
           </p>
         )}
       </div>
 
-      {selectedCategories.size > 1 && (
-        <div className="flex items-start gap-2 bg-[#fe9a00]/5 border border-[#fe9a00]/20 rounded-lg px-4 py-3 mb-6">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
-            <circle cx="8" cy="8" r="6" stroke="#fe9a00" strokeWidth="1.2" />
-            <path d="M8 5.5v3" stroke="#fe9a00" strokeWidth="1.2" strokeLinecap="round" />
-            <circle cx="8" cy="11" r="0.75" fill="#fe9a00" />
-          </svg>
-          <p className="text-[#fe9a00] text-xs leading-relaxed">
-            Multiple types selected. We recommend creating separate integrations for each data type for cleaner organization, but you can combine them if your file contains mixed data.
-          </p>
-        </div>
-      )}
-
       <button
         onClick={onNext}
         disabled={!canProceed}
-        className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Continue
       </button>
@@ -258,7 +394,7 @@ function StepConnect({
           {integration.name === "Import CSV" ? "Upload a CSV file to import data." : "Upload an Excel (.xlsx) file to import data."}
         </p>
         <div
-          className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-8 text-center hover:border-[#6941c6] transition-colors cursor-pointer mb-4"
+          className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-8 text-center hover:border-[#027b8e] transition-colors cursor-pointer mb-4"
           onClick={() => setFileName(integration.name === "Import CSV" ? "campaign_data.csv" : "marketing_report.xlsx")}
         >
           {fileName ? (
@@ -276,7 +412,7 @@ function StepConnect({
                 <path d="M6 22h20" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" />
               </svg>
               <p className="text-[var(--text-muted)] text-sm">
-                Drag and drop or <span className="text-[#6941c6] font-medium">browse</span>
+                Drag and drop or <span className="text-[#027b8e] font-medium">browse</span>
               </p>
               <p className="text-[var(--text-dim)] text-xs mt-1">
                 {integration.name === "Import CSV" ? ".csv files up to 50MB" : ".xlsx files up to 50MB"}
@@ -287,14 +423,14 @@ function StepConnect({
         <button
           onClick={onNext}
           disabled={!fileName}
-          className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue
         </button>
         {onInviteUser && (
           <button
             onClick={() => onInviteUser(integration.name)}
-            className="w-full mt-3 text-center text-[#6941c6] text-sm hover:underline transition-colors"
+            className="w-full mt-3 text-center text-[#027b8e] text-sm hover:underline transition-colors"
           >
             Don&apos;t have access? Invite someone
           </button>
@@ -322,7 +458,7 @@ function StepConnect({
       {isGoogleSheets && (
         <button
           onClick={onNext}
-          className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors flex items-center justify-center gap-2"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" fill="white" />
@@ -336,17 +472,17 @@ function StepConnect({
         <div className="flex flex-col gap-4">
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Access Key ID</label>
-            <input type="text" placeholder="AKIA..." className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="text" placeholder="AKIA..." className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Secret Access Key</label>
-            <input type="password" placeholder="Your secret key" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="password" placeholder="Your secret key" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Region</label>
-            <input type="text" placeholder="us-east-1" defaultValue="us-east-1" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="text" placeholder="us-east-1" defaultValue="us-east-1" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
-          <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
+          <button onClick={onNext} className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors">
             Connect
           </button>
         </div>
@@ -356,18 +492,18 @@ function StepConnect({
         <div className="flex flex-col gap-4">
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Project ID</label>
-            <input type="text" placeholder="my-project-id" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="text" placeholder="my-project-id" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Service Account Key (JSON)</label>
             <div
-              className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-6 text-center hover:border-[#6941c6] transition-colors cursor-pointer"
+              className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-6 text-center hover:border-[#027b8e] transition-colors cursor-pointer"
               onClick={() => {}}
             >
               <p className="text-[var(--text-muted)] text-sm">Upload service account JSON key</p>
             </div>
           </div>
-          <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
+          <button onClick={onNext} className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors">
             Connect
           </button>
         </div>
@@ -378,29 +514,29 @@ function StepConnect({
           <div className="grid grid-cols-[1fr_100px] gap-3">
             <div>
               <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Host</label>
-              <input type="text" placeholder="sftp.example.com" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+              <input type="text" placeholder="sftp.example.com" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
             </div>
             <div>
               <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Port</label>
-              <input type="text" placeholder="22" defaultValue="22" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+              <input type="text" placeholder="22" defaultValue="22" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
             </div>
           </div>
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Username</label>
-            <input type="text" placeholder="username" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="text" placeholder="username" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
           <div>
             <label className="text-[var(--text-secondary)] text-xs font-medium block mb-1.5">Password or SSH Key</label>
-            <input type="password" placeholder="Password" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+            <input type="password" placeholder="Password" className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
           </div>
-          <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
+          <button onClick={onNext} className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors">
             Connect
           </button>
         </div>
       )}
 
       {!isGoogleSheets && !isS3 && !isGCS && !isSFTP && (
-        <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
+        <button onClick={onNext} className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors">
           Authorize Access
         </button>
       )}
@@ -408,7 +544,7 @@ function StepConnect({
       {onInviteUser && (
         <button
           onClick={() => onInviteUser(integration.name)}
-          className="w-full mt-4 text-center text-[#6941c6] text-sm hover:underline transition-colors"
+          className="w-full mt-4 text-center text-[#027b8e] text-sm hover:underline transition-colors"
         >
           Don&apos;t have access? Invite someone
         </button>
@@ -472,7 +608,7 @@ function StepSelectSource({
             onClick={() => onSelect(sheet.name)}
             className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-colors text-left ${
               selectedSource === sheet.name
-                ? "border-[#6941c6] bg-[#6941c6]/5"
+                ? "border-[#027b8e] bg-[#027b8e]/5"
                 : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
             }`}
           >
@@ -488,7 +624,7 @@ function StepSelectSource({
             </div>
             {selectedSource === sheet.name && (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" fill="#6941c6" />
+                <circle cx="8" cy="8" r="7" fill="#027b8e" />
                 <path d="M5 8l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
@@ -501,7 +637,7 @@ function StepSelectSource({
             onClick={() => onSelect(bucket.name)}
             className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-colors text-left ${
               selectedSource === bucket.name
-                ? "border-[#6941c6] bg-[#6941c6]/5"
+                ? "border-[#027b8e] bg-[#027b8e]/5"
                 : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
             }`}
           >
@@ -517,7 +653,7 @@ function StepSelectSource({
             </div>
             {selectedSource === bucket.name && (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" fill="#6941c6" />
+                <circle cx="8" cy="8" r="7" fill="#027b8e" />
                 <path d="M5 8l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
@@ -530,7 +666,7 @@ function StepSelectSource({
             onClick={() => onSelect(file.name)}
             className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-colors text-left ${
               selectedSource === file.name
-                ? "border-[#6941c6] bg-[#6941c6]/5"
+                ? "border-[#027b8e] bg-[#027b8e]/5"
                 : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
             }`}
           >
@@ -545,7 +681,7 @@ function StepSelectSource({
             </div>
             {selectedSource === file.name && (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" fill="#6941c6" />
+                <circle cx="8" cy="8" r="7" fill="#027b8e" />
                 <path d="M5 8l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
@@ -556,7 +692,7 @@ function StepSelectSource({
       <button
         onClick={onNext}
         disabled={!selectedSource}
-        className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Continue
       </button>
@@ -595,7 +731,7 @@ function StepSampleData({
         <button
           onClick={() => onChangeSampleMode("auto")}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            sampleMode === "auto" ? "bg-[#6941c6] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            sampleMode === "auto" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
           }`}
         >
           Auto-fetched Preview
@@ -603,7 +739,7 @@ function StepSampleData({
         <button
           onClick={() => onChangeSampleMode("upload")}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            sampleMode === "upload" ? "bg-[#6941c6] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            sampleMode === "upload" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
           }`}
         >
           Upload Sample File
@@ -646,7 +782,7 @@ function StepSampleData({
 
       {sampleMode === "upload" && (
         <div
-          className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-8 text-center hover:border-[#6941c6] transition-colors cursor-pointer mb-6"
+          className="border-2 border-dashed border-[var(--border-secondary)] rounded-xl p-8 text-center hover:border-[#027b8e] transition-colors cursor-pointer mb-6"
           onClick={() => setUploadedFileName("sample_data.csv")}
         >
           {uploadedFileName ? (
@@ -674,7 +810,7 @@ function StepSampleData({
         <button
           onClick={onNext}
           disabled={sampleMode === "upload" && !uploadedFileName}
-          className="flex-1 px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue to Mapping
         </button>
@@ -705,21 +841,21 @@ function CategoryDropdown({ value, onChange }: { value: DataCategory | ""; onCha
   const selected = value ? METRIC_CATEGORIES[value] : null;
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm transition-colors hover:border-[#6941c6] text-left min-w-[130px]">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm transition-colors hover:border-[#027b8e] text-left min-w-[130px]">
         {selected ? (
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selected.color }} />
             <span className="text-[var(--text-primary)] truncate text-xs">{selected.label}</span>
           </span>
         ) : (
-          <span className="text-[#667085] text-xs">Select...</span>
+          <span className="text-[var(--text-label)] text-xs">Select...</span>
         )}
         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="flex-shrink-0"><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 w-52 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 top-full left-0 mt-1 w-52 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-[var(--shadow-popover)] overflow-hidden">
           {(Object.entries(METRIC_CATEGORIES) as [DataCategory, { label: string; color: string; description: string }][]).map(([key, cat]) => (
-            <button key={key} onClick={() => { onChange(key); setOpen(false); }} className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--hover-item)] ${value === key ? "bg-[#6941c6]/5" : ""}`}>
+            <button key={key} onClick={() => { onChange(key); setOpen(false); }} className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--hover-item)] ${value === key ? "bg-[#027b8e]/5" : ""}`}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
               <span className="text-[var(--text-primary)] text-xs">{cat.label}</span>
             </button>
@@ -732,41 +868,65 @@ function CategoryDropdown({ value, onChange }: { value: DataCategory | ""; onCha
 
 // ─── Shared: Target Key Combobox ───────────────────────────────────────────
 
-function TargetKeyCombobox({ value, category, onChange, onDisplayNameChange }: {
-  value: string; category: DataCategory | ""; onChange: (v: string, isNew: boolean) => void; onDisplayNameChange: (v: string) => void;
+function TargetKeyCombobox({ value, category, sourceColumn, onChange, onDisplayNameChange }: {
+  value: string; category: DataCategory | ""; sourceColumn?: string; onChange: (v: string, isNew: boolean) => void; onDisplayNameChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const isDimension = sourceColumn ? classifyColumn(sourceColumn) === "dimension" : false;
   useEffect(() => {
     const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-  const filteredFields = useMemo(() => {
+
+  // For metrics: show fields filtered by category. For dimensions: show SYSTEM_DIMENSIONS.
+  const filteredMetricFields = useMemo(() => {
+    if (isDimension) return [];
     let fields = initialFields.filter((f) => f.kind === "metric");
     if (category) fields = fields.filter((f) => f.metricCategory === category);
     if (search) { const q = search.toLowerCase(); fields = fields.filter((f) => f.name.toLowerCase().includes(q) || f.displayName.toLowerCase().includes(q)); }
     return fields.slice(0, 12);
-  }, [category, search]);
+  }, [category, search, isDimension]);
+
+  const filteredDimensions = useMemo(() => {
+    if (!isDimension) return [];
+    let dims = SYSTEM_DIMENSIONS.filter((d) => d.channelMappings.length > 0 || d.isSystem);
+    if (search) { const q = search.toLowerCase(); dims = dims.filter((d) => d.name.toLowerCase().includes(q) || d.id.toLowerCase().includes(q)); }
+    return dims;
+  }, [search, isDimension]);
+
   return (
     <div className="relative" ref={ref}>
       <input type="text" value={open ? search : value} onChange={(e) => { setSearch(e.target.value); if (!open) setOpen(true); }} onFocus={() => { setOpen(true); setSearch(value); }}
-        placeholder="Search or create..." className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-xs text-[var(--text-primary)] placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors min-w-[140px]" />
+        placeholder={isDimension ? "Select dimension..." : "Search or create..."} className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-xs text-[var(--text-primary)] placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors min-w-[140px]" />
       {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-lg overflow-hidden max-h-[200px] overflow-y-auto">
-          {filteredFields.map((field) => (
+        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl shadow-[var(--shadow-popover)] overflow-hidden max-h-[200px] overflow-y-auto">
+          {/* Metric suggestions */}
+          {!isDimension && filteredMetricFields.map((field) => (
             <button key={field.name} onClick={() => { onChange(field.name, false); onDisplayNameChange(field.displayName); setOpen(false); setSearch(""); }}
               className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors hover:bg-[var(--hover-item)]">
               <div className="min-w-0"><span className="text-[var(--text-primary)] text-xs block truncate">{field.name}</span></div>
               {field.metricCategory && <span className="w-2 h-2 rounded-full flex-shrink-0 ml-2" style={{ backgroundColor: METRIC_CATEGORIES[field.metricCategory]?.color }} />}
             </button>
           ))}
+          {/* Dimension definition suggestions */}
+          {isDimension && filteredDimensions.map((dim) => (
+            <button key={dim.id} onClick={() => { onChange(dim.id, false); onDisplayNameChange(dim.name); setOpen(false); setSearch(""); }}
+              className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors hover:bg-[var(--hover-item)]">
+              <div className="min-w-0">
+                <span className="text-[var(--text-primary)] text-xs block truncate">{dim.name}</span>
+                <span className="text-[var(--text-dim)] text-[10px] block truncate">{dim.channelMappings.length} sources mapped</span>
+              </div>
+              <span className="w-2 h-2 rounded-full flex-shrink-0 ml-2 bg-[#027b8e]" />
+            </button>
+          ))}
           {search.trim() && (
             <button onClick={() => { onChange(search.trim(), true); onDisplayNameChange(search.trim()); setOpen(false); setSearch(""); }}
               className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--hover-item)] border-t border-[var(--border-primary)]">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="#6941c6" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              <span className="text-[#6941c6] text-xs font-medium">Create &quot;{search.trim()}&quot;</span>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="#027b8e" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              <span className="text-[#027b8e] text-xs font-medium">Create &quot;{search.trim()}&quot;</span>
             </button>
           )}
         </div>
@@ -777,25 +937,123 @@ function TargetKeyCombobox({ value, category, onChange, onDisplayNameChange }: {
 
 // ─── Step 5: Column Mapping ────────────────────────────────────────────────
 
+// ─── Smart Mapper vs Manual Choice ────────────────────────────────────────
+
+function StepMapperChoice({
+  onSelectSmart,
+  onSelectManual,
+}: {
+  onSelectSmart: () => void;
+  onSelectManual: () => void;
+}) {
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">How would you like to map columns?</h2>
+      <p className="text-[var(--text-muted)] text-sm mb-8">
+        Choose a mapping approach. You can always adjust individual mappings afterwards.
+      </p>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Smart Mapper */}
+        <button
+          onClick={onSelectSmart}
+          className="text-left p-5 rounded-xl border-[1.5px] border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[#027b8e] hover:bg-[#027b8e]/3 transition-all group"
+        >
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-[#027b8e]/10 flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M9 1.5l1.5 3 3.5.5-2.5 2.5.5 3.5L9 9.5 6 11l.5-3.5L4 5l3.5-.5L9 1.5z" stroke="#027b8e" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <path d="M3 14.5l1.5-1.5M14 14.5l-1.5-1.5M9 14v2" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[var(--text-primary)] text-sm font-semibold block">Smart Mapper</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#027b8e]/10 text-[#027b8e] font-medium">Recommended</span>
+            </div>
+          </div>
+          <p className="text-[var(--text-muted)] text-xs leading-relaxed mb-3">
+            AI-powered column detection automatically identifies metrics, dimensions, and categories based on column names and sample data.
+          </p>
+          <div className="flex items-center gap-2 text-[var(--text-dim)] text-[11px]">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1" />
+              <path d="M4 6l1.5 1.5L8 5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Auto-fills categories, target fields, and display names
+          </div>
+        </button>
+
+        {/* Manual Mapper */}
+        <button
+          onClick={onSelectManual}
+          className="text-left p-5 rounded-xl border-[1.5px] border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)] transition-all group"
+        >
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-[var(--bg-badge)] flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M13 2l3 3-9.5 9.5H3.5v-3L13 2z" stroke="var(--text-muted)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <path d="M11 4l3 3" stroke="var(--text-muted)" strokeWidth="1.2" />
+              </svg>
+            </div>
+            <span className="text-[var(--text-primary)] text-sm font-semibold">Manual Mapper</span>
+          </div>
+          <p className="text-[var(--text-muted)] text-xs leading-relaxed mb-3">
+            Map each column manually. Choose categories, target fields, and display names for each column yourself.
+          </p>
+          <div className="flex items-center gap-2 text-[var(--text-dim)] text-[11px]">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 6h6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            </svg>
+            Full control over every mapping
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 5: Map Columns ──────────────────────────────────────────────────
+
 function StepColumnMapping({
   mappings,
   defaultCategory,
   onToggleInclude,
   onUpdateMapping,
   onNext,
+  mapperChoice,
+  onChangeChoice,
 }: {
   mappings: ColumnMapping[];
   defaultCategory: DataCategory | "";
   onToggleInclude: (index: number) => void;
   onUpdateMapping: (index: number, update: Partial<ColumnMapping>) => void;
   onNext: () => void;
+  mapperChoice: "smart" | "manual";
+  onChangeChoice: () => void;
 }) {
   const includedCount = mappings.filter((m) => m.included).length;
   const mappedCount = mappings.filter((m) => m.included && m.category && m.targetKey).length;
+  const hasPaidMarketing = mappings.some((m) => m.included && m.category === "paid_marketing");
+  const gridCols = hasPaidMarketing
+    ? "grid-cols-[40px_1fr_140px_110px_160px_160px]"
+    : "grid-cols-[40px_1fr_140px_160px_160px]";
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Map Columns</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-[var(--text-primary)] text-xl font-semibold">Map Columns</h2>
+        <button onClick={onChangeChoice} className="text-[#027b8e] text-xs hover:underline transition-colors">
+          Change mapping method
+        </button>
+      </div>
+      {mapperChoice === "smart" && (
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1l1 2.5 2.5.4-1.8 1.8.4 2.5L6 7l-2.1 1.2.4-2.5L2.5 3.9 5 3.5 6 1z" fill="#027b8e" />
+          </svg>
+          <span className="text-[#027b8e] text-xs font-medium">Smart Mapper applied — review and adjust as needed</span>
+        </div>
+      )}
       <p className="text-[var(--text-muted)] text-sm mb-1">
         Select the columns you want to import and map them to target fields. You can map the rest later.
       </p>
@@ -805,40 +1063,61 @@ function StepColumnMapping({
 
       <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden mb-6">
         {/* Header */}
-        <div className="grid grid-cols-[40px_1fr_140px_160px_160px] gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-card-inner)]">
+        <div className={`grid ${gridCols} gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-card-inner)]`}>
           <span></span>
           <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Source Column</span>
           <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Category</span>
+          {hasPaidMarketing && <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Platform</span>}
           <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Target Field</span>
           <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Display Name</span>
         </div>
 
         {mappings.map((mapping, i) => (
-          <div key={mapping.sourceColumn} className={`grid grid-cols-[40px_1fr_140px_160px_160px] gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] last:border-b-0 items-center ${!mapping.included ? "opacity-40" : ""}`}>
+          <div key={mapping.sourceColumn} className={`grid ${gridCols} gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] last:border-b-0 items-center ${!mapping.included ? "opacity-40" : ""}`}>
             {/* Checkbox */}
             <button onClick={() => onToggleInclude(i)} className="flex items-center justify-center">
-              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${mapping.included ? "bg-[#6941c6] border-[#6941c6]" : "border-[var(--border-secondary)]"}`}>
+              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${mapping.included ? "bg-[#027b8e] border-[#027b8e]" : "border-[var(--border-secondary)]"}`}>
                 {mapping.included && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
               </div>
             </button>
 
-            {/* Source Column */}
-            <code className="text-[var(--text-secondary)] text-xs bg-[var(--bg-card-inner)] px-2 py-0.5 rounded font-mono truncate">{mapping.sourceColumn}</code>
+            {/* Source Column + role badge */}
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`flex-shrink-0 text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center ${classifyColumn(mapping.sourceColumn) === "metric" ? "bg-[#2b7fff]/15 text-[#2b7fff]" : "bg-[#027b8e]/15 text-[#027b8e]"}`}>
+                {classifyColumn(mapping.sourceColumn) === "metric" ? "M" : "D"}
+              </span>
+              <code className="text-[var(--text-secondary)] text-xs bg-[var(--bg-card-inner)] px-2 py-0.5 rounded font-mono truncate">{mapping.sourceColumn}</code>
+            </div>
 
             {/* Category */}
             {mapping.included ? (
               <CategoryDropdown value={mapping.category} onChange={(cat) => onUpdateMapping(i, { category: cat })} />
             ) : <span />}
 
+            {/* Platform — only shown when any column has paid_marketing */}
+            {hasPaidMarketing && (
+              mapping.included && mapping.category === "paid_marketing" ? (
+                <select
+                  value={mapping.platform || ""}
+                  onChange={(e) => onUpdateMapping(i, { platform: e.target.value || undefined })}
+                  className="px-2 py-1.5 rounded-[6px] border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
+                >
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+              ) : <span />
+            )}
+
             {/* Target Key */}
             {mapping.included ? (
-              <TargetKeyCombobox value={mapping.targetKey} category={mapping.category} onChange={(key, isNew) => onUpdateMapping(i, { targetKey: key, isNewKey: isNew })} onDisplayNameChange={(name) => onUpdateMapping(i, { displayName: name })} />
+              <TargetKeyCombobox value={mapping.targetKey} category={mapping.category} sourceColumn={mapping.sourceColumn} onChange={(key, isNew) => onUpdateMapping(i, { targetKey: key, isNewKey: isNew })} onDisplayNameChange={(name) => onUpdateMapping(i, { displayName: name })} />
             ) : <span />}
 
             {/* Display Name */}
             {mapping.included ? (
               <input type="text" value={mapping.displayName} onChange={(e) => onUpdateMapping(i, { displayName: e.target.value })} placeholder="Display name..."
-                className="px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-xs text-[var(--text-primary)] placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors" />
+                className="px-2.5 py-1.5 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-xs text-[var(--text-primary)] placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
             ) : <span />}
           </div>
         ))}
@@ -858,7 +1137,7 @@ function StepColumnMapping({
       <button
         onClick={onNext}
         disabled={includedCount === 0}
-        className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Continue
       </button>
@@ -866,74 +1145,7 @@ function StepColumnMapping({
   );
 }
 
-// ─── Step 6: Dedup Keys ────────────────────────────────────────────────────
-
-function StepDedupKeys({
-  columns,
-  selectedKeys,
-  onToggleKey,
-  onNext,
-}: {
-  columns: string[];
-  selectedKeys: Set<string>;
-  onToggleKey: (col: string) => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className="max-w-lg mx-auto">
-      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Deduplication Keys</h2>
-      <p className="text-[var(--text-muted)] text-sm mb-6">
-        Select columns that uniquely identify each row. When duplicate keys are found, we keep the <strong className="text-[var(--text-primary)]">latest entry</strong>.
-      </p>
-
-      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden mb-4">
-        {columns.map((col) => {
-          const isSelected = selectedKeys.has(col);
-          return (
-            <button
-              key={col}
-              onClick={() => onToggleKey(col)}
-              className={`w-full flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)] last:border-b-0 text-left transition-colors hover:bg-[var(--hover-item)]`}
-            >
-              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-[#6941c6] border-[#6941c6]" : "border-[var(--border-secondary)]"}`}>
-                {isSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-              </div>
-              <code className="text-[var(--text-primary)] text-sm font-mono">{col}</code>
-              {col.toLowerCase() === "date" && (
-                <span className="px-2 py-0.5 rounded-full bg-[#00bc7d]/10 text-[#00bc7d] text-[10px] font-semibold">Recommended</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedKeys.size > 0 && (
-        <div className="flex items-start gap-2 bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-lg px-4 py-3 mb-6">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
-            <path d="M8 1l1.76 3.57L14 5.24l-3 2.92.71 4.13L8 10.27 4.29 12.29 5 8.16 2 5.24l4.24-.67L8 1z" fill="#6941c6" />
-          </svg>
-          <div>
-            <p className="text-[var(--text-secondary)] text-xs leading-relaxed">
-              Composite key: <strong className="text-[var(--text-primary)]">{Array.from(selectedKeys).join(" + ")}</strong>
-            </p>
-            <p className="text-[var(--text-dim)] text-[10px] mt-0.5">
-              If multiple rows share the same key combination, only the most recent entry is kept.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <button
-        onClick={onNext}
-        className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors"
-      >
-        {selectedKeys.size === 0 ? "Skip — No Deduplication" : "Continue"}
-      </button>
-    </div>
-  );
-}
-
-// ─── Step 7: Refresh Schedule ──────────────────────────────────────────────
+// ─── Step 6: Refresh Schedule ──────────────────────────────────────────────
 
 const DAYS: { value: RefreshDay; label: string }[] = [
   { value: "monday", label: "Monday" },
@@ -981,7 +1193,7 @@ function StepRefreshSchedule({
               onClick={() => onChangeFrequency(f)}
               className={`flex-1 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
                 frequency === f
-                  ? "border-[#6941c6] bg-[#6941c6]/5 text-[#6941c6]"
+                  ? "border-[#027b8e] bg-[#027b8e]/5 text-[#027b8e]"
                   : "border-[var(--border-primary)] text-[var(--text-muted)] hover:border-[var(--border-secondary)]"
               }`}
             >
@@ -1002,7 +1214,7 @@ function StepRefreshSchedule({
                 onClick={() => onChangeDay(d.value)}
                 className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
                   day === d.value
-                    ? "bg-[#6941c6] text-white"
+                    ? "bg-[#027b8e] text-white"
                     : "bg-[var(--bg-card-inner)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 }`}
               >
@@ -1029,7 +1241,7 @@ function StepRefreshSchedule({
 
       <button
         onClick={onNext}
-        className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors"
+        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
       >
         Continue
       </button>
@@ -1043,9 +1255,9 @@ function StepReview({
   integration,
   aliasName,
   selectedCategories,
+  fileDataType,
   selectedSource,
   mappings,
-  dedupKeys,
   frequency,
   day,
   skippedMapping,
@@ -1054,36 +1266,15 @@ function StepReview({
   integration: CatalogIntegration;
   aliasName: string;
   selectedCategories: Set<DataCategory>;
+  fileDataType: FileDataType | null;
   selectedSource: string;
   mappings: ColumnMapping[];
-  dedupKeys: Set<string>;
   frequency: RefreshFrequency;
   day: RefreshDay;
   skippedMapping: boolean;
   onComplete: () => void;
 }) {
-  const [done, setDone] = useState(false);
   const includedMappings = mappings.filter((m) => m.included && m.targetKey);
-
-  if (done) {
-    return (
-      <div className="max-w-lg mx-auto text-center py-8">
-        <div className="w-20 h-20 bg-[#00bc7d]/10 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <path d="M12 20l5.5 5.5L28 14.5" stroke="#00bc7d" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Successfully Connected!</h2>
-        <p className="text-[var(--text-muted)] text-sm mb-8">
-          <strong className="text-[var(--text-primary)]">{aliasName}</strong> via {integration.name} is now connected
-          {!skippedMapping && ` with ${includedMappings.length} mapped column${includedMappings.length !== 1 ? "s" : ""}`}.
-        </p>
-        <button onClick={onComplete} className="px-8 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
-          Done
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -1103,20 +1294,30 @@ function StepReview({
           </div>
         </div>
 
-        {/* Data Types */}
+        {/* Data Type */}
         <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
           <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Data Type</span>
-          <div className="flex flex-wrap gap-2">
-            {Array.from(selectedCategories).map((cat) => (
-              <span key={cat} className="px-2.5 py-1 rounded-full text-xs font-semibold" style={{
-                backgroundColor: `${METRIC_CATEGORIES[cat].color}15`,
-                color: METRIC_CATEGORIES[cat].color,
-                border: `1px solid ${METRIC_CATEGORIES[cat].color}30`,
-              }}>
-                {METRIC_CATEGORIES[cat].label}
-              </span>
-            ))}
-          </div>
+          {fileDataType && FILE_DATA_TYPES[fileDataType] ? (
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold" style={{
+              backgroundColor: `${FILE_DATA_TYPES[fileDataType].color}15`,
+              color: FILE_DATA_TYPES[fileDataType].color,
+              border: `1px solid ${FILE_DATA_TYPES[fileDataType].color}30`,
+            }}>
+              {FILE_DATA_TYPES[fileDataType].label}
+            </span>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(selectedCategories).map((cat) => (
+                <span key={cat} className="px-2.5 py-1 rounded-full text-xs font-semibold" style={{
+                  backgroundColor: `${METRIC_CATEGORIES[cat].color}15`,
+                  color: METRIC_CATEGORIES[cat].color,
+                  border: `1px solid ${METRIC_CATEGORIES[cat].color}30`,
+                }}>
+                  {METRIC_CATEGORIES[cat].label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Source */}
@@ -1146,7 +1347,7 @@ function StepReview({
                     }}>{METRIC_CATEGORIES[m.category].label}</span>
                   )}
                   <span className="text-[var(--text-primary)] text-xs font-medium">{m.displayName || m.targetKey}</span>
-                  {m.isNewKey && <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#6941c6]/10 text-[#6941c6] font-medium">New</span>}
+                  {m.isNewKey && <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#027b8e]/10 text-[#027b8e] font-medium">New</span>}
                 </div>
               ))}
             </div>
@@ -1160,16 +1361,6 @@ function StepReview({
           </div>
         )}
 
-        {/* Dedup Keys */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
-          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Deduplication</span>
-          {dedupKeys.size > 0 ? (
-            <span className="text-[var(--text-primary)] text-sm font-medium">{Array.from(dedupKeys).join(" + ")} <span className="text-[var(--text-dim)] text-xs font-normal">(latest entry wins)</span></span>
-          ) : (
-            <span className="text-[var(--text-muted)] text-sm">No deduplication — all rows appended</span>
-          )}
-        </div>
-
         {/* Schedule */}
         <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
           <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Refresh Schedule</span>
@@ -1179,7 +1370,7 @@ function StepReview({
         </div>
       </div>
 
-      <button onClick={() => setDone(true)} className="w-full px-4 py-3 rounded-xl bg-[#6941c6] hover:bg-[#7c5bd2] text-white text-sm font-medium transition-colors">
+      <button onClick={onComplete} className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors">
         Connect {aliasName}
       </button>
     </div>
@@ -1199,7 +1390,7 @@ export default function FileIntegrationWizard({
   integration: CatalogIntegration;
   onBack: () => void;
   onGoHome: () => void;
-  onComplete: (name: string) => void;
+  onComplete: (name: string, mappings?: ColumnMapping[]) => void;
   initialAlias?: string;
   onInviteUser?: (name: string) => void;
 }) {
@@ -1216,17 +1407,18 @@ export default function FileIntegrationWizard({
   }, [skipSelectSource]);
 
   const [step, setStep] = useState(1);
+  const [selectedFileDataType, setSelectedFileDataType] = useState<FileDataType | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<DataCategory>>(new Set());
   const [aliasName, setAliasName] = useState(initialAlias);
   const [selectedSource, setSelectedSource] = useState("");
   const [sampleMode, setSampleMode] = useState<SampleMode>("auto");
   const [skippedMapping, setSkippedMapping] = useState(false);
+  const [mapperChoice, setMapperChoice] = useState<"smart" | "manual" | null>(null);
   const [frequency, setFrequency] = useState<RefreshFrequency>("weekly");
   const [day, setDay] = useState<RefreshDay>("monday");
-  const [dedupKeys, setDedupKeys] = useState<Set<string>>(new Set(["date"]));
 
-  // Sample data
-  const sampleData = useMemo(() => getMockSample(integration.name), [integration.name]);
+  // Sample data — changes when file data type is selected
+  const sampleData = useMemo(() => getMockSample(integration.name, selectedFileDataType), [integration.name, selectedFileDataType]);
 
   // Column mappings derived from sample data
   const [mappings, setMappings] = useState<ColumnMapping[]>(() => {
@@ -1241,16 +1433,72 @@ export default function FileIntegrationWizard({
     }));
   });
 
+  // Re-derive mappings when data type changes (new sample columns)
+  useEffect(() => {
+    setMappings(sampleData.columns.map((col) => ({
+      sourceColumn: col,
+      included: true,
+      category: "" as DataCategory | "",
+      targetKey: "",
+      displayName: "",
+      isNewKey: false,
+    })));
+    setMapperChoice(null);
+  }, [sampleData]);
+
   const defaultCategory: DataCategory | "" = selectedCategories.size === 1 ? Array.from(selectedCategories)[0] : "";
 
-  // Pre-fill categories when user selects data type (only if single category selected)
+  // Pre-fill categories only for metric-like columns (not dimensions like date, channel)
   useEffect(() => {
     if (defaultCategory) {
       setMappings((prev) =>
-        prev.map((m) => (m.category === "" ? { ...m, category: defaultCategory } : m))
+        prev.map((m) => {
+          if (m.category !== "") return m;
+          const role = classifyColumn(m.sourceColumn);
+          return role === "metric" ? { ...m, category: defaultCategory } : m;
+        })
       );
     }
   }, [defaultCategory]);
+
+  // When Smart Mapper is selected, auto-fill mappings using classifyColumn + platform detection
+  const handleSmartMapperApply = () => {
+    setMapperChoice("smart");
+    setMappings((prev) =>
+      prev.map((m) => {
+        const role = classifyColumn(m.sourceColumn);
+        const suggestedCat: DataCategory | "" = role === "metric" ? (defaultCategory || "paid_marketing") : "";
+        const suggestedKey = m.sourceColumn.toLowerCase().replace(/\s+/g, "_");
+        const suggestedDisplay = m.sourceColumn.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        // Auto-detect platform from column name for paid_marketing columns
+        const detectedPlatform = (suggestedCat === "paid_marketing" || m.category === "paid_marketing")
+          ? detectPlatform(m.sourceColumn)
+          : "";
+        return {
+          ...m,
+          included: true,
+          category: m.category || suggestedCat,
+          targetKey: m.targetKey || suggestedKey,
+          displayName: m.displayName || suggestedDisplay,
+          isNewKey: !m.targetKey,
+          platform: m.platform || detectedPlatform,
+        };
+      })
+    );
+  };
+
+  const handleSelectFileDataType = (dt: FileDataType) => {
+    setSelectedFileDataType(dt);
+    // Map file data type to a default metric category for column pre-fill
+    const catMap: Record<FileDataType, DataCategory> = {
+      mmm: "paid_marketing",
+      experiments: "kpi",
+      custom_costs: "paid_marketing",
+      cogs: "kpi",
+      custom: "contextual",
+    };
+    setSelectedCategories(new Set([catMap[dt]]));
+  };
 
   const handleToggleCategory = (cat: DataCategory) => {
     setSelectedCategories((prev) => {
@@ -1269,20 +1517,11 @@ export default function FileIntegrationWizard({
     setMappings((prev) => prev.map((m, i) => i === index ? { ...m, ...update } : m));
   };
 
-  const handleToggleDedupKey = (col: string) => {
-    setDedupKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(col)) next.delete(col);
-      else next.add(col);
-      return next;
-    });
-  };
-
   const handleSkipMapping = () => {
     setSkippedMapping(true);
-    // Jump to dedup step
-    const dedupStepIndex = effectiveSteps.indexOf("Dedup Keys") + 1;
-    setStep(dedupStepIndex);
+    // Jump to schedule step
+    const scheduleStepIndex = effectiveSteps.indexOf("Schedule") + 1;
+    setStep(scheduleStepIndex);
   };
 
   // Map step number to step name
@@ -1294,7 +1533,7 @@ export default function FileIntegrationWizard({
       <div className="flex items-center border-b border-[var(--border-primary)] pb-0 -mx-4 px-4 mb-0">
         {/* Left: Back */}
         <div className="flex items-center gap-1.5 text-sm min-w-0 shrink-0">
-          <button onClick={onBack} className="text-[var(--text-muted)] hover:text-[#6941c6] transition-colors">
+          <button onClick={onBack} className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
             Add Integration
           </button>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
@@ -1313,18 +1552,18 @@ export default function FileIntegrationWizard({
               <div
                 key={label}
                 className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium transition-colors relative whitespace-nowrap ${
-                  isActive ? "text-[#6941c6]" : isComplete ? "text-[var(--text-muted)]" : "text-[var(--text-dim)]"
+                  isActive ? "text-[#027b8e]" : isComplete ? "text-[var(--text-muted)]" : "text-[var(--text-dim)]"
                 }`}
               >
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  isActive ? "bg-[#6941c6] text-white" : isComplete ? "bg-[#00bc7d] text-white" : "bg-[var(--bg-badge)] text-[var(--text-dim)]"
+                  isActive ? "bg-[#027b8e] text-white" : isComplete ? "bg-[#00bc7d] text-white" : "bg-[var(--bg-badge)] text-[var(--text-dim)]"
                 }`}>
                   {isComplete ? (
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   ) : stepNum}
                 </span>
                 <span className="hidden lg:inline">{label}</span>
-                {isActive && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#6941c6] rounded-full" />}
+                {isActive && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#027b8e] rounded-full" />}
               </div>
             );
           })}
@@ -1341,10 +1580,16 @@ export default function FileIntegrationWizard({
         {currentStepName === "Data Type & Name" && (
           <StepDataTypeAlias
             integration={integration}
-            selectedCategories={selectedCategories}
+            selectedFileDataType={selectedFileDataType}
             aliasName={aliasName}
-            onToggleCategory={handleToggleCategory}
+            selectedCategories={selectedCategories}
+            onSelectFileDataType={handleSelectFileDataType}
             onChangeAlias={setAliasName}
+            onToggleCategory={(cat) => setSelectedCategories((prev) => {
+              const next = new Set(prev);
+              if (next.has(cat)) next.delete(cat); else next.add(cat);
+              return next;
+            })}
             onNext={() => setStep(step + 1)}
             isJspPreFilled={!!initialAlias}
           />
@@ -1370,21 +1615,21 @@ export default function FileIntegrationWizard({
             onNext={() => setStep(step + 1)}
           />
         )}
-        {currentStepName === "Map Columns" && (
+        {currentStepName === "Map Columns" && !mapperChoice && (
+          <StepMapperChoice
+            onSelectSmart={handleSmartMapperApply}
+            onSelectManual={() => setMapperChoice("manual")}
+          />
+        )}
+        {currentStepName === "Map Columns" && mapperChoice && (
           <StepColumnMapping
             mappings={mappings}
             defaultCategory={defaultCategory}
             onToggleInclude={handleToggleInclude}
             onUpdateMapping={handleUpdateMapping}
             onNext={() => setStep(step + 1)}
-          />
-        )}
-        {currentStepName === "Dedup Keys" && (
-          <StepDedupKeys
-            columns={sampleData.columns}
-            selectedKeys={dedupKeys}
-            onToggleKey={handleToggleDedupKey}
-            onNext={() => setStep(step + 1)}
+            mapperChoice={mapperChoice}
+            onChangeChoice={() => setMapperChoice(null)}
           />
         )}
         {currentStepName === "Schedule" && (
@@ -1402,13 +1647,13 @@ export default function FileIntegrationWizard({
             integration={integration}
             aliasName={aliasName}
             selectedCategories={selectedCategories}
+            fileDataType={selectedFileDataType}
             selectedSource={selectedSource}
             mappings={mappings}
-            dedupKeys={dedupKeys}
             frequency={frequency}
             day={day}
             skippedMapping={skippedMapping}
-            onComplete={() => onComplete(aliasName)}
+            onComplete={() => onComplete(aliasName, mappings)}
           />
         )}
       </div>

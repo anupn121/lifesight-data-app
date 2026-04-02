@@ -164,7 +164,7 @@ export default function PCAPanel({ dataset }: Props) {
               const y = sp.top + sPlotH - bh;
               return (
                 <g key={i}>
-                  <rect x={x} y={y} width={barW} height={bh} fill="#6941c6" opacity={0.8} rx={2}>
+                  <rect x={x} y={y} width={barW} height={bh} fill="#027b8e" opacity={0.8} rx={2}>
                     <title>PC{i + 1}: {(v * 100).toFixed(1)}%</title>
                   </rect>
                   <text x={x + barW / 2} y={screeH - sp.bottom + 12} fontSize="7" fill="var(--text-dim)" textAnchor="middle">

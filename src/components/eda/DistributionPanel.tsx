@@ -70,7 +70,7 @@ function Histogram({ name, values }: { name: string; values: (number | null)[] }
               y={y}
               width={Math.max(barW, 1)}
               height={barH}
-              fill="#6941c6"
+              fill="#027b8e"
               opacity={0.8}
               rx={1}
             >

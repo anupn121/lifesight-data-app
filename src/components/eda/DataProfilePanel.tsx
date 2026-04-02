@@ -110,7 +110,7 @@ export default function DataProfilePanel({ dataset }: Props) {
                   {p.name}
                 </td>
                 <td className="px-3 py-2">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#6941c6]/10 text-[#6941c6] border border-[#6941c6]/20">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#027b8e]/10 text-[#027b8e] border border-[#027b8e]/20">
                     {p.type}
                   </span>
                 </td>

@@ -117,7 +117,7 @@ export default function SeasonalityPanel({ dataset }: Props) {
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20">
             Period: {period}
           </span>
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-[#6941c6]/10 text-[#a78bfa] border-[#6941c6]/20">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20">
             Strength: {(analysis.strength * 100).toFixed(0)}%
           </span>
         </div>

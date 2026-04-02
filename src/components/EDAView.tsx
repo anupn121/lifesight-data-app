@@ -51,6 +51,7 @@ interface EDAViewProps {
   model: DataModel;
   fields: Field[];
   onBack: () => void;
+  isDemoMode?: boolean;
 }
 
 const CATEGORIES: EDACategory[] = [
@@ -71,7 +72,169 @@ const CATEGORY_ICONS: Record<EDACategory, string> = {
   "Marketing AI Insights": "M13 10V3L4 14h7v7l9-11h-7z",
 };
 
-export default function EDAView({ model, fields, onBack }: EDAViewProps) {
+// ─── Simplified EDA View (Demo Mode) ──────────────────────────────────────────
+function SimplifiedEDAView({ model, onBack }: { model: DataModel; onBack: () => void }) {
+  // KPI trend data — 12 monthly data points
+  const trendData = [
+    { month: "Apr", value: 42000 }, { month: "May", value: 45200 }, { month: "Jun", value: 48100 },
+    { month: "Jul", value: 46800 }, { month: "Aug", value: 51300 }, { month: "Sep", value: 54700 },
+    { month: "Oct", value: 52100 }, { month: "Nov", value: 58400 }, { month: "Dec", value: 67200 },
+    { month: "Jan", value: 61800 }, { month: "Feb", value: 64500 }, { month: "Mar", value: 69100 },
+  ];
+  const maxVal = Math.max(...trendData.map((d) => d.value));
+  const minVal = Math.min(...trendData.map((d) => d.value));
+  const range = maxVal - minVal || 1;
+  const chartH = 160;
+  const chartW = 520;
+  const padX = 40;
+  const padY = 20;
+  const points = trendData.map((d, i) => {
+    const x = padX + (i / (trendData.length - 1)) * (chartW - padX * 2);
+    const y = padY + (1 - (d.value - minVal) / range) * (chartH - padY * 2);
+    return { x, y, ...d };
+  });
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1].x},${chartH - padY} L${points[0].x},${chartH - padY} Z`;
+
+  // Channel spend data
+  const channels = [
+    { name: "Facebook Ads", spend: 34200, color: "#2b7fff" },
+    { name: "Google Ads", spend: 28700, color: "#00bc7d" },
+  ];
+  const maxSpend = Math.max(...channels.map((c) => c.spend));
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="w-8 h-8 rounded-lg hover:bg-[var(--hover-item)] flex items-center justify-center transition-colors"
+          title="Back to Models"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 12L6 8L10 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <div>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Exploratory Data Analysis</h2>
+          <p className="text-[var(--text-muted)] text-sm">{model.name} &middot; {model.granularity}</p>
+        </div>
+      </div>
+
+      {/* Data Quality Summary */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[10px] p-5">
+        <h3 className="text-[var(--text-primary)] text-[13px] font-semibold mb-3">Data Quality Overview</h3>
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: "Total Rows", value: "2,847", sub: "Daily granularity" },
+            { label: "Completeness", value: "96.3%", sub: "Missing < 4%" },
+            { label: "Quality Score", value: "92/100", sub: "Excellent" },
+          ].map((item) => (
+            <div key={item.label} className="bg-[var(--bg-primary)] rounded-[8px] p-3 border border-[var(--border-primary)]">
+              <p className="text-[var(--text-muted)] text-[10px] font-medium uppercase tracking-wider">{item.label}</p>
+              <p className="text-[var(--text-primary)] text-[20px] font-bold mt-1">{item.value}</p>
+              <p className="text-[var(--text-dim)] text-[10px] mt-0.5">{item.sub}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI Trend Chart */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[10px] p-5">
+        <h3 className="text-[var(--text-primary)] text-[13px] font-semibold mb-1">Revenue Trend Over Time</h3>
+        <p className="text-[var(--text-dim)] text-[11px] mb-3">12-month trailing performance</p>
+        <svg width="100%" viewBox={`0 0 ${chartW} ${chartH + 20}`} className="overflow-visible">
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+            const y = padY + (1 - frac) * (chartH - padY * 2);
+            const val = Math.round(minVal + frac * range);
+            return (
+              <g key={frac}>
+                <line x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="var(--border-primary)" strokeDasharray="3,3" />
+                <text x={padX - 6} y={y + 3} textAnchor="end" fill="var(--text-dim)" fontSize="8">${Math.round(val / 1000)}k</text>
+              </g>
+            );
+          })}
+          {/* Area fill */}
+          <path d={areaPath} fill="url(#trendGradient)" opacity="0.15" />
+          {/* Line */}
+          <path d={linePath} fill="none" stroke="#027b8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Data points */}
+          {points.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="3" fill="#027b8e" stroke="var(--bg-card)" strokeWidth="1.5" />
+          ))}
+          {/* X axis labels */}
+          {points.map((p, i) => (
+            <text key={`label-${i}`} x={p.x} y={chartH + 8} textAnchor="middle" fill="var(--text-dim)" fontSize="8">{p.month}</text>
+          ))}
+          <defs>
+            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#027b8e" />
+              <stop offset="100%" stopColor="#027b8e" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      {/* Channel Spend */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[10px] p-5">
+        <h3 className="text-[var(--text-primary)] text-[13px] font-semibold mb-1">Channel Spend Distribution</h3>
+        <p className="text-[var(--text-dim)] text-[11px] mb-4">Total ad spend by platform</p>
+        <div className="flex flex-col gap-3">
+          {channels.map((ch) => (
+            <div key={ch.name} className="flex items-center gap-3">
+              <span className="text-[var(--text-secondary)] text-[11px] font-medium w-[100px] shrink-0">{ch.name}</span>
+              <div className="flex-1 h-[24px] bg-[var(--bg-primary)] rounded-[4px] overflow-hidden border border-[var(--border-primary)]">
+                <div
+                  className="h-full rounded-[3px] flex items-center pl-2"
+                  style={{ width: `${(ch.spend / maxSpend) * 100}%`, backgroundColor: ch.color }}
+                >
+                  <span className="text-white text-[10px] font-semibold">${(ch.spend / 1000).toFixed(1)}k</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Key Insights */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[10px] p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z" fill="#027b8e" opacity="0.9" />
+          </svg>
+          <h3 className="text-[var(--text-primary)] text-[13px] font-semibold">Key Insights</h3>
+        </div>
+        <ul className="flex flex-col gap-2.5">
+          {[
+            { icon: "↗", color: "#00bc7d", text: "Revenue shows a positive upward trend with ~12% month-over-month growth on average." },
+            { icon: "⟷", color: "#2b7fff", text: "Facebook Ads and Google Ads spend are moderately correlated with revenue (r = 0.67), suggesting healthy channel performance." },
+            { icon: "↻", color: "#fe9a00", text: "Blog pageviews exhibit seasonal patterns with peaks in Q4, indicating content-driven traffic cycles." },
+            { icon: "✓", color: "#027b8e", text: "No significant outliers detected across key metrics — data is clean and ready for MMM modeling." },
+          ].map((insight, i) => (
+            <li key={i} className="flex items-start gap-2.5">
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5"
+                style={{ backgroundColor: `${insight.color}15`, color: insight.color }}
+              >
+                {insight.icon}
+              </span>
+              <span className="text-[var(--text-secondary)] text-[12px] leading-relaxed">{insight.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export default function EDAView({ model, fields, onBack, isDemoMode }: EDAViewProps) {
+  // Demo mode: show simplified view with basic charts + insights
+  if (isDemoMode) {
+    return <SimplifiedEDAView model={model} onBack={onBack} />;
+  }
+
   const dataset = useMemo(() => generateMockDataset(model, fields), [model.id]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -213,7 +376,7 @@ export default function EDAView({ model, fields, onBack }: EDAViewProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={aiQuickAnalysis}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6941c6] text-white text-xs font-medium hover:bg-[#5b35b5] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#027b8e] text-white text-xs font-medium hover:bg-[#5b35b5] transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z" fill="currentColor" opacity="0.9" />
@@ -227,11 +390,11 @@ export default function EDAView({ model, fields, onBack }: EDAViewProps) {
       </div>
 
       {/* Category accordion selector */}
-      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
+      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[14px] overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-primary)]">
           <h3 className="text-[var(--text-primary)] text-sm font-semibold">Select Analyses</h3>
           <div className="flex gap-2">
-            <button onClick={selectAll} className="text-xs text-[#6941c6] hover:underline">Select All</button>
+            <button onClick={selectAll} className="text-xs text-[#027b8e] hover:underline">Select All</button>
             <button onClick={clearAll} className="text-xs text-[var(--text-muted)] hover:underline">Clear</button>
           </div>
         </div>
@@ -314,9 +477,9 @@ export default function EDAView({ model, fields, onBack }: EDAViewProps) {
       {/* Results */}
       {orderedSelected.length === 0 ? (
         <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-6 py-12 text-center">
-          <div className="w-10 h-10 rounded-lg bg-[#6941c6]/10 flex items-center justify-center mx-auto mb-3">
+          <div className="w-10 h-10 rounded-lg bg-[#027b8e]/10 flex items-center justify-center mx-auto mb-3">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-              <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z" fill="#6941c6" opacity="0.5" />
+              <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z" fill="#027b8e" opacity="0.5" />
             </svg>
           </div>
           <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No Analyses Selected</h3>
@@ -325,7 +488,7 @@ export default function EDAView({ model, fields, onBack }: EDAViewProps) {
           </p>
           <button
             onClick={aiQuickAnalysis}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#6941c6] text-white text-xs font-medium hover:bg-[#5b35b5] transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#027b8e] text-white text-xs font-medium hover:bg-[#5b35b5] transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z" fill="currentColor" />

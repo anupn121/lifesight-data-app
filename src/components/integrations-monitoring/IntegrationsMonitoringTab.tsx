@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import type { IntegrationStatus, Integration, CatalogIntegration, DataCategory } from "../monitoringData";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import type { IntegrationStatus, AccountStatus, Account, Integration, CatalogIntegration, DataCategory } from "../monitoringData";
 import { allIntegrations, DATA_CATEGORY_LABELS } from "../monitoringData";
+import { type Field, type DataTypeKey, getDemoFieldsForIntegration, getDemoTacticsForIntegration } from "../fieldsData";
 import { ATTENTION_STATUSES, SYNC_ERROR_STATUSES } from "./statusConfig";
 import { catalogIntegrations } from "./catalogData";
 import { IntegrationIconSmall, IntegrationIcon } from "./icons";
@@ -11,9 +12,9 @@ import DetailView from "./DetailView";
 import CatalogView from "./CatalogView";
 import DataSourceWizard from "./DataSourceWizard";
 import FileIntegrationWizard from "./FileIntegrationWizard";
-import { SupportModal, RequestedModal, InviteUserModal } from "./modals";
+import { SupportModal, RequestedModal, InviteUserModal, RequestIntegrationModal } from "./modals";
 import { IntegrationCard } from "./IntegrationCard";
-import { getJspPlan, type JspIntegration } from "./jspData";
+import { getJspPlan, getWorkspaceMembers, type JspIntegration } from "./jspData";
 import PostSyncOnboarding from "./PostSyncOnboarding";
 
 const FILE_INTEGRATION_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
@@ -70,9 +71,17 @@ export type IntMonView = "main" | "catalog" | "detail" | "data-wizard";
 export default function IntegrationsMonitoringTab({
   view,
   onViewChange,
+  onConnectionChange,
+  isDemoMode,
+  onFieldsCreated,
+  onTacticsCreated,
 }: {
   view: IntMonView;
   onViewChange: (v: IntMonView) => void;
+  onConnectionChange?: (hasConnected: boolean) => void;
+  isDemoMode?: boolean;
+  onFieldsCreated?: (fields: Field[]) => void;
+  onTacticsCreated?: (tactics: string[]) => void;
 }) {
   const [integrationStatuses, setIntegrationStatuses] = useState<Record<string, IntegrationStatus>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -85,29 +94,50 @@ export default function IntegrationsMonitoringTab({
   const [connectedExpanded, setConnectedExpanded] = useState(true);
   const [requestedExpanded, setRequestedExpanded] = useState(true);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
-  const [showEmptyState, setShowEmptyState] = useState(false);
+  const [emptyStateMode, setEmptyStateMode] = useState<"normal" | "jsp-empty" | "all-done" | "no-jsp">("normal");
   const [postSyncIntegration, setPostSyncIntegration] = useState<string | null>(null);
   const [dynamicIntegrations, setDynamicIntegrations] = useState<Integration[]>([]);
 
-  // JSP state
-  const [jspPlan] = useState(getJspPlan());
+  // JSP state — reactive to demo mode
+  const jspPlan = useMemo(() => getJspPlan(isDemoMode), [isDemoMode]);
   const [connectedJspIds, setConnectedJspIds] = useState<Set<string>>(new Set());
   const [wizardJspAlias, setWizardJspAlias] = useState("");
   const [wizardJspId, setWizardJspId] = useState<string | null>(null);
   const [inviteModal, setInviteModal] = useState<{ open: boolean; integrationName: string }>({ open: false, integrationName: "" });
+  const [requestModal, setRequestModal] = useState<{ open: boolean; integrationName: string }>({ open: false, integrationName: "" });
+  const workspaceMembers = getWorkspaceMembers();
   const [dataChoiceJsp, setDataChoiceJsp] = useState<JspIntegration | null>(null);
   const [dataChoiceStep, setDataChoiceStep] = useState<"choose" | "pick-file" | "pick-warehouse">("choose");
   const [setupExpanded, setSetupExpanded] = useState(true);
   const [setupDismissed, setSetupDismissed] = useState(false);
   const [showDismissWarning, setShowDismissWarning] = useState(false);
+  const [showRecommended, setShowRecommended] = useState(true);
+
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; subtitle: string; visible: boolean }>({ message: "", subtitle: "", visible: false });
+  useEffect(() => {
+    if (!toast.visible) return;
+    const timer = setTimeout(() => setToast((t) => ({ ...t, visible: false })), 5000);
+    return () => clearTimeout(timer);
+  }, [toast.visible]);
+
+  // Recommended integrations (shown when no JSP setup)
+  const RECOMMENDED_NAMES = ["Facebook Ads", "Google Ads", "Google Sheets", "Amazon S3"];
+  const recommendedIntegrations = catalogIntegrations.filter((c) => RECOMMENDED_NAMES.includes(c.name));
 
   // Derived JSP data
   const pendingJsp = jspPlan.integrations.filter((j) => j.status !== "connected" && !connectedJspIds.has(j.id));
-  const nativeJsp = pendingJsp.filter((j) => j.type === "native");
-  const fileJsp = pendingJsp.filter((j) => j.type === "file");
-  const warehouseJsp = pendingJsp.filter((j) => j.type === "warehouse");
+  const allJspConnected = jspPlan.integrations.length > 0 && pendingJsp.length === 0;
+  const mainSearchLower = mainSearch.toLowerCase();
+  const filteredPendingJsp = mainSearch
+    ? pendingJsp.filter((j) => j.integrationName.toLowerCase().includes(mainSearchLower) || (j.source && j.source.toLowerCase().includes(mainSearchLower)) || (j.dataCategory && j.dataCategory.toLowerCase().includes(mainSearchLower)))
+    : pendingJsp;
+  const nativeJsp = filteredPendingJsp.filter((j) => j.type === "native");
+  const fileJsp = filteredPendingJsp.filter((j) => j.type === "file");
+  const warehouseJsp = filteredPendingJsp.filter((j) => j.type === "warehouse");
   const totalJsp = jspPlan.integrations.length;
   const connectedJspCount = jspPlan.integrations.filter((j) => j.status === "connected" || connectedJspIds.has(j.id)).length;
+  const jspIntegrationNames = new Set(jspPlan.integrations.map((j) => j.integrationName));
 
   // Modal states
   const [supportModal, setSupportModal] = useState<{ open: boolean; name: string; success: boolean }>({ open: false, name: "", success: false });
@@ -124,14 +154,55 @@ export default function IntegrationsMonitoringTab({
     return integrationStatuses[name] ?? defaultStatus;
   }, [integrationStatuses]);
 
-  // Combine static + dynamic integrations
-  const allCombinedIntegrations = [...allIntegrations, ...dynamicIntegrations];
+  // Combine static + dynamic integrations; in demo mode, override all default statuses to NOT_CONNECTED
+  // and replace campaign-level accounts with clean account-level entries
+  const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const DEMO_ACCOUNTS: Record<string, { subtitle: string; accounts: Account[]; accountColumns: string[] }> = {
+    "Meta Ads": {
+      subtitle: "2 accounts · Last sync just now",
+      accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
+      accounts: [
+        { name: "Acme US Account", status: "CONNECTED" as AccountStatus, lastRefreshed: `${today}, 12:00 PM`, dataUntil: today, metrics: { Spend: "$18.4K", Impressions: "1.2M", Clicks: "48K", "Attrib. Rev": "$92K" } },
+        { name: "Acme EU Account", status: "CONNECTED" as AccountStatus, lastRefreshed: `${today}, 12:00 PM`, dataUntil: today, metrics: { Spend: "$12.1K", Impressions: "850K", Clicks: "31K", "Attrib. Rev": "$67K" } },
+      ],
+    },
+    "Google Ads": {
+      subtitle: "2 accounts · Last sync just now",
+      accountColumns: ["Spend", "Impressions", "Clicks", "Attrib. Rev"],
+      accounts: [
+        { name: "Acme Search Account", status: "CONNECTED" as AccountStatus, lastRefreshed: `${today}, 12:00 PM`, dataUntil: today, metrics: { Spend: "$22.1K", Impressions: "2.8M", Clicks: "142K", "Attrib. Rev": "$380K" } },
+        { name: "Acme Shopping Account", status: "CONNECTED" as AccountStatus, lastRefreshed: `${today}, 12:00 PM`, dataUntil: today, metrics: { Spend: "$18.5K", Impressions: "2.1M", Clicks: "98K", "Attrib. Rev": "$295K" } },
+      ],
+    },
+  };
+  const baseIntegrations = isDemoMode
+    ? allIntegrations.map((i) => {
+        const demoOverride = DEMO_ACCOUNTS[i.name];
+        return demoOverride
+          ? { ...i, status: "NOT_CONNECTED" as IntegrationStatus, ...demoOverride }
+          : { ...i, status: "NOT_CONNECTED" as IntegrationStatus };
+      })
+    : allIntegrations;
+  const allCombinedIntegrations = [...baseIntegrations, ...dynamicIntegrations];
 
   // Derive lists
   const connectedMonitoring = allCombinedIntegrations.filter((i) => {
     const status = getEffectiveStatus(i.name, i.status);
     return status === "CONNECTED" || status === "SYNCING";
   });
+
+  // Report connection state to parent
+  useEffect(() => {
+    onConnectionChange?.(connectedMonitoring.length > 0);
+  }, [connectedMonitoring.length, onConnectionChange]);
+
+  // Reset internal state when demo mode toggles
+  useEffect(() => {
+    setConnectedJspIds(new Set());
+    setDynamicIntegrations([]);
+    setIntegrationStatuses({});
+    setSetupDismissed(false);
+  }, [isDemoMode]);
 
   const issuesMonitoring = allCombinedIntegrations.filter((i) => {
     const status = getEffectiveStatus(i.name, i.status);
@@ -163,9 +234,15 @@ export default function IntegrationsMonitoringTab({
     );
   };
 
+  const invitedMonitoring = allCombinedIntegrations.filter((i) => {
+    const status = getEffectiveStatus(i.name, i.status);
+    return status === "INVITED";
+  });
+
   const filteredConnected = connectedMonitoring.filter(filterBySearch);
   const filteredIssues = issuesMonitoring.filter(filterBySearch);
   const filteredSyncErrors = syncErrorMonitoring.filter(filterBySearch);
+  const filteredInvited = invitedMonitoring.filter(filterBySearch);
 
   const handleViewDetails = (integration: Integration) => {
     setSelectedIntegration(integration);
@@ -177,6 +254,30 @@ export default function IntegrationsMonitoringTab({
       ...prev,
       [name]: "CONNECTED",
     }));
+    if (isDemoMode) {
+      // Facebook Ads ↔ Meta Ads name mismatch: allIntegrations uses "Meta Ads"
+      // Only set Meta Ads status — don't create a dynamic entry (it already exists in base)
+      if (name === "Facebook Ads") {
+        setIntegrationStatuses((prev) => ({ ...prev, "Meta Ads": "CONNECTED" }));
+      } else if (name === "Google Ads") {
+        // Google Ads exists in allIntegrations — just set status, no dynamic entry needed
+      } else {
+        // Create monitoring entry for integrations not in allIntegrations (e.g. Shopify)
+        const existsInBase = allIntegrations.some((i) => i.name === name);
+        if (!existsInBase) {
+          const cat = catalogIntegrations.find((c) => c.name === name);
+          if (cat) {
+            const entry = createFileIntegration(name, name, cat);
+            setDynamicIntegrations((prev) => [...prev, entry]);
+            setIntegrationStatuses((prev) => ({ ...prev, [entry.name]: "CONNECTED" }));
+          }
+        }
+      }
+      const demoFields = getDemoFieldsForIntegration(name);
+      if (demoFields.length > 0) onFieldsCreated?.(demoFields);
+      const demoTactics = getDemoTacticsForIntegration(name);
+      if (demoTactics.length > 0) onTacticsCreated?.(demoTactics);
+    }
   };
 
   const handleStartWizard = (integration: CatalogIntegration) => {
@@ -190,14 +291,86 @@ export default function IntegrationsMonitoringTab({
       [name]: "CONNECTED",
     }));
     setPostSyncIntegration(name);
+    if (isDemoMode) {
+      const demoFields = getDemoFieldsForIntegration(name);
+      if (demoFields.length > 0) onFieldsCreated?.(demoFields);
+      const demoTactics = getDemoTacticsForIntegration(name);
+      if (demoTactics.length > 0) onTacticsCreated?.(demoTactics);
+    }
   };
 
-  const handleFileIntegrationComplete = useCallback((aliasName: string, sourceName: string) => {
+  const handleFileIntegrationComplete = useCallback((aliasName: string, sourceName: string, fileMappings?: { sourceColumn: string; included: boolean; category: string; targetKey: string; displayName: string; platform?: string }[]) => {
     const cat = catalogIntegrations.find((c) => c.name === sourceName);
     const newIntegration = createFileIntegration(aliasName, sourceName, cat);
     setDynamicIntegrations((prev) => [...prev, newIntegration]);
     setIntegrationStatuses((prev) => ({ ...prev, [newIntegration.name]: "SYNCING" }));
-  }, []);
+
+    // Construct Field objects from file column mappings when available
+    if (fileMappings && fileMappings.length > 0 && onFieldsCreated) {
+      const platformColors: Record<string, string> = {
+        meta: "#1877F2", google: "#34A853", tiktok: "#EE1D52", snapchat: "#FFFC00",
+        pinterest: "#E60023", linkedin: "#0A66C2", stackadapt: "#4A3AFF", x: "#1DA1F2",
+      };
+      const platformNames: Record<string, string> = {
+        meta: "Meta", google: "Google", tiktok: "TikTok", snapchat: "Snapchat",
+        pinterest: "Pinterest", linkedin: "LinkedIn", stackadapt: "StackAdapt", x: "X",
+      };
+      const inferMetricType = (col: string): string | undefined => {
+        const lc = col.toLowerCase();
+        if (lc.includes("spend") || lc.includes("cost")) return "Spends";
+        if (lc.includes("impression")) return "Impressions";
+        if (lc.includes("click")) return "Clicks";
+        if (lc.includes("conversion")) return "Conversions";
+        return undefined;
+      };
+      const fields: Field[] = fileMappings
+        .filter((m) => m.included && m.targetKey)
+        .map((m) => {
+          const sourceName2 = m.platform ? (platformNames[m.platform] || aliasName) : aliasName;
+          const sourceColor = m.platform ? (platformColors[m.platform] || "#6b7280") : "#6b7280";
+          const isMetric = !["date", "channel", "campaign", "country", "device", "region", "keyword"].some((d) => m.sourceColumn.toLowerCase().includes(d));
+          const paidMarketingMetricType = m.category === "paid_marketing" ? inferMetricType(m.sourceColumn) : undefined;
+          const dataType: DataTypeKey = isMetric
+            ? (m.sourceColumn.toLowerCase().includes("spend") || m.sourceColumn.toLowerCase().includes("cost") || m.sourceColumn.toLowerCase().includes("revenue") ? "CURRENCY" : "INT64")
+            : (m.sourceColumn.toLowerCase().includes("date") ? "DATE" : "STRING");
+          return {
+            name: m.targetKey,
+            displayName: m.displayName || m.targetKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            columnName: m.sourceColumn,
+            kind: isMetric ? "metric" : "dimension",
+            source: sourceName2,
+            sourceColor,
+            sourceKey: `uploaded.${m.targetKey}`,
+            dataType,
+            transformation: isMetric ? "SUM" : "NONE",
+            status: "Mapped",
+            description: "",
+            metricCategory: (m.category || "contextual") as Field["metricCategory"],
+            ...(paidMarketingMetricType ? { paidMarketingMetricType } : {}),
+          } as Field;
+        });
+      if (fields.length > 0) onFieldsCreated(fields);
+      // Inject tactics for each unique platform detected
+      if (onTacticsCreated) {
+        const platforms = Array.from(new Set(fileMappings.filter((m) => m.platform).map((m) => m.platform!)));
+        const allTactics: string[] = [];
+        for (const p of platforms) {
+          const name = platformNames[p];
+          if (name) {
+            const t = getDemoTacticsForIntegration(name) || getDemoTacticsForIntegration(name + " Ads");
+            if (t.length > 0) allTactics.push(...t);
+          }
+        }
+        if (allTactics.length > 0) onTacticsCreated(allTactics);
+      }
+    } else if (isDemoMode) {
+      // Fallback: use demo field lookup when no file mappings available
+      const demoFields = getDemoFieldsForIntegration(aliasName) || getDemoFieldsForIntegration(sourceName);
+      if (demoFields.length > 0) onFieldsCreated?.(demoFields);
+      const demoTactics = getDemoTacticsForIntegration(aliasName) || getDemoTacticsForIntegration(sourceName);
+      if (demoTactics.length > 0) onTacticsCreated?.(demoTactics);
+    }
+  }, [isDemoMode, onFieldsCreated, onTacticsCreated]);
 
   // Helper: launch wizard for a JSP entry
   const handleStartJspWizard = (jspEntry: JspIntegration) => {
@@ -223,6 +396,11 @@ export default function IntegrationsMonitoringTab({
     }
   };
 
+  // Helper: delegate a JSP entry (open request/invite modal)
+  const handleDelegateJsp = (jspEntry: JspIntegration) => {
+    setRequestModal({ open: true, integrationName: jspEntry.integrationName });
+  };
+
   // Helper: pick a specific source from the data choice modal
   const handleDataChoicePick = (sourceName: string) => {
     const catalogEntry = catalogIntegrations.find((c) => c.name === sourceName);
@@ -238,7 +416,7 @@ export default function IntegrationsMonitoringTab({
       integration: wizardIntegration,
       onBack: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); onViewChange("catalog"); },
       onGoHome: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); onViewChange("main"); },
-      onInviteUser: (name: string) => setInviteModal({ open: true, integrationName: name }),
+      onInviteUser: (name: string) => setRequestModal({ open: true, integrationName: name }),
     };
     if (isFileIntegration) {
       return (
@@ -246,20 +424,23 @@ export default function IntegrationsMonitoringTab({
           <FileIntegrationWizard
             {...commonProps}
             initialAlias={wizardJspAlias}
-            onComplete={(aliasName: string) => {
-              handleFileIntegrationComplete(aliasName, wizardIntegration.name);
+            onComplete={(aliasName: string, fileMappings?: { sourceColumn: string; included: boolean; category: string; targetKey: string; displayName: string; platform?: string }[]) => {
+              handleFileIntegrationComplete(aliasName, wizardIntegration.name, fileMappings);
               if (wizardJspId) setConnectedJspIds((prev) => new Set(prev).add(wizardJspId));
               setWizardIntegration(null);
               setWizardJspAlias("");
               setWizardJspId(null);
               onViewChange("main");
+              setToast({ message: `${aliasName} via ${wizardIntegration.name} connected successfully`, subtitle: "Data sync will take 24-48 hours. An email will be sent when successful.", visible: true });
             }}
           />
-          <InviteUserModal
-            open={inviteModal.open}
-            integrationName={inviteModal.integrationName}
-            onClose={() => setInviteModal({ open: false, integrationName: "" })}
-            onSubmit={() => {}}
+          <RequestIntegrationModal
+            open={requestModal.open}
+            integrationName={requestModal.integrationName}
+            workspaceMembers={workspaceMembers}
+            onClose={() => setRequestModal({ open: false, integrationName: "" })}
+            onRequestMember={() => {}}
+            onInviteNew={() => {}}
           />
         </>
       );
@@ -269,20 +450,37 @@ export default function IntegrationsMonitoringTab({
         <DataSourceWizard
           {...commonProps}
           initialAlias={wizardJspAlias}
-          onComplete={(name: string) => {
+          onComplete={(name: string, dataCategories?: DataCategory[]) => {
             handleConnect(name);
+            // Demo: inject fields by JSP alias name (e.g. "Blogs", "Events")
+            if (isDemoMode && wizardJspAlias) {
+              const aliasFields = getDemoFieldsForIntegration(wizardJspAlias);
+              if (aliasFields.length > 0) onFieldsCreated?.(aliasFields);
+              // Create monitoring entry using alias
+              const newEntry = createFileIntegration(wizardJspAlias, name, wizardIntegration);
+              if (dataCategories && dataCategories.length > 0) {
+                (newEntry as Integration & { dataCategory?: DataCategory }).dataCategory = dataCategories[0];
+              }
+              setDynamicIntegrations((prev) => [...prev, newEntry]);
+              setIntegrationStatuses((prev) => ({ ...prev, [newEntry.name]: "CONNECTED" }));
+            }
             if (wizardJspId) setConnectedJspIds((prev) => new Set(prev).add(wizardJspId));
             setWizardIntegration(null);
             setWizardJspAlias("");
             setWizardJspId(null);
             onViewChange("main");
+            const catLabels = dataCategories?.map((c) => DATA_CATEGORY_LABELS[c]?.label).join(", ");
+            const displayName = wizardJspAlias || name;
+            setToast({ message: `${displayName} connected successfully`, subtitle: catLabels ? `Categorized as: ${catLabels}` : "Data sync will take 24-48 hours.", visible: true });
           }}
         />
-        <InviteUserModal
-          open={inviteModal.open}
-          integrationName={inviteModal.integrationName}
-          onClose={() => setInviteModal({ open: false, integrationName: "" })}
-          onSubmit={() => {}}
+        <RequestIntegrationModal
+          open={requestModal.open}
+          integrationName={requestModal.integrationName}
+          workspaceMembers={workspaceMembers}
+          onClose={() => setRequestModal({ open: false, integrationName: "" })}
+          onRequestMember={() => {}}
+          onInviteNew={() => {}}
         />
       </>
     );
@@ -307,6 +505,7 @@ export default function IntegrationsMonitoringTab({
         onBack={() => onViewChange("main")}
         getEffectiveStatus={getEffectiveStatus}
         onStartWizard={handleStartWizard}
+        jspIntegrationNames={jspIntegrationNames}
       />
     );
   }
@@ -325,7 +524,7 @@ export default function IntegrationsMonitoringTab({
       <div className="flex items-center gap-4 mb-5">
         <div className="flex-1">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[var(--text-muted)] text-sm">Connect your data sources to get started with {jspPlan.clientName}</p>
+            <p className="text-[var(--text-muted)] text-sm">Setup progress for {jspPlan.clientName}</p>
             <span className="text-[var(--text-muted)] text-xs">{progressPct}%</span>
           </div>
           <div className="w-full bg-[var(--bg-card-inner)] rounded-full h-2.5 overflow-hidden">
@@ -335,14 +534,10 @@ export default function IntegrationsMonitoringTab({
                 width: `${progressPct}%`,
                 background: progressPct === 100
                   ? "#00bc7d"
-                  : "linear-gradient(90deg, #6941c6, #a855f7)",
+                  : "linear-gradient(90deg, #027b8e, #a855f7)",
               }}
             />
           </div>
-        </div>
-        <div className="flex flex-col items-center px-4 py-2 bg-[var(--bg-card-inner)] rounded-xl min-w-[80px]">
-          <span className="text-[var(--text-primary)] text-xl font-bold leading-none">{connectedJspCount}<span className="text-[var(--text-dim)] text-sm font-normal">/{totalJsp}</span></span>
-          <span className="text-[var(--text-dim)] text-[10px] mt-0.5">{remainingJsp === 0 ? "All connected" : `${remainingJsp} remaining`}</span>
         </div>
       </div>
 
@@ -350,9 +545,9 @@ export default function IntegrationsMonitoringTab({
       {nativeJsp.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-1 h-4 rounded-full bg-[#6941c6]" />
+
             <span className="text-[var(--text-primary)] text-sm font-semibold">Native Integrations</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{nativeJsp.length}</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{nativeJsp.length}</span>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {nativeJsp.map((jsp) => {
@@ -365,6 +560,7 @@ export default function IntegrationsMonitoringTab({
                   onConnect={() => handleStartJspWizard(jsp)}
                   showPartnerBadge={cat.isPartner}
                   descriptionOverride={`Connect ${jsp.integrationName} to use this integration with Lifesight.`}
+                  onDelegate={() => handleDelegateJsp(jsp)}
                 />
               );
             })}
@@ -376,9 +572,9 @@ export default function IntegrationsMonitoringTab({
       {fileJsp.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-1 h-4 rounded-full bg-[#2b7fff]" />
+
             <span className="text-[var(--text-primary)] text-sm font-semibold">Files &amp; Spreadsheets</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{fileJsp.length}</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{fileJsp.length}</span>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {fileJsp.map((jsp) => {
@@ -394,6 +590,7 @@ export default function IntegrationsMonitoringTab({
                     integration={cat}
                     onConnect={() => handleStartJspWizard(jsp)}
                     descriptionOverride={desc}
+                    onDelegate={() => handleDelegateJsp(jsp)}
                   />
                 );
               }
@@ -402,9 +599,9 @@ export default function IntegrationsMonitoringTab({
                 <div
                   key={jsp.id}
                   onClick={() => handleStartJspWizard(jsp)}
-                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-5 flex items-start gap-3 hover:border-[#6941c6]/40 cursor-pointer transition-colors"
+                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#2b7fff]/10 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-[8px] bg-[#2b7fff]/10 flex items-center justify-center flex-shrink-0">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                       <path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#2b7fff" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
                       <path d="M12 3v4h4" stroke="#2b7fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -413,6 +610,20 @@ export default function IntegrationsMonitoringTab({
                   <div className="min-w-0 pt-0.5 flex-1">
                     <span className="text-[var(--text-primary)] text-sm font-medium block">{jsp.integrationName}</span>
                     <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{desc}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStartJspWizard(jsp); }}
+                        className="px-3 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
+                      >
+                        Connect
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelegateJsp(jsp); }}
+                        className="px-3 h-[28px] rounded-[6px] border border-[var(--border-secondary)] text-[var(--text-secondary)] text-[12px] font-medium hover:bg-[var(--hover-item)] transition-colors"
+                      >
+                        Invite
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -425,9 +636,9 @@ export default function IntegrationsMonitoringTab({
       {warehouseJsp.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-1 h-4 rounded-full bg-[#6941c6]" />
+
             <span className="text-[var(--text-primary)] text-sm font-semibold">Data Warehouses</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{warehouseJsp.length}</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{warehouseJsp.length}</span>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {warehouseJsp.map((jsp) => {
@@ -443,6 +654,7 @@ export default function IntegrationsMonitoringTab({
                     integration={cat}
                     onConnect={() => handleStartJspWizard(jsp)}
                     descriptionOverride={desc}
+                    onDelegate={() => handleDelegateJsp(jsp)}
                   />
                 );
               }
@@ -451,18 +663,32 @@ export default function IntegrationsMonitoringTab({
                 <div
                   key={jsp.id}
                   onClick={() => handleStartJspWizard(jsp)}
-                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-5 flex items-start gap-3 hover:border-[#6941c6]/40 cursor-pointer transition-colors"
+                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#6941c6]/10 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-[8px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
-                      <path d="M3 5v10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5V5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
-                      <path d="M3 10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
+                      <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
+                      <path d="M3 5v10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5V5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
+                      <path d="M3 10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
                     </svg>
                   </div>
                   <div className="min-w-0 pt-0.5 flex-1">
                     <span className="text-[var(--text-primary)] text-sm font-medium block">{jsp.integrationName}</span>
                     <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{desc}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStartJspWizard(jsp); }}
+                        className="px-3 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
+                      >
+                        Connect
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelegateJsp(jsp); }}
+                        className="px-3 h-[28px] rounded-[6px] border border-[var(--border-secondary)] text-[var(--text-secondary)] text-[12px] font-medium hover:bg-[var(--hover-item)] transition-colors"
+                      >
+                        Invite
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -475,25 +701,130 @@ export default function IntegrationsMonitoringTab({
 
   // ─── MAIN VIEW ────────────────────────────────────────────────────────────
 
-  // JSP-driven empty state (dev toggle)
-  if (showEmptyState) {
+  // Cycle function for empty state mode toggle
+  const cycleEmptyState = () => {
+    const modes: typeof emptyStateMode[] = ["normal", "jsp-empty", "all-done", "no-jsp"];
+    const idx = modes.indexOf(emptyStateMode);
+    setEmptyStateMode(modes[(idx + 1) % modes.length]);
+  };
+  const emptyModeLabel = { normal: "Normal", "jsp-empty": "JSP Empty", "all-done": "All Done", "no-jsp": "No JSP" }[emptyStateMode];
+
+  // JSP-driven empty state
+  if (emptyStateMode === "jsp-empty") {
     return (
       <div className="flex flex-col gap-5">
-        {/* Dev toggle */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => setShowEmptyState(false)}
-            className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors"
-          >
-            Show connected state
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
+              <circle cx="7.33" cy="7.33" r="5.33" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M14 14L11.1 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <input type="text" value={mainSearch} onChange={(e) => setMainSearch(e.target.value)} placeholder="Search" className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+          </div>
+          <button onClick={cycleEmptyState} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors ml-auto">{emptyModeLabel}</button>
         </div>
-
-        {/* Your Integration Setup — full page (not collapsible in empty state) */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl p-6">
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold mb-3">Your Integration Setup</h2>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div>
+              <h2 className="text-[var(--text-primary)] text-lg font-semibold">Finish Integration Setup</h2>
+              <p className="text-[var(--text-muted)] text-xs mt-0.5">Connect the integrations you have access to, or invite a teammate to help.</p>
+            </div>
+          </div>
           {renderJspSetupContent()}
         </div>
+      </div>
+    );
+  }
+
+  // All integrations connected state
+  if (emptyStateMode === "all-done") {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
+              <circle cx="7.33" cy="7.33" r="5.33" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M14 14L11.1 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <input type="text" value={mainSearch} onChange={(e) => setMainSearch(e.target.value)} placeholder="Search" className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+          </div>
+          <button onClick={cycleEmptyState} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors ml-auto">{emptyModeLabel}</button>
+        </div>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-[#00bc7d]/10 flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M7 14l5.5 5.5L21 9" stroke="#00bc7d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold mb-1">All Integrations Connected</h2>
+          <p className="text-[var(--text-muted)] text-sm mb-2">{totalJsp} integration{totalJsp !== 1 ? "s" : ""} from your setup plan are connected and syncing.</p>
+          <button onClick={() => onViewChange("catalog")} className="mt-3 px-4 h-[32px] rounded-[6px] border border-[#027b8e]/30 text-[#027b8e] text-[12px] font-medium hover:bg-[#027b8e]/5 transition-colors">
+            Add More Integrations
+          </button>
+        </div>
+        {recommendedIntegrations.length > 0 && (
+          <div>
+            <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-3">Recommended Integrations</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {recommendedIntegrations.map((cat) => (
+                <button key={cat.name} onClick={() => handleStartWizard(cat)} className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3 flex items-center gap-3 hover:border-[var(--border-secondary)] transition-colors text-left">
+                  <IntegrationIcon integration={cat} />
+                  <div className="min-w-0">
+                    <span className="text-[var(--text-primary)] text-sm font-medium block">{cat.name}</span>
+                    <span className="text-[var(--text-dim)] text-xs">{cat.category}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // No JSP setup available — clean empty state
+  if (emptyStateMode === "no-jsp") {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
+              <circle cx="7.33" cy="7.33" r="5.33" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M14 14L11.1 11.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <input type="text" value={mainSearch} onChange={(e) => setMainSearch(e.target.value)} placeholder="Search" className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+          </div>
+          <button onClick={cycleEmptyState} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors ml-auto">{emptyModeLabel}</button>
+        </div>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-[#027b8e]/10 flex items-center justify-center mx-auto mb-5">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M16 6v20M6 16h20" stroke="#027b8e" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="16" cy="16" r="12" stroke="#027b8e" strokeWidth="1.5" strokeDasharray="4 3" />
+            </svg>
+          </div>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold mb-1">No Integrations Set Up Yet</h2>
+          <p className="text-[var(--text-muted)] text-sm mb-5 max-w-md mx-auto">Get started by connecting your data sources. Lifesight supports 50+ integrations across advertising, analytics, CRM, and more.</p>
+          <button onClick={() => onViewChange("catalog")} className="px-6 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors">
+            Add Integration
+          </button>
+        </div>
+        {recommendedIntegrations.length > 0 && (
+          <div>
+            <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-3">Popular Integrations</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {recommendedIntegrations.map((cat) => (
+                <button key={cat.name} onClick={() => handleStartWizard(cat)} className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3 flex items-center gap-3 hover:border-[var(--border-secondary)] transition-colors text-left">
+                  <IntegrationIcon integration={cat} />
+                  <div className="min-w-0">
+                    <span className="text-[var(--text-primary)] text-sm font-medium block">{cat.name}</span>
+                    <span className="text-[var(--text-dim)] text-xs">{cat.category}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -512,13 +843,13 @@ export default function IntegrationsMonitoringTab({
             value={mainSearch}
             onChange={(e) => setMainSearch(e.target.value)}
             placeholder="Search"
-            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[#667085] focus:outline-none focus:border-[#6941c6] transition-colors"
+            className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-9 pr-3 py-2 w-full placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
           />
         </div>
         <select
           value={dataCategoryFilter ?? "all"}
           onChange={(e) => setDataCategoryFilter(e.target.value === "all" ? null : e.target.value as DataCategory)}
-          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#6941c6] transition-colors min-w-[160px] appearance-none"
+          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#027b8e] transition-colors min-w-[160px] appearance-none"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239CA3AF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
         >
           <option value="all">All Categories</option>
@@ -529,34 +860,47 @@ export default function IntegrationsMonitoringTab({
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#6941c6] transition-colors min-w-[160px] appearance-none"
+          className="bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] px-3 py-2 focus:outline-none focus:border-[#027b8e] transition-colors min-w-[160px] appearance-none"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239CA3AF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
         >
           <option value="all">All Statuses</option>
-          <option value="healthy">Healthy</option>
-          <option value="attention">Needs Attention</option>
+          <option value="healthy">Active</option>
+          <option value="attention">Action Required</option>
           <option value="error">Sync Error</option>
         </select>
         <button
-          onClick={() => setShowEmptyState(true)}
+          onClick={cycleEmptyState}
           className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors ml-auto"
         >
-          Show empty state
+          {emptyModeLabel}
         </button>
-        {/* Re-show setup link (visible when dismissed) */}
-        {setupDismissed && pendingJsp.length > 0 && (
-          <button
-            onClick={() => { setSetupDismissed(false); setSetupExpanded(true); }}
-            className="text-[10px] text-[#6941c6] hover:text-[#7c5bd2] border border-dashed border-[#6941c6]/30 rounded px-2 py-0.5 transition-colors"
-          >
-            Show Integration Setup ({pendingJsp.length})
-          </button>
-        )}
       </div>
+
+      {/* ── Dismissed setup banner ──────────────────────────────────────── */}
+      {setupDismissed && pendingJsp.length > 0 && (
+        <button
+          onClick={() => { setSetupDismissed(false); setSetupExpanded(true); }}
+          className="w-full flex items-center gap-3 px-5 py-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] hover:bg-[var(--hover-bg)] transition-colors text-left"
+        >
+          <div className="w-8 h-8 rounded-[6px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v5l3 3" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="8" cy="8" r="6" stroke="#027b8e" strokeWidth="1.2" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-[var(--text-primary)] text-sm font-medium">{pendingJsp.length} integration{pendingJsp.length !== 1 ? "s" : ""} still pending</span>
+            <span className="text-[var(--text-dim)] text-xs ml-2">Click to resume setup</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
+            <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
 
       {/* ── Your Integration Setup (collapsible + dismissible) ────────── */}
       {pendingJsp.length > 0 && !setupDismissed && (
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl overflow-hidden">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
           {/* Collapsible header */}
           <div className="flex items-center gap-3 px-6 py-4 cursor-pointer select-none" onClick={() => setSetupExpanded(!setupExpanded)}>
             <svg
@@ -566,9 +910,12 @@ export default function IntegrationsMonitoringTab({
               fill="none"
               className={`transition-transform duration-200 flex-shrink-0 ${setupExpanded ? "rotate-90" : ""}`}
             >
-              <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <h2 className="text-[var(--text-primary)] text-lg font-semibold flex-1">Your Integration Setup</h2>
+            <div className="flex-1">
+              <h2 className="text-[var(--text-primary)] text-lg font-semibold">Finish Integration Setup</h2>
+              <p className="text-[var(--text-muted)] text-xs mt-0.5">{remainingJsp} integration{remainingJsp !== 1 ? "s" : ""} still need{remainingJsp === 1 ? "s" : ""} your attention</p>
+            </div>
             <span className="text-[var(--text-muted)] text-sm mr-2">{connectedJspCount} / {totalJsp} connected</span>
             {/* Dismiss button */}
             <button
@@ -588,12 +935,75 @@ export default function IntegrationsMonitoringTab({
         </div>
       )}
 
-      {/* ── Needs Attention Section ───────────────────────────────────────── */}
+      {/* ── All Integrations Connected ────────────────────────────────── */}
+      {allJspConnected && (
+        <button
+          onClick={() => setEmptyStateMode("jsp-empty")}
+          className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)] border border-dashed border-[var(--border-secondary)] rounded px-2 py-0.5 transition-colors"
+        >
+          All integrations connected · Show setup
+        </button>
+      )}
+
+      {/* ── Recommended Integrations (shown when no JSP setup) ─────── */}
+      {pendingJsp.length === 0 && !allJspConnected && showRecommended && (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5">
+            <div>
+              <h3 className="text-[var(--text-primary)] text-sm font-semibold">Recommended Integrations</h3>
+              <p className="text-[var(--text-dim)] text-xs mt-0.5">Get started by connecting popular data sources</p>
+            </div>
+            <button
+              onClick={() => setShowRecommended(false)}
+              className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors p-1 rounded-md hover:bg-[var(--hover-item)]"
+              title="Dismiss recommendations"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5l-7 7M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+          <div className="border-t border-[var(--border-primary)] px-5 py-4 grid grid-cols-4 gap-3">
+            {recommendedIntegrations.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => handleStartWizard(cat)}
+                className="flex flex-col items-center gap-2.5 p-4 rounded-[8px] border border-[var(--border-primary)] hover:border-[#027b8e]/40 hover:bg-[#027b8e]/5 transition-all group"
+              >
+                <IntegrationIcon integration={cat} />
+                <span className="text-[var(--text-primary)] text-xs font-medium group-hover:text-[#027b8e] transition-colors">{cat.name}</span>
+                <span className="px-2 py-[3px] rounded-[4px] bg-[#027b8e]/10 text-[#027b8e] text-[10px] font-medium">Connect</span>
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-[var(--border-primary)] px-5 py-3 flex justify-center">
+            <button
+              onClick={() => onViewChange("catalog")}
+              className="text-[#027b8e] text-xs font-medium hover:underline"
+            >
+              View all integrations
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Show Recommendations toggle (when dismissed) ──────────── */}
+      {pendingJsp.length === 0 && !allJspConnected && !showRecommended && (
+        <button
+          onClick={() => setShowRecommended(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--bg-card)] border border-dashed border-[var(--border-secondary)] rounded-[8px] hover:border-[#027b8e]/40 hover:bg-[#027b8e]/5 transition-all text-[var(--text-dim)] hover:text-[#027b8e] text-xs"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          Show recommended integrations
+        </button>
+      )}
+
+      {/* ── Action Required Section ───────────────────────────────────────── */}
       {filteredIssues.length > 0 && (
-        <div>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
           <button
             onClick={() => setNeedsAttentionExpanded(!needsAttentionExpanded)}
-            className="flex items-center gap-2 mb-3 group"
+            className="flex items-center gap-2 w-full px-5 py-3.5 hover:bg-[var(--hover-bg)] transition-colors"
           >
             <svg
               width="16"
@@ -602,23 +1012,23 @@ export default function IntegrationsMonitoringTab({
               fill="none"
               className={`transition-transform duration-200 flex-shrink-0 ${needsAttentionExpanded ? "rotate-90" : ""}`}
             >
-              <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <div className="w-1 h-4 rounded-full bg-[#fe9a00]" />
-            <span className="text-[var(--text-primary)] text-sm font-semibold">Needs Attention</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{filteredIssues.length}</span>
+            <span className="text-[var(--text-primary)] text-sm font-semibold">Action Required</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{filteredIssues.length}</span>
           </button>
           {needsAttentionExpanded && (
-            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-visible">
+            <div className="border-t border-[var(--border-primary)]">
               <IntegrationTableHeader />
               {filteredIssues.map((integration) => {
                 const cat = catalogIntegrations.find((c) => c.name === integration.name);
+                const status = getEffectiveStatus(integration.name, integration.status);
                 return (
                   <IntegrationRow
                     key={integration.name}
                     integration={integration}
                     catalogEntry={cat}
-                    effectiveStatus={getEffectiveStatus(integration.name, integration.status)}
+                    effectiveStatus={status}
                     isExpanded={expandedRows[integration.name] ?? false}
                     openKebab={openKebabName === integration.name}
                     onToggleExpand={() => toggleRow(integration.name)}
@@ -628,7 +1038,8 @@ export default function IntegrationsMonitoringTab({
                       setOpenKebabName(null);
                       setSupportModal({ open: true, name: integration.name, success: false });
                     }}
-                    variant="attention"
+                    onReconnect={status === "ACTION_REQUIRED" && cat ? () => handleStartWizard(cat) : undefined}
+                    onCompleteSetup={status === "SETUP_INCOMPLETE" && cat ? () => handleStartWizard(cat) : undefined}
                   />
                 );
               })}
@@ -637,12 +1048,56 @@ export default function IntegrationsMonitoringTab({
         </div>
       )}
 
+      {/* ── Invited Section ──────────────────────────────────────────────── */}
+      {filteredInvited.length > 0 && (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
+          <div className="flex items-center gap-2 w-full px-5 py-3.5">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 text-[#a855f7]">
+              <path d="M8 1L8 3M8 13L8 15M1 8L3 8M13 8L15 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+            <span className="text-[var(--text-primary)] text-sm font-semibold">Invited</span>
+            <span className="bg-[#a855f7]/10 text-[#a855f7] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{filteredInvited.length}</span>
+          </div>
+          <div className="border-t border-[var(--border-primary)]">
+            {filteredInvited.map((integration) => {
+              const cat = catalogIntegrations.find((c) => c.name === integration.name);
+              return (
+                <div
+                  key={integration.name}
+                  className="flex items-center gap-4 px-5 py-3.5 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--hover-bg)] transition-colors"
+                >
+                  {cat ? (
+                    <IntegrationIcon integration={cat} />
+                  ) : (
+                    <div className="w-8 h-8 rounded-[6px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
+                      <span className="text-[8px] font-bold" style={{ color: integration.color }}>{integration.icon}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[var(--text-primary)] text-sm font-medium block">{integration.name}</span>
+                    <span className="text-[var(--text-muted)] text-xs">
+                      Invited by <strong className="text-[var(--text-secondary)]">{integration.invitedBy}</strong>
+                      {integration.invitedAt && <> · {new Date(integration.invitedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</>}
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border border-[#a855f7]/30 text-[10px] font-semibold uppercase tracking-wide text-[#a855f7]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#a855f7]" />
+                    Invited
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Healthy Integrations ──────────────────────────────────────────── */}
       {filteredConnected.length > 0 && (
-        <div>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
           <button
             onClick={() => setConnectedExpanded(!connectedExpanded)}
-            className="flex items-center gap-2 mb-3 group"
+            className="flex items-center gap-2 w-full px-5 py-3.5 hover:bg-[var(--hover-bg)] transition-colors"
           >
             <svg
               width="16"
@@ -651,14 +1106,13 @@ export default function IntegrationsMonitoringTab({
               fill="none"
               className={`transition-transform duration-200 flex-shrink-0 ${connectedExpanded ? "rotate-90" : ""}`}
             >
-              <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <div className="w-1 h-4 rounded-full bg-[#00bc7d]" />
-            <span className="text-[var(--text-primary)] text-sm font-semibold">Healthy</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{filteredConnected.length}</span>
+            <span className="text-[var(--text-primary)] text-sm font-semibold">Active</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{filteredConnected.length}</span>
           </button>
           {connectedExpanded && (
-          <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-visible">
+          <div className="border-t border-[var(--border-primary)]">
             <IntegrationTableHeader />
             {filteredConnected.map((integration) => {
               const cat = catalogIntegrations.find((c) => c.name === integration.name);
@@ -689,10 +1143,10 @@ export default function IntegrationsMonitoringTab({
 
       {/* ── Sync Errors Section ────────────────────────────────────────────── */}
       {filteredSyncErrors.length > 0 && (
-        <div>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
           <button
             onClick={() => setSyncErrorsExpanded(!syncErrorsExpanded)}
-            className="flex items-center gap-2 mb-3 group"
+            className="flex items-center gap-2 w-full px-5 py-3.5 hover:bg-[var(--hover-bg)] transition-colors"
           >
             <svg
               width="16"
@@ -701,15 +1155,14 @@ export default function IntegrationsMonitoringTab({
               fill="none"
               className={`transition-transform duration-200 flex-shrink-0 ${syncErrorsExpanded ? "rotate-90" : ""}`}
             >
-              <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <div className="w-1 h-4 rounded-full bg-[#2b7fff]" />
             <span className="text-[var(--text-primary)] text-sm font-semibold">Sync Errors</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{filteredSyncErrors.length}</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{filteredSyncErrors.length}</span>
           </button>
           {syncErrorsExpanded && (
-            <>
-              <div className="flex items-start gap-2 bg-[#2b7fff]/5 border border-[#2b7fff]/20 rounded-lg px-4 py-3 mb-3">
+            <div className="border-t border-[var(--border-primary)]">
+              <div className="flex items-start gap-2 bg-[#2b7fff]/5 px-5 py-3">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
                   <circle cx="8" cy="8" r="6" stroke="#2b7fff" strokeWidth="1.2" />
                   <path d="M8 5.5v3" stroke="#2b7fff" strokeWidth="1.2" strokeLinecap="round" />
@@ -719,41 +1172,38 @@ export default function IntegrationsMonitoringTab({
                   These sync issues are on our end — no action needed from you. Our team is actively working on a fix and we&apos;ll notify you once resolved.
                 </p>
               </div>
-              <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-visible">
-                <IntegrationTableHeader />
-                {filteredSyncErrors.map((integration) => {
-                  const cat = catalogIntegrations.find((c) => c.name === integration.name);
-                  return (
-                    <IntegrationRow
-                      key={integration.name}
-                      integration={integration}
-                      catalogEntry={cat}
-                      effectiveStatus={getEffectiveStatus(integration.name, integration.status)}
-                      isExpanded={expandedRows[integration.name] ?? false}
-                      openKebab={openKebabName === integration.name}
-                      onToggleExpand={() => toggleRow(integration.name)}
-                      onToggleKebab={() => setOpenKebabName(openKebabName === integration.name ? null : integration.name)}
-                      onViewDetails={() => handleViewDetails(integration)}
-                      onReportIssue={() => {
-                        setOpenKebabName(null);
-                        setSupportModal({ open: true, name: integration.name, success: false });
-                      }}
-                      variant="attention"
-                    />
-                  );
-                })}
-              </div>
-            </>
+              <IntegrationTableHeader />
+              {filteredSyncErrors.map((integration) => {
+                const cat = catalogIntegrations.find((c) => c.name === integration.name);
+                return (
+                  <IntegrationRow
+                    key={integration.name}
+                    integration={integration}
+                    catalogEntry={cat}
+                    effectiveStatus={getEffectiveStatus(integration.name, integration.status)}
+                    isExpanded={expandedRows[integration.name] ?? false}
+                    openKebab={openKebabName === integration.name}
+                    onToggleExpand={() => toggleRow(integration.name)}
+                    onToggleKebab={() => setOpenKebabName(openKebabName === integration.name ? null : integration.name)}
+                    onViewDetails={() => handleViewDetails(integration)}
+                    onReportIssue={() => {
+                      setOpenKebabName(null);
+                      setSupportModal({ open: true, name: integration.name, success: false });
+                    }}
+                  />
+                );
+              })}
+            </div>
           )}
         </div>
       )}
 
-      {/* ── Requested Integrations ────────────────────────────────────────── */}
-      {requestedIntegrations.length > 0 && (
-        <div>
+      {/* ── Requested Integrations (hidden in demo mode) ─────────────────── */}
+      {requestedIntegrations.length > 0 && !isDemoMode && (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
           <button
             onClick={() => setRequestedExpanded(!requestedExpanded)}
-            className="flex items-center gap-2 mb-3 group"
+            className="flex items-center gap-2 w-full px-5 py-3.5 hover:bg-[var(--hover-bg)] transition-colors"
           >
             <svg
               width="16"
@@ -762,19 +1212,18 @@ export default function IntegrationsMonitoringTab({
               fill="none"
               className={`transition-transform duration-200 flex-shrink-0 ${requestedExpanded ? "rotate-90" : ""}`}
             >
-              <path d="M6 4L10 8L6 12" stroke="#9CA3AF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <div className="w-1 h-4 rounded-full bg-[#a855f7]" />
             <span className="text-[var(--text-primary)] text-sm font-semibold">Requested Integrations</span>
-            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{requestedIntegrations.length}</span>
+            <span className="bg-[var(--bg-badge)] text-[var(--text-muted)] text-[10px] font-semibold px-2 py-[3px] rounded-[4px]">{requestedIntegrations.length}</span>
           </button>
           {requestedExpanded && (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-3 p-5 border-t border-[var(--border-primary)]">
             {requestedIntegrations.map((integration) => (
               <button
                 key={integration.name}
                 onClick={() => setRequestedModal({ open: true, integration })}
-                className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-4 flex items-center gap-3 hover:border-[#a855f7]/40 transition-colors text-left"
+                className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-[8px] px-5 py-4 flex items-center gap-3 hover:border-[#a855f7]/40 transition-colors text-left"
               >
                 <IntegrationIconSmall integration={integration} />
                 <div className="flex-1 min-w-0">
@@ -785,7 +1234,7 @@ export default function IntegrationsMonitoringTab({
                     </span>
                   )}
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-[#a855f7]/10 text-[#a855f7] text-[10px] font-semibold border border-[#a855f7]/20 flex-shrink-0">
+                <span className="px-2 py-[3px] rounded-[4px] bg-[#a855f7]/10 text-[#a855f7] text-[10px] font-semibold border border-[#a855f7]/20 flex-shrink-0">
                   Requested
                 </span>
               </button>
@@ -817,13 +1266,22 @@ export default function IntegrationsMonitoringTab({
         onSubmit={() => {}}
       />
 
+      <RequestIntegrationModal
+        open={requestModal.open}
+        integrationName={requestModal.integrationName}
+        workspaceMembers={workspaceMembers}
+        onClose={() => setRequestModal({ open: false, integrationName: "" })}
+        onRequestMember={() => {}}
+        onInviteNew={() => {}}
+      />
+
       {/* ── Dismiss Setup Warning Modal ─────────────────────────────────── */}
       {showDismissWarning && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDismissWarning(false)} />
-          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowDismissWarning(false)} />
+          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] max-w-sm w-full mx-4 p-6">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[#fe9a00]/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-[8px] bg-[#fe9a00]/10 flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M10 2L1 18h18L10 2z" stroke="#fe9a00" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
                   <path d="M10 8v4" stroke="#fe9a00" strokeWidth="1.5" strokeLinecap="round" />
@@ -838,13 +1296,13 @@ export default function IntegrationsMonitoringTab({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDismissWarning(false)}
-                className="px-4 py-2 rounded-lg border border-[var(--border-secondary)] text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors"
+                className="px-4 h-[28px] rounded-[6px] border border-[var(--border-secondary)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { setSetupDismissed(true); setShowDismissWarning(false); }}
-                className="px-4 py-2 rounded-lg bg-[#fe9a00] hover:bg-[#e58c00] text-white text-sm font-medium transition-colors"
+                className="px-4 h-[28px] rounded-[6px] bg-[#fe9a00] hover:bg-[#e58c00] text-white text-[12px] font-medium transition-colors"
               >
                 Hide Section
               </button>
@@ -856,8 +1314,8 @@ export default function IntegrationsMonitoringTab({
       {/* ── Data Source Choice Modal ──────────────────────────────────────── */}
       {dataChoiceJsp && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDataChoiceJsp(null)} />
-          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-2xl shadow-2xl max-w-lg w-full mx-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDataChoiceJsp(null)} />
+          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] max-w-lg w-full mx-4">
             <div className="p-6">
               {/* Header */}
               <div className="flex items-center justify-between mb-1">
@@ -884,9 +1342,9 @@ export default function IntegrationsMonitoringTab({
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setDataChoiceStep("pick-file")}
-                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-xl p-5 text-left hover:border-[#6941c6]/50 transition-colors group"
+                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] p-5 text-left hover:border-[#027b8e]/50 transition-colors group"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-[#2b7fff]/10 flex items-center justify-center mb-3">
+                      <div className="w-10 h-10 rounded-[8px] bg-[#2b7fff]/10 flex items-center justify-center mb-3">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                           <path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#2b7fff" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
                           <path d="M12 3v4h4" stroke="#2b7fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -897,13 +1355,13 @@ export default function IntegrationsMonitoringTab({
                     </button>
                     <button
                       onClick={() => setDataChoiceStep("pick-warehouse")}
-                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-xl p-5 text-left hover:border-[#6941c6]/50 transition-colors group"
+                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] p-5 text-left hover:border-[#027b8e]/50 transition-colors group"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-[#6941c6]/10 flex items-center justify-center mb-3">
+                      <div className="w-10 h-10 rounded-[8px] bg-[#027b8e]/10 flex items-center justify-center mb-3">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                          <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
-                          <path d="M3 5v10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5V5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
-                          <path d="M3 10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5" stroke="#6941c6" strokeWidth="1.5" fill="none" />
+                          <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
+                          <path d="M3 5v10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5V5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
+                          <path d="M3 10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
                         </svg>
                       </div>
                       <span className="text-[var(--text-primary)] text-sm font-semibold block mb-1">Data Warehouses</span>
@@ -920,7 +1378,7 @@ export default function IntegrationsMonitoringTab({
                   {dataChoiceJsp.type !== "file" && dataChoiceJsp.type !== "warehouse" && (
                     <button
                       onClick={() => setDataChoiceStep("choose")}
-                      className="text-[var(--text-muted)] text-xs hover:text-[#6941c6] mb-4 flex items-center gap-1 transition-colors"
+                      className="text-[var(--text-muted)] text-xs hover:text-[#027b8e] mb-4 flex items-center gap-1 transition-colors"
                     >
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M7.5 2.5L4 6l3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       Back
@@ -937,7 +1395,7 @@ export default function IntegrationsMonitoringTab({
                         <button
                           key={source.name}
                           onClick={() => handleDataChoicePick(source.name)}
-                          className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-xl px-5 py-4 flex items-start gap-3 hover:border-[#6941c6]/50 transition-colors text-left"
+                          className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] px-5 py-4 flex items-start gap-3 hover:border-[#027b8e]/50 transition-colors text-left"
                         >
                           <IntegrationIcon integration={source} />
                           <div className="min-w-0 pt-0.5 flex-1">
@@ -959,8 +1417,38 @@ export default function IntegrationsMonitoringTab({
         <PostSyncOnboarding
           integrationName={postSyncIntegration}
           onComplete={() => setPostSyncIntegration(null)}
+          onNavigateToDetail={() => {
+            const integration = allCombinedIntegrations.find((i) => i.name === postSyncIntegration);
+            if (integration) {
+              setSelectedIntegration(integration);
+              onViewChange("detail");
+            }
+          }}
         />
       )}
+
+      {/* ── Toast Notification ──────────────────────────────────────────── */}
+      <div
+        className="fixed top-6 right-6 z-50 transition-all duration-300 ease-out"
+        style={{ transform: toast.visible ? "translateX(0)" : "translateX(120%)", opacity: toast.visible ? 1 : 0, pointerEvents: toast.visible ? "auto" : "none" }}
+      >
+        <div className="flex items-start gap-3 px-5 py-4 rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-primary)] max-w-[345px]">
+          <div className="w-6 h-6 rounded-full bg-[#00bc7d]/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3.5 7l2.5 2.5L10.5 4.5" stroke="#00bc7d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-[var(--text-primary)] text-sm font-medium block">{toast.message}</span>
+            {toast.subtitle && <span className="text-[var(--text-muted)] text-xs mt-1 block">{toast.subtitle}</span>}
+          </div>
+          <button onClick={() => setToast((t) => ({ ...t, visible: false }))} className="text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors flex-shrink-0 mt-0.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

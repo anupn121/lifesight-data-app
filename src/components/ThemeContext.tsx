@@ -23,6 +23,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (stored === "light" || stored === "dark") {
       setTheme(stored);
       document.documentElement.setAttribute("data-theme", stored);
+    } else {
+      document.documentElement.setAttribute("data-theme", "dark");
     }
     setMounted(true);
   }, []);

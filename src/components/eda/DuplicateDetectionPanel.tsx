@@ -140,7 +140,7 @@ export default function DuplicateDetectionPanel({ dataset }: Props) {
         <div className="mt-3">
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="flex items-center gap-1.5 text-xs text-[#6941c6] hover:underline font-medium mb-2"
+            className="flex items-center gap-1.5 text-xs text-[#027b8e] hover:underline font-medium mb-2"
           >
             <svg
               width="10"
@@ -150,7 +150,7 @@ export default function DuplicateDetectionPanel({ dataset }: Props) {
             >
               <path
                 d="M3 1L7 5L3 9"
-                stroke="#6941c6"
+                stroke="#027b8e"
                 strokeWidth="1.5"
                 fill="none"
                 strokeLinecap="round"

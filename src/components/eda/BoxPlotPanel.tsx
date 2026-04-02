@@ -138,7 +138,7 @@ export default function BoxPlotPanel({ dataset }: Props) {
                   y1={cy}
                   x2={wHighX}
                   y2={cy}
-                  stroke="#6941c6"
+                  stroke="#027b8e"
                   strokeWidth="1"
                 />
 
@@ -148,7 +148,7 @@ export default function BoxPlotPanel({ dataset }: Props) {
                   y1={boxTop + 2}
                   x2={wLowX}
                   y2={boxTop + boxHeight - 2}
-                  stroke="#6941c6"
+                  stroke="#027b8e"
                   strokeWidth="1"
                 />
                 <line
@@ -156,7 +156,7 @@ export default function BoxPlotPanel({ dataset }: Props) {
                   y1={boxTop + 2}
                   x2={wHighX}
                   y2={boxTop + boxHeight - 2}
-                  stroke="#6941c6"
+                  stroke="#027b8e"
                   strokeWidth="1"
                 />
 
@@ -166,9 +166,9 @@ export default function BoxPlotPanel({ dataset }: Props) {
                   y={boxTop}
                   width={Math.max(q3X - q1X, 2)}
                   height={boxHeight}
-                  fill="#6941c6"
+                  fill="#027b8e"
                   fillOpacity="0.2"
-                  stroke="#6941c6"
+                  stroke="#027b8e"
                   strokeWidth="1"
                   rx="2"
                 />
@@ -179,7 +179,7 @@ export default function BoxPlotPanel({ dataset }: Props) {
                   y1={boxTop}
                   x2={medX}
                   y2={boxTop + boxHeight}
-                  stroke="#6941c6"
+                  stroke="#027b8e"
                   strokeWidth="2"
                 />
 
