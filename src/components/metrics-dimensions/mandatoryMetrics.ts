@@ -5,154 +5,241 @@ import {
   getSourceStreamInfo,
 } from "../fieldsData";
 
-export interface PlatformActionItem {
-  platform: string;
-  platformColor: string;
+// ═══════════════════════════════════════════════════════════════════════════
+//  MANDATORY METRICS — TWO-STATE ACTION DETECTION
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  Action Required items have two possible states:
+//
+//  1. "required_column_missing" — A critical column (date, and for Paid
+//     Marketing also a spend column) couldn't be auto-detected in the data
+//     source's columns. The user must either map an existing column as the
+//     date/spend OR re-import with the correct columns.
+//
+//  2. "mapping_required" — The data source has all required columns but
+//     hasn't been fully mapped yet (e.g. KPI source with no KPI fields
+//     mapped, Paid Marketing with unmapped Spends field).
+//
+//  Items are computed at the Integration + Data Source level so the Action
+//  Required list shows one row per (integration, data_source) combination
+//  that needs attention — NOT one row per platform like the previous
+//  implementation.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ActionState = "required_column_missing" | "mapping_required";
+
+export interface ActionItem {
+  /** Unique key combining integration + data source */
+  id: string;
+  /** Integration name (e.g., "Facebook", "Shopify", "BigQuery") */
+  integration: string;
+  /** Integration color (from SOURCE_STREAM_TABLES) */
+  integrationColor: string;
+  /** Data source name (e.g., "Ad Insights", "Orders", "revenue_q4") */
+  dataSource: string;
+  /** Category this item belongs to */
   category: MetricCategory;
   categoryLabel: string;
   categoryColor: string;
+  /** State determines the UI treatment */
+  state: ActionState;
+  /** Short explanation shown in the row */
+  missingLabel: string;
+  /** Detailed items missing (e.g., ["Date", "Spends"]) */
   missingItems: string[];
+  /** Columns available in this data source (for inline "Map as date" picker) */
+  availableColumns: string[];
+  /** Progress counts */
   totalFields: number;
   mappedFields: number;
 }
 
-/**
- * Compute which platforms need action based on mandatory metric rules:
- *
- * - Paid Marketing: Each platform must have Spends AND Impressions mapped
- * - KPI: Each platform must have at least 1 KPI mapped
- * - Organic: If a platform has organic fields, at least 1 metric + 1 dimension must be mapped
- * - Contextual: If a platform has contextual fields, at least 1 metric + 1 dimension must be mapped
- */
-export function computeActionRequired(fields: Field[]): PlatformActionItem[] {
-  const items: PlatformActionItem[] = [];
+// ─── Date Column Detection ─────────────────────────────────────────────────
 
-  // Group fields by category → platform
-  const catPlatformMap = new Map<MetricCategory, Map<string, Field[]>>();
+const DATE_COLUMN_PATTERNS = /^(date|day|week|month|year|quarter|period|timestamp|dt|report_date)s?$/i;
+
+/**
+ * Check if any column name in the data source matches a date pattern.
+ * Also matches on column display names to be generous.
+ */
+function hasDateColumn(fields: Field[]): boolean {
+  return fields.some((f) => {
+    const names = [f.columnName, f.name, f.displayName].filter(Boolean);
+    return names.some((n) => DATE_COLUMN_PATTERNS.test(n)) || f.dataType === "DATE";
+  });
+}
+
+function hasSpendColumn(fields: Field[]): boolean {
+  return fields.some((f) => {
+    if (f.paidMarketingMetricType === "Spends") return true;
+    const names = [f.columnName, f.name, f.displayName].filter(Boolean);
+    return names.some((n) => /spend|cost|media.spend|ad.spend|amount.spent/i.test(n));
+  });
+}
+
+// ─── Grouping ──────────────────────────────────────────────────────────────
+
+/**
+ * Group fields by (integration, dataSource) within each category.
+ * Integration = parent from SOURCE_STREAM_TABLES
+ * Data Source = stream from SOURCE_STREAM_TABLES (or the raw source name if
+ *               the source is not in the hierarchy, e.g. BigQuery tables)
+ */
+function groupByIntegrationAndSource(fields: Field[]): Map<
+  MetricCategory,
+  Map<
+    string, // integration
+    Map<
+      string, // data source
+      { fields: Field[]; integrationColor: string }
+    >
+  >
+> {
+  const result = new Map<MetricCategory, Map<string, Map<string, { fields: Field[]; integrationColor: string }>>>();
 
   for (const field of fields) {
     if (!field.metricCategory) continue;
-    const cat = field.metricCategory;
     const info = getSourceStreamInfo(field.source);
-    const platform = info.parent;
+    const integration = info.parent;
+    const dataSource = info.stream || field.source;
 
-    if (!catPlatformMap.has(cat)) catPlatformMap.set(cat, new Map());
-    const platformMap = catPlatformMap.get(cat)!;
-    if (!platformMap.has(platform)) platformMap.set(platform, []);
-    platformMap.get(platform)!.push(field);
+    if (!result.has(field.metricCategory)) result.set(field.metricCategory, new Map());
+    const catMap = result.get(field.metricCategory)!;
+    if (!catMap.has(integration)) catMap.set(integration, new Map());
+    const intMap = catMap.get(integration)!;
+    if (!intMap.has(dataSource)) intMap.set(dataSource, { fields: [], integrationColor: info.color });
+    intMap.get(dataSource)!.fields.push(field);
   }
 
-  // Paid Marketing: must have Spends + Impressions mapped per platform
-  const paidPlatforms = catPlatformMap.get("paid_marketing");
-  if (paidPlatforms) {
-    for (const [platform, platformFields] of Array.from(paidPlatforms)) {
-      const info = getSourceStreamInfo(platformFields[0].source);
-      const mappedTypes = new Set(
-        platformFields
-          .filter((f) => f.status === "Mapped" && f.paidMarketingMetricType)
-          .map((f) => f.paidMarketingMetricType)
-      );
-      const missing: string[] = [];
-      if (!mappedTypes.has("Spends")) missing.push("Spends");
-      if (!mappedTypes.has("Impressions")) missing.push("Impressions");
-
-      if (missing.length > 0) {
-        items.push({
-          platform,
-          platformColor: info.color,
-          category: "paid_marketing",
-          categoryLabel: METRIC_CATEGORIES.paid_marketing.label,
-          categoryColor: METRIC_CATEGORIES.paid_marketing.color,
-          missingItems: missing,
-          totalFields: platformFields.length,
-          mappedFields: platformFields.filter((f) => f.status === "Mapped").length,
-        });
-      }
-    }
-  }
-
-  // KPI: at least 1 KPI mapped per platform
-  const kpiPlatforms = catPlatformMap.get("kpi");
-  if (kpiPlatforms) {
-    for (const [platform, platformFields] of Array.from(kpiPlatforms)) {
-      const info = getSourceStreamInfo(platformFields[0].source);
-      const hasMappedKpi = platformFields.some(
-        (f) => f.status === "Mapped" && f.kpiSubtype
-      );
-      if (!hasMappedKpi) {
-        items.push({
-          platform,
-          platformColor: info.color,
-          category: "kpi",
-          categoryLabel: METRIC_CATEGORIES.kpi.label,
-          categoryColor: METRIC_CATEGORIES.kpi.color,
-          missingItems: ["At least 1 KPI"],
-          totalFields: platformFields.length,
-          mappedFields: platformFields.filter((f) => f.status === "Mapped").length,
-        });
-      }
-    }
-  }
-
-  // Organic: at least 1 metric + 1 dimension mapped per platform (if fields exist)
-  const organicPlatforms = catPlatformMap.get("organic");
-  if (organicPlatforms) {
-    for (const [platform, platformFields] of Array.from(organicPlatforms)) {
-      const info = getSourceStreamInfo(platformFields[0].source);
-      const mappedMetrics = platformFields.filter((f) => f.status === "Mapped" && f.kind === "metric").length;
-      const mappedDims = platformFields.filter((f) => f.status === "Mapped" && f.kind === "dimension").length;
-      if (mappedMetrics === 0 || mappedDims === 0) {
-        const missing: string[] = [];
-        if (mappedMetrics === 0 && mappedDims === 0) {
-          missing.push("At least 1 metric and 1 dimension");
-        } else if (mappedMetrics === 0) {
-          missing.push("At least 1 metric");
-        } else {
-          missing.push("At least 1 dimension");
-        }
-        items.push({
-          platform,
-          platformColor: info.color,
-          category: "organic",
-          categoryLabel: METRIC_CATEGORIES.organic.label,
-          categoryColor: METRIC_CATEGORIES.organic.color,
-          missingItems: missing,
-          totalFields: platformFields.length,
-          mappedFields: platformFields.filter((f) => f.status === "Mapped").length,
-        });
-      }
-    }
-  }
-
-  // Contextual: at least 1 metric + 1 dimension mapped per platform (if fields exist)
-  const contextualPlatforms = catPlatformMap.get("contextual");
-  if (contextualPlatforms) {
-    for (const [platform, platformFields] of Array.from(contextualPlatforms)) {
-      const info = getSourceStreamInfo(platformFields[0].source);
-      const mappedMetrics = platformFields.filter((f) => f.status === "Mapped" && f.kind === "metric").length;
-      const mappedDims = platformFields.filter((f) => f.status === "Mapped" && f.kind === "dimension").length;
-      if (mappedMetrics === 0 || mappedDims === 0) {
-        const missing: string[] = [];
-        if (mappedMetrics === 0 && mappedDims === 0) {
-          missing.push("At least 1 metric and 1 dimension");
-        } else if (mappedMetrics === 0) {
-          missing.push("At least 1 metric");
-        } else {
-          missing.push("At least 1 dimension");
-        }
-        items.push({
-          platform,
-          platformColor: info.color,
-          category: "contextual",
-          categoryLabel: METRIC_CATEGORIES.contextual.label,
-          categoryColor: METRIC_CATEGORIES.contextual.color,
-          missingItems: missing,
-          totalFields: platformFields.length,
-          mappedFields: platformFields.filter((f) => f.status === "Mapped").length,
-        });
-      }
-    }
-  }
-
-  return items;
+  return result;
 }
+
+// ─── Rule Evaluation ───────────────────────────────────────────────────────
+
+/**
+ * Evaluate a single data source against its category's rules.
+ * Returns null if the data source is OK, or an ActionItem describing what's wrong.
+ */
+function evaluateDataSource(
+  integration: string,
+  integrationColor: string,
+  dataSource: string,
+  dsFields: Field[],
+  category: MetricCategory,
+): ActionItem | null {
+  const cfg = METRIC_CATEGORIES[category];
+  const mappedFields = dsFields.filter((f) => f.status === "Mapped").length;
+  const availableColumns = Array.from(
+    new Set(dsFields.map((f) => f.columnName || f.name).filter(Boolean))
+  );
+
+  const base = {
+    id: `${integration}::${dataSource}::${category}`,
+    integration,
+    integrationColor,
+    dataSource,
+    category,
+    categoryLabel: cfg.label,
+    categoryColor: cfg.color,
+    totalFields: dsFields.length,
+    mappedFields,
+    availableColumns,
+  };
+
+  // ─── Check 1: Required Column Missing (date always, spend for paid marketing) ───
+  const missingColumns: string[] = [];
+  if (!hasDateColumn(dsFields)) missingColumns.push("Date");
+  if (category === "paid_marketing" && !hasSpendColumn(dsFields)) missingColumns.push("Spend");
+
+  if (missingColumns.length > 0) {
+    const missingLabel = missingColumns.length === 1
+      ? `${missingColumns[0]} column missing`
+      : `${missingColumns.join(" & ")} columns missing`;
+    return {
+      ...base,
+      state: "required_column_missing",
+      missingLabel,
+      missingItems: missingColumns,
+    };
+  }
+
+  // ─── Check 2: Mapping Required (category-specific rules) ───────────────────
+  if (category === "paid_marketing") {
+    const mappedTypes = new Set(
+      dsFields
+        .filter((f) => f.status === "Mapped" && f.paidMarketingMetricType)
+        .map((f) => f.paidMarketingMetricType)
+    );
+    const needed: string[] = [];
+    if (!mappedTypes.has("Spends")) needed.push("Spends");
+    if (!mappedTypes.has("Impressions")) needed.push("Impressions");
+    if (needed.length > 0) {
+      return {
+        ...base,
+        state: "mapping_required",
+        missingLabel: `Map ${needed.join(" & ")}`,
+        missingItems: needed,
+      };
+    }
+  }
+
+  if (category === "kpi") {
+    const hasMappedKpi = dsFields.some((f) => f.status === "Mapped" && f.kpiSubtype);
+    if (!hasMappedKpi) {
+      return {
+        ...base,
+        state: "mapping_required",
+        missingLabel: "Map at least 1 KPI",
+        missingItems: ["At least 1 KPI"],
+      };
+    }
+  }
+
+  if (category === "organic" || category === "contextual") {
+    const mappedMetrics = dsFields.filter((f) => f.status === "Mapped" && f.kind === "metric").length;
+    const mappedDims = dsFields.filter((f) => f.status === "Mapped" && f.kind === "dimension").length;
+    if (mappedMetrics === 0 || mappedDims === 0) {
+      const needed: string[] = [];
+      if (mappedMetrics === 0) needed.push("1 metric");
+      if (mappedDims === 0) needed.push("1 dimension");
+      return {
+        ...base,
+        state: "mapping_required",
+        missingLabel: `Map ${needed.join(" & ")}`,
+        missingItems: needed,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ─── Public API ────────────────────────────────────────────────────────────
+
+/**
+ * Compute which data sources need action. Returns one ActionItem per
+ * (integration, data_source) that has either a missing required column
+ * or incomplete mapping.
+ */
+export function computeActionRequired(fields: Field[]): ActionItem[] {
+  const grouped = groupByIntegrationAndSource(fields);
+  const items: ActionItem[] = [];
+
+  for (const [category, intMap] of Array.from(grouped)) {
+    for (const [integration, dsMap] of Array.from(intMap)) {
+      for (const [dataSource, { fields: dsFields, integrationColor }] of Array.from(dsMap)) {
+        const item = evaluateDataSource(integration, integrationColor, dataSource, dsFields, category);
+        if (item) items.push(item);
+      }
+    }
+  }
+
+  // Sort: column_missing first (most urgent), then mapping_required
+  return items.sort((a, b) => {
+    if (a.state !== b.state) return a.state === "required_column_missing" ? -1 : 1;
+    return a.integration.localeCompare(b.integration);
+  });
+}
+
+// Backwards-compatible alias for any consumers still using the old type name
+export type PlatformActionItem = ActionItem;

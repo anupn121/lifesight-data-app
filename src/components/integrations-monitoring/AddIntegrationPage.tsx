@@ -26,7 +26,7 @@ const TAB_LABELS: Record<AddIntegrationTab, string> = {
 
 // ─── Classification helpers ─────────────────────────────────────────────────
 
-const FILE_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
+const FILE_NAMES = new Set(["CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
 const WAREHOUSE_NAMES = new Set(["BigQuery", "Snowflake", "Amazon Redshift", "Databricks"]);
 
 function getTabsForIntegration(i: CatalogIntegration): AddIntegrationTab[] {
@@ -75,10 +75,30 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   );
 }
 
+// ─── Custom Source Mode ─────────────────────────────────────────────────────
+/* When the page is embedded as a "pick a custom source" flow (e.g., when a
+   user clicks Connect on a non-native JSP entry like "Offline Campaign
+   Spend"), the Native tab is visually disabled with a friendly message,
+   the Recommended and Wishlist tabs are hidden, and clicking a source card
+   delegates back to the parent via onSourceSelected instead of launching
+   the internal wizard. */
+export interface CustomSourceMode {
+  /** Display name / alias shown in the header — e.g., "Offline Campaign Spend" */
+  alias: string;
+  /** Called when user clicks back — parent should return to previous view */
+  onBack: () => void;
+  /** Called when user picks a source — parent kicks off the wizard */
+  onSourceSelected: (source: CatalogIntegration) => void;
+}
+
+interface AddIntegrationPageProps {
+  customSourceMode?: CustomSourceMode;
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export default function AddIntegrationPage() {
-  const [activeTab, setActiveTab] = useState<AddIntegrationTab>("recommended");
+export default function AddIntegrationPage({ customSourceMode }: AddIntegrationPageProps = {}) {
+  const [activeTab, setActiveTab] = useState<AddIntegrationTab>(customSourceMode ? "files" : "recommended");
   const [search, setSearch] = useState("");
   const [integrationStatuses, setIntegrationStatuses] = useState<Record<string, IntegrationStatus>>({});
   const [wizardIntegration, setWizardIntegration] = useState<CatalogIntegration | null>(null);
@@ -168,9 +188,16 @@ export default function AddIntegrationPage() {
   }, [activeTab, search, integrationStatuses]);
 
   const handleConnect = useCallback((integration: CatalogIntegration) => {
+    // In custom-source mode, delegate the pick back to the parent instead of
+    // launching our internal wizard. The parent (IntegrationsMonitoringTab)
+    // will kick off its own wizard with the chosen source + JSP alias.
+    if (customSourceMode) {
+      customSourceMode.onSourceSelected(integration);
+      return;
+    }
     setToast(`Connecting ${integration.name}...`);
     setWizardIntegration(integration);
-  }, []);
+  }, [customSourceMode]);
 
   const handleWizardComplete = useCallback((name: string) => {
     // For file integrations, format as "AliasName (via Source)"
@@ -179,7 +206,7 @@ export default function AddIntegrationPage() {
     if (source && FILE_NAMES.has(source.name)) {
       const viaLabel: Record<string, string> = {
         "Google Sheets": "Google Sheets",
-        "Import CSV": "CSV",
+        "CSV": "CSV",
         "Amazon S3": "Amazon S3",
         "Google Cloud Storage": "Google Cloud Storage",
         "SFTP": "SFTP",
@@ -236,22 +263,46 @@ export default function AddIntegrationPage() {
   }
 
   // ─── Visible tabs ────────────────────────────────────────────────────────
-  const visibleTabs: AddIntegrationTab[] = hasRecommended
-    ? ["recommended", "native", "files", "warehouses", "wishlist"]
-    : ["native", "files", "warehouses", "wishlist"];
+  // In custom-source mode: hide Recommended + Wishlist, keep Native visible
+  // (but rendered as disabled) so users can see what's there while being
+  // guided to Files / Warehouses.
+  const visibleTabs: AddIntegrationTab[] = customSourceMode
+    ? ["native", "files", "warehouses"]
+    : hasRecommended
+      ? ["recommended", "native", "files", "warehouses", "wishlist"]
+      : ["native", "files", "warehouses", "wishlist"];
 
   return (
     <div className="flex flex-col gap-0 min-h-full">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-1.5 text-sm">
-          <Link href="/" className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
-            Integrations
-          </Link>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
-            <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="text-[var(--text-primary)] font-medium">Add Integration</span>
+          {customSourceMode ? (
+            <>
+              <button
+                onClick={customSourceMode.onBack}
+                className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors"
+              >
+                Integrations
+              </button>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
+                <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-[var(--text-primary)] font-medium">
+                Connect {customSourceMode.alias}
+              </span>
+            </>
+          ) : (
+            <>
+              <Link href="/" className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
+                Integrations
+              </Link>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
+                <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-[var(--text-primary)] font-medium">Add Integration</span>
+            </>
+          )}
         </div>
         <div className="relative w-72">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
@@ -268,27 +319,60 @@ export default function AddIntegrationPage() {
         </div>
       </div>
 
+      {/* ── Custom Source Mode Info Banner ──────────────────────────────── */}
+      {customSourceMode && (
+        <div className="mb-4 px-4 py-3 rounded-[8px] bg-[#027b8e]/8 border border-[#027b8e]/25 flex items-start gap-3">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5 text-[#027b8e]">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M8 5V8.5M8 10.8V11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <div className="text-[var(--text-primary)] text-[13px] font-semibold mb-0.5">
+              Custom source for &ldquo;{customSourceMode.alias}&rdquo;
+            </div>
+            <div className="text-[var(--text-muted)] text-xs leading-relaxed">
+              Since this is a custom source, choose one of the integrations under <strong>Files &amp; Spreadsheets</strong> or <strong>Data Warehouses</strong>. Native integrations have fixed schemas and can&apos;t be used here.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Tab Strip ───────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-[var(--border-primary)] -mx-4 px-4">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-              activeTab === tab ? "text-[#027b8e]" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-            }`}
-          >
-            {TAB_LABELS[tab]}
-            <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-              search && tabCounts[tab] > 0
-                ? "bg-[#027b8e]/10 text-[#027b8e]"
-                : "bg-[var(--bg-badge)] text-[var(--text-muted)]"
-            }`}>
-              {tabCounts[tab]}
-            </span>
-            {activeTab === tab && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#027b8e] rounded-full" />}
-          </button>
-        ))}
+        {visibleTabs.map((tab) => {
+          const isNativeDisabled = customSourceMode && tab === "native";
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+                isNativeDisabled
+                  ? "text-[var(--text-dim)] cursor-not-allowed"
+                  : activeTab === tab
+                    ? "text-[#027b8e]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {TAB_LABELS[tab]}
+                {isNativeDisabled && (
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
+                    <rect x="3.5" y="7" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1.3" />
+                    <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.3" fill="none" />
+                  </svg>
+                )}
+              </span>
+              <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                search && tabCounts[tab] > 0 && !isNativeDisabled
+                  ? "bg-[#027b8e]/10 text-[#027b8e]"
+                  : "bg-[var(--bg-badge)] text-[var(--text-muted)]"
+              }`}>
+                {tabCounts[tab]}
+              </span>
+              {activeTab === tab && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-[2px] bg-[#027b8e] rounded-full" />}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Tab Content ─────────────────────────────────────────────────── */}
@@ -296,8 +380,11 @@ export default function AddIntegrationPage() {
         {activeTab === "recommended" && (
           <RecommendedTab items={currentItems} onConnect={handleConnect} />
         )}
-        {activeTab === "native" && (
+        {activeTab === "native" && !customSourceMode && (
           <NativeTab items={currentItems} onConnect={handleConnect} />
+        )}
+        {activeTab === "native" && customSourceMode && (
+          <NativeTabDisabled items={currentItems} alias={customSourceMode.alias} />
         )}
         {activeTab === "files" && (
           <FilesTab items={currentItems} onConnect={handleConnect} />
@@ -441,6 +528,65 @@ function NativeTab({ items, onConnect }: { items: CatalogIntegration[]; onConnec
             <div className="grid grid-cols-3 gap-4">
               {integrations.map((i) => (
                 <IntegrationCard key={i.name} integration={i} onConnect={() => onConnect(i)} showPartnerBadge={i.isPartner} />
+              ))}
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+// ─── Tab: Native (disabled variant for custom-source mode) ──────────────────
+// Shows the same grid as NativeTab but with every card visually disabled
+// (dim, strikethrough-hint, no hover, no click handler). A prominent message
+// at the top explains why native sources can't be used for the custom alias.
+
+function NativeTabDisabled({ items, alias }: { items: CatalogIntegration[]; alias: string }) {
+  const grouped = useMemo(() => {
+    const acc: Record<string, CatalogIntegration[]> = {};
+    for (const i of items) {
+      (acc[i.category] = acc[i.category] || []).push(i);
+    }
+    return acc;
+  }, [items]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Disabled explanation banner */}
+      <div className="px-5 py-4 rounded-[8px] bg-[var(--bg-card-inner)] border border-[var(--border-primary)] flex items-start gap-3">
+        <div className="w-9 h-9 rounded-[8px] bg-[var(--bg-badge)] flex items-center justify-center flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--text-muted)]">
+            <rect x="3.5" y="7" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.3" fill="none" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[var(--text-primary)] text-sm font-semibold mb-1">
+            Native integrations can&apos;t be used for a custom source
+          </div>
+          <p className="text-[var(--text-muted)] text-xs leading-relaxed">
+            Native integrations (Facebook Ads, Google Ads, Shopify, etc.) have fixed schemas defined by the platform API. To connect <strong className="text-[var(--text-secondary)]">{alias}</strong>, pick an integration from <strong className="text-[var(--text-secondary)]">Files &amp; Spreadsheets</strong> or <strong className="text-[var(--text-secondary)]">Data Warehouses</strong> instead.
+          </p>
+        </div>
+      </div>
+
+      {/* Greyed-out native integrations preview */}
+      {Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, integrations]) => (
+          <div key={category}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[var(--text-dim)] text-sm font-semibold">{category}</span>
+              <span className="bg-[var(--bg-badge)] text-[var(--text-dim)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{integrations.length}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 opacity-40 pointer-events-none select-none">
+              {integrations.map((i) => (
+                <IntegrationCard
+                  key={i.name}
+                  integration={i}
+                  onConnect={() => {}}
+                  showPartnerBadge={i.isPartner}
+                />
               ))}
             </div>
           </div>

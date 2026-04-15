@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import TabBar, { TabId } from "@/components/TabBar";
@@ -136,7 +135,7 @@ export default function DataPage() {
 
   // Show landing page when no mode is selected
   const isLanding = showLanding && !productMode;
-  const inSubview = activeTab === "integrations-monitoring" && (intMonView === "catalog" || intMonView === "data-wizard");
+  const inSubview = activeTab === "integrations-monitoring" && (intMonView === "catalog" || intMonView === "data-wizard" || intMonView === "custom-source-picker");
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-primary)]">
@@ -156,7 +155,6 @@ export default function DataPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h1 className="text-[var(--text-primary)] text-[20px] font-semibold tracking-[-0.3px]">Data</h1>
-                    <p className="text-[var(--text-secondary)] text-[12px] mt-0.5">Manage connections, define metrics, map tactics, and configure data models</p>
                   </div>
                   <div className="flex items-center gap-3">
                     {/* Product mode badge + change button */}
@@ -176,15 +174,15 @@ export default function DataPage() {
                       </button>
                     )}
                     {activeTab === "integrations-monitoring" && intMonView === "main" && (
-                      <Link
-                        href="/add-integration"
+                      <button
+                        onClick={() => setIntMonView("catalog")}
                         className="flex items-center gap-2 px-4 bg-[#027b8e] hover:bg-[#025e6d] text-white text-[12px] font-medium rounded-[6px] h-[28px] transition-all duration-150"
                       >
                         <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
                           <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                         Add Integration
-                      </Link>
+                      </button>
                     )}
                   </div>
                 </div>

@@ -54,19 +54,24 @@ export function InfoTooltip({ integration }: { integration: CatalogIntegration }
   );
 }
 
-export function IntegrationCard({ integration, onConnect, showPartnerBadge, descriptionOverride, onDelegate, isInSetupPlan }: { integration: CatalogIntegration; onConnect: () => void; showPartnerBadge?: boolean; descriptionOverride?: string; onDelegate?: () => void; isInSetupPlan?: boolean }) {
+export function IntegrationCard({ integration, onConnect, showPartnerBadge, descriptionOverride, nameOverride, onDelegate, isInSetupPlan, rightSlot }: { integration: CatalogIntegration; onConnect: () => void; showPartnerBadge?: boolean; descriptionOverride?: string; nameOverride?: string; onDelegate?: () => void; isInSetupPlan?: boolean; rightSlot?: React.ReactNode }) {
   return (
     <div
       onClick={onConnect}
       className={`bg-[var(--bg-card)] border rounded-[8px] px-4 py-4 flex items-start gap-3 hover:border-[var(--border-secondary)] cursor-pointer transition-all duration-150 relative ${isInSetupPlan ? "border-[var(--border-primary)] ring-1 ring-[#027b8e]/15" : "border-[var(--border-primary)]"}`}
     >
+      {/* Optional top-right slot (e.g., JspCardMenu kebab). Rendered first so it
+          sits above the setup plan badge when both are present. */}
+      {rightSlot && (
+        <div className="absolute top-2 right-2 z-10">{rightSlot}</div>
+      )}
       {isInSetupPlan && (
-        <span className="absolute top-2 right-2 text-[10px] font-medium text-[#027b8e] bg-[#027b8e]/8 px-2 py-[3px] rounded-[4px]">In your setup plan</span>
+        <span className={`absolute top-2 text-[10px] font-medium text-[#027b8e] bg-[#027b8e]/8 px-2 py-[3px] rounded-[4px] ${rightSlot ? "right-10" : "right-2"}`}>In your setup plan</span>
       )}
       <IntegrationIcon integration={integration} />
       <div className="min-w-0 pt-0.5 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[var(--text-primary)] text-sm font-medium">{integration.name}</span>
+          <span className="text-[var(--text-primary)] text-sm font-medium">{nameOverride || integration.name}</span>
           {showPartnerBadge && (
             <span className="px-2 py-[3px] rounded-[4px] bg-[#2b7fff]/10 text-[#2b7fff] text-[10.5px] font-medium border border-[#2b7fff]/20">
               Partner

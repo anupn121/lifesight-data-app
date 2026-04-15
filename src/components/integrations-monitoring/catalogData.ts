@@ -42,7 +42,7 @@ export const catalogIntegrations: CatalogIntegration[] = [
   { name: "Custom JS", description: "Connect custom JavaScript to one website", category: "Custom", status: "CONNECTED", color: "#027b8e", accounts: 0, icon: "js", footerLabel: "1 Connected Website" },
   // Data — no default data category (generic containers)
   { name: "Google Sheets", description: "Sync data from Google Sheets into your platform.", category: "Data", status: "CONNECTED", color: "#0F9D58", accounts: 2, icon: "gs", footerLabel: "8 Connected Sheets" },
-  { name: "Import CSV", description: "Import data through CSV files", category: "Data", status: "CONNECTED", color: "#71717a", accounts: 0, icon: "csv" },
+  { name: "CSV", description: "Import data through CSV files", category: "Data", status: "CONNECTED", color: "#71717a", accounts: 0, icon: "csv" },
   { name: "Snowflake", description: "Connect your Snowflake data warehouse to sync tables.", category: "Data", status: "NOT_CONNECTED", color: "#29B5E8", accounts: 0, icon: "sf❄", footerLabel: "0 Tables", authType: "api_key", authFields: [
     { key: "host", label: "Host", type: "text", placeholder: "account.snowflakecomputing.com" },
     { key: "account", label: "Account", type: "text", placeholder: "your_account_id" },

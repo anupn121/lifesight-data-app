@@ -12,23 +12,23 @@ import DetailView from "./DetailView";
 import CatalogView from "./CatalogView";
 import DataSourceWizard from "./DataSourceWizard";
 import FileIntegrationWizard from "./FileIntegrationWizard";
+import AddIntegrationPage from "./AddIntegrationPage";
+import JspCardMenu from "./JspCardMenu";
 import { SupportModal, RequestedModal, InviteUserModal, RequestIntegrationModal } from "./modals";
 import { IntegrationCard } from "./IntegrationCard";
 import { getJspPlan, getWorkspaceMembers, type JspIntegration } from "./jspData";
 import PostSyncOnboarding from "./PostSyncOnboarding";
 
-const FILE_INTEGRATION_NAMES = new Set(["Import CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
+const FILE_INTEGRATION_NAMES = new Set(["CSV", "Google Sheets", "Amazon S3", "Google Cloud Storage", "SFTP", "Excel Upload"]);
 
 const FILE_VIA_LABELS: Record<string, string> = {
   "Google Sheets": "Google Sheets",
-  "Import CSV": "CSV",
+  "CSV": "CSV",
   "Amazon S3": "Amazon S3",
   "Google Cloud Storage": "Google Cloud Storage",
   "SFTP": "SFTP",
   "Excel Upload": "Excel",
 };
-
-const WAREHOUSE_INTEGRATION_NAMES = new Set(["BigQuery", "Snowflake", "Amazon Redshift", "Databricks"]);
 
 function createFileIntegration(aliasName: string, sourceName: string, catalogEntry?: CatalogIntegration): Integration {
   const viaLabel = FILE_VIA_LABELS[sourceName] || sourceName;
@@ -66,7 +66,7 @@ function createFileIntegration(aliasName: string, sourceName: string, catalogEnt
   };
 }
 
-export type IntMonView = "main" | "catalog" | "detail" | "data-wizard";
+export type IntMonView = "main" | "catalog" | "detail" | "data-wizard" | "custom-source-picker";
 
 export default function IntegrationsMonitoringTab({
   view,
@@ -106,8 +106,13 @@ export default function IntegrationsMonitoringTab({
   const [inviteModal, setInviteModal] = useState<{ open: boolean; integrationName: string }>({ open: false, integrationName: "" });
   const [requestModal, setRequestModal] = useState<{ open: boolean; integrationName: string }>({ open: false, integrationName: "" });
   const workspaceMembers = getWorkspaceMembers();
-  const [dataChoiceJsp, setDataChoiceJsp] = useState<JspIntegration | null>(null);
-  const [dataChoiceStep, setDataChoiceStep] = useState<"choose" | "pick-file" | "pick-warehouse">("choose");
+  /* JSP entry currently in the custom source picker view. Replaces the old
+     modal-based data source choice flow. */
+  const [customSourcePickerJsp, setCustomSourcePickerJsp] = useState<JspIntegration | null>(null);
+  /* JSP entries the user has dismissed from the "Finish Your Setup" section */
+  const [ignoredJspIds, setIgnoredJspIds] = useState<Set<string>>(new Set());
+  /* JSP entry pending ignore confirmation (shows modal) */
+  const [ignoreConfirmJsp, setIgnoreConfirmJsp] = useState<JspIntegration | null>(null);
   const [setupExpanded, setSetupExpanded] = useState(true);
   const [setupDismissed, setSetupDismissed] = useState(false);
   const [showDismissWarning, setShowDismissWarning] = useState(false);
@@ -126,7 +131,7 @@ export default function IntegrationsMonitoringTab({
   const recommendedIntegrations = catalogIntegrations.filter((c) => RECOMMENDED_NAMES.includes(c.name));
 
   // Derived JSP data
-  const pendingJsp = jspPlan.integrations.filter((j) => j.status !== "connected" && !connectedJspIds.has(j.id));
+  const pendingJsp = jspPlan.integrations.filter((j) => j.status !== "connected" && !connectedJspIds.has(j.id) && !ignoredJspIds.has(j.id));
   const allJspConnected = jspPlan.integrations.length > 0 && pendingJsp.length === 0;
   const mainSearchLower = mainSearch.toLowerCase();
   const filteredPendingJsp = mainSearch
@@ -145,6 +150,7 @@ export default function IntegrationsMonitoringTab({
 
   // Data source wizard state
   const [wizardIntegration, setWizardIntegration] = useState<CatalogIntegration | null>(null);
+  const [savedWarehouseCreds, setSavedWarehouseCreds] = useState<Record<string, Record<string, string>>>({});
 
   const toggleRow = (name: string) => {
     setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -299,101 +305,108 @@ export default function IntegrationsMonitoringTab({
     }
   };
 
-  const handleFileIntegrationComplete = useCallback((aliasName: string, sourceName: string, fileMappings?: { sourceColumn: string; included: boolean; category: string; targetKey: string; displayName: string; platform?: string }[]) => {
+  const handleFileIntegrationComplete = useCallback((aliasName: string, sourceName: string) => {
     const cat = catalogIntegrations.find((c) => c.name === sourceName);
     const newIntegration = createFileIntegration(aliasName, sourceName, cat);
     setDynamicIntegrations((prev) => [...prev, newIntegration]);
     setIntegrationStatuses((prev) => ({ ...prev, [newIntegration.name]: "SYNCING" }));
 
-    // Construct Field objects from file column mappings when available
-    if (fileMappings && fileMappings.length > 0 && onFieldsCreated) {
-      const platformColors: Record<string, string> = {
-        meta: "#1877F2", google: "#34A853", tiktok: "#EE1D52", snapchat: "#FFFC00",
-        pinterest: "#E60023", linkedin: "#0A66C2", stackadapt: "#4A3AFF", x: "#1DA1F2",
-      };
-      const platformNames: Record<string, string> = {
-        meta: "Meta", google: "Google", tiktok: "TikTok", snapchat: "Snapchat",
-        pinterest: "Pinterest", linkedin: "LinkedIn", stackadapt: "StackAdapt", x: "X",
-      };
-      const inferMetricType = (col: string): string | undefined => {
-        const lc = col.toLowerCase();
-        if (lc.includes("spend") || lc.includes("cost")) return "Spends";
-        if (lc.includes("impression")) return "Impressions";
-        if (lc.includes("click")) return "Clicks";
-        if (lc.includes("conversion")) return "Conversions";
-        return undefined;
-      };
-      const fields: Field[] = fileMappings
-        .filter((m) => m.included && m.targetKey)
-        .map((m) => {
-          const sourceName2 = m.platform ? (platformNames[m.platform] || aliasName) : aliasName;
-          const sourceColor = m.platform ? (platformColors[m.platform] || "#6b7280") : "#6b7280";
-          const isMetric = !["date", "channel", "campaign", "country", "device", "region", "keyword"].some((d) => m.sourceColumn.toLowerCase().includes(d));
-          const paidMarketingMetricType = m.category === "paid_marketing" ? inferMetricType(m.sourceColumn) : undefined;
-          const dataType: DataTypeKey = isMetric
-            ? (m.sourceColumn.toLowerCase().includes("spend") || m.sourceColumn.toLowerCase().includes("cost") || m.sourceColumn.toLowerCase().includes("revenue") ? "CURRENCY" : "INT64")
-            : (m.sourceColumn.toLowerCase().includes("date") ? "DATE" : "STRING");
+    if (isDemoMode) {
+      // Check for pre-built demo fields first (e.g., Blogs, Events have demo entries)
+      const demoFields = getDemoFieldsForIntegration(aliasName) || getDemoFieldsForIntegration(sourceName);
+      if (demoFields.length > 0) {
+        onFieldsCreated?.(demoFields);
+      } else {
+        // No pre-built fields — inject unmapped placeholders from mock sample columns
+        const sampleCols = ["date", "channel", "spend", "impressions", "clicks", "conversions", "revenue"];
+        const sourceColor = cat?.color || "#71717a";
+        const unmappedFields: Field[] = sampleCols.map((col) => {
+          const isMetric = !["date", "channel", "country", "region", "campaign", "source"].includes(col);
           return {
-            name: m.targetKey,
-            displayName: m.displayName || m.targetKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-            columnName: m.sourceColumn,
+            name: `${aliasName.toLowerCase().replace(/\s+/g, "_")}_${col}`,
+            displayName: col.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            columnName: col,
             kind: isMetric ? "metric" : "dimension",
-            source: sourceName2,
+            source: aliasName,
             sourceColor,
-            sourceKey: `uploaded.${m.targetKey}`,
-            dataType,
+            sourceKey: `uploaded.${col}`,
+            dataType: (isMetric ? (col.includes("spend") || col.includes("revenue") ? "CURRENCY" : "INT64") : col.includes("date") ? "DATE" : "STRING") as DataTypeKey,
             transformation: isMetric ? "SUM" : "NONE",
-            status: "Mapped",
+            status: "Unmapped" as const,
             description: "",
-            metricCategory: (m.category || "contextual") as Field["metricCategory"],
-            ...(paidMarketingMetricType ? { paidMarketingMetricType } : {}),
           } as Field;
         });
-      if (fields.length > 0) onFieldsCreated(fields);
-      // Inject tactics for each unique platform detected
-      if (onTacticsCreated) {
-        const platforms = Array.from(new Set(fileMappings.filter((m) => m.platform).map((m) => m.platform!)));
-        const allTactics: string[] = [];
-        for (const p of platforms) {
-          const name = platformNames[p];
-          if (name) {
-            const t = getDemoTacticsForIntegration(name) || getDemoTacticsForIntegration(name + " Ads");
-            if (t.length > 0) allTactics.push(...t);
-          }
-        }
-        if (allTactics.length > 0) onTacticsCreated(allTactics);
+        if (unmappedFields.length > 0) onFieldsCreated?.(unmappedFields);
       }
-    } else if (isDemoMode) {
-      // Fallback: use demo field lookup when no file mappings available
-      const demoFields = getDemoFieldsForIntegration(aliasName) || getDemoFieldsForIntegration(sourceName);
-      if (demoFields.length > 0) onFieldsCreated?.(demoFields);
       const demoTactics = getDemoTacticsForIntegration(aliasName) || getDemoTacticsForIntegration(sourceName);
       if (demoTactics.length > 0) onTacticsCreated?.(demoTactics);
     }
   }, [isDemoMode, onFieldsCreated, onTacticsCreated]);
 
-  // Helper: launch wizard for a JSP entry
+  // Helper: launch wizard for a JSP entry.
+  // New flow (see plan dazzling-snuggling-pearl.md):
+  //  - Native → wizard directly for that integration (unchanged)
+  //  - Non-native → wizard directly for the best-guess source. The wizard's
+  //    Step 1 exposes a "Change integration type" link that re-opens the
+  //    custom source picker if the user wants to switch.
+  //    Best-guess logic:
+  //      • jspEntry.source if set (e.g., "Google Sheets" from JSP metadata)
+  //      • else "BigQuery" for warehouse type
+  //      • else "Google Sheets" for file type
   const handleStartJspWizard = (jspEntry: JspIntegration) => {
     setWizardJspId(jspEntry.id);
 
     if (jspEntry.type === "native") {
-      // Native: go straight to the wizard for that specific integration
       const catalogEntry = catalogIntegrations.find((c) => c.name === jspEntry.integrationName);
       if (!catalogEntry) return;
       setWizardJspAlias(jspEntry.alias || "");
       handleStartWizard(catalogEntry);
-    } else if (jspEntry.source) {
-      // Non-native with known source: go directly to that source's wizard
-      const catalogEntry = catalogIntegrations.find((c) => c.name === jspEntry.source);
-      if (!catalogEntry) return;
-      setWizardJspAlias(jspEntry.integrationName);
-      handleStartWizard(catalogEntry);
-    } else {
-      // Non-native with unknown source: show data source choice modal
-      setWizardJspAlias(jspEntry.integrationName);
-      setDataChoiceJsp(jspEntry);
-      setDataChoiceStep(jspEntry.type === "file" ? "pick-file" : jspEntry.type === "warehouse" ? "pick-warehouse" : "choose");
+      return;
     }
+
+    // Non-native: wizard-first flow
+    setWizardJspAlias(jspEntry.integrationName);
+    const guessedSource =
+      jspEntry.source ||
+      (jspEntry.type === "warehouse" ? "BigQuery" : "Google Sheets");
+    const catalogEntry = catalogIntegrations.find((c) => c.name === guessedSource);
+    if (!catalogEntry) return;
+    // Keep JSP context alive so "Change integration type" can reopen picker
+    setCustomSourcePickerJsp(jspEntry);
+    handleStartWizard(catalogEntry);
+  };
+
+  // Called from a JSP card's kebab menu "Change Integration Type" item.
+  // Skips the wizard entirely and opens the picker so the user can switch
+  // source before entering the wizard.
+  const handleChangeJspIntegrationType = (jspEntry: JspIntegration) => {
+    setWizardJspId(jspEntry.id);
+    setWizardJspAlias(jspEntry.integrationName);
+    setCustomSourcePickerJsp(jspEntry);
+    onViewChange("custom-source-picker");
+  };
+
+  // Called when the user clicks the kebab menu "Ignore" item. Shows the
+  // ignore confirmation modal — nothing is actually ignored until confirmed.
+  const handleIgnoreJsp = (jspEntry: JspIntegration) => {
+    setIgnoreConfirmJsp(jspEntry);
+  };
+
+  // Called when the user confirms ignore from the modal.
+  const confirmIgnoreJsp = () => {
+    if (!ignoreConfirmJsp) return;
+    setIgnoredJspIds((prev) => new Set(prev).add(ignoreConfirmJsp.id));
+    setIgnoreConfirmJsp(null);
+  };
+
+  // Called when the user picks a source from the custom source picker.
+  // Kicks off the appropriate wizard for the chosen source, carrying over
+  // the JSP alias so the wizard's first step is pre-filled. We intentionally
+  // KEEP customSourcePickerJsp set so the wizard still shows the "Change
+  // integration type" link (user can change multiple times). The state is
+  // cleared on wizard complete/back/home.
+  const handleCustomSourceSelected = (source: CatalogIntegration) => {
+    handleStartWizard(source);
   };
 
   // Helper: delegate a JSP entry (open request/invite modal)
@@ -401,35 +414,39 @@ export default function IntegrationsMonitoringTab({
     setRequestModal({ open: true, integrationName: jspEntry.integrationName });
   };
 
-  // Helper: pick a specific source from the data choice modal
-  const handleDataChoicePick = (sourceName: string) => {
-    const catalogEntry = catalogIntegrations.find((c) => c.name === sourceName);
-    if (!catalogEntry || !dataChoiceJsp) return;
-    setDataChoiceJsp(null);
-    handleStartWizard(catalogEntry);
-  };
-
   // ─── DATA SOURCE WIZARD ──────────────────────────────────────────────────
   if (view === "data-wizard" && wizardIntegration) {
     const isFileIntegration = FILE_INTEGRATION_NAMES.has(wizardIntegration.name);
     const commonProps = {
       integration: wizardIntegration,
-      onBack: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); onViewChange("catalog"); },
-      onGoHome: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); onViewChange("main"); },
+      onBack: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); setCustomSourcePickerJsp(null); onViewChange("catalog"); },
+      onGoHome: () => { setWizardIntegration(null); setWizardJspAlias(""); setWizardJspId(null); setCustomSourcePickerJsp(null); onViewChange("main"); },
       onInviteUser: (name: string) => setRequestModal({ open: true, integrationName: name }),
     };
+    // Show the "Change integration type" link in Step 1 only when we're in a
+    // non-native JSP flow (customSourcePickerJsp is set). Clicking the link
+    // closes the wizard and opens the picker — we preserve customSourcePickerJsp
+    // and wizardJspAlias so the picker has context and can re-open a new wizard.
+    const changeTypeHandler = customSourcePickerJsp
+      ? () => {
+          setWizardIntegration(null);
+          onViewChange("custom-source-picker");
+        }
+      : undefined;
     if (isFileIntegration) {
       return (
         <>
           <FileIntegrationWizard
             {...commonProps}
             initialAlias={wizardJspAlias}
-            onComplete={(aliasName: string, fileMappings?: { sourceColumn: string; included: boolean; category: string; targetKey: string; displayName: string; platform?: string }[]) => {
-              handleFileIntegrationComplete(aliasName, wizardIntegration.name, fileMappings);
+            onChangeIntegrationType={changeTypeHandler}
+            onComplete={(aliasName: string) => {
+              handleFileIntegrationComplete(aliasName, wizardIntegration.name);
               if (wizardJspId) setConnectedJspIds((prev) => new Set(prev).add(wizardJspId));
               setWizardIntegration(null);
               setWizardJspAlias("");
               setWizardJspId(null);
+              setCustomSourcePickerJsp(null);
               onViewChange("main");
               setToast({ message: `${aliasName} via ${wizardIntegration.name} connected successfully`, subtitle: "Data sync will take 24-48 hours. An email will be sent when successful.", visible: true });
             }}
@@ -450,27 +467,69 @@ export default function IntegrationsMonitoringTab({
         <DataSourceWizard
           {...commonProps}
           initialAlias={wizardJspAlias}
+          onChangeIntegrationType={changeTypeHandler}
+          savedCredentials={wizardIntegration ? savedWarehouseCreds[wizardIntegration.name] : undefined}
+          onSaveCredentials={(values) => { if (wizardIntegration) setSavedWarehouseCreds((prev) => ({ ...prev, [wizardIntegration.name]: values })); }}
           onComplete={(name: string, dataCategories?: DataCategory[]) => {
-            handleConnect(name);
-            // Demo: inject fields by JSP alias name (e.g. "Blogs", "Events")
-            if (isDemoMode && wizardJspAlias) {
-              const aliasFields = getDemoFieldsForIntegration(wizardJspAlias);
-              if (aliasFields.length > 0) onFieldsCreated?.(aliasFields);
-              // Create monitoring entry using alias
-              const newEntry = createFileIntegration(wizardJspAlias, name, wizardIntegration);
-              if (dataCategories && dataCategories.length > 0) {
-                (newEntry as Integration & { dataCategory?: DataCategory }).dataCategory = dataCategories[0];
+            const displayName = wizardJspAlias || name;
+            const isWarehouse = wizardIntegration && ["BigQuery", "Snowflake", "Amazon Redshift", "Databricks"].includes(wizardIntegration.name);
+            const isNative = wizardIntegration && !isWarehouse && !["Google Sheets"].includes(wizardIntegration.name);
+
+            // For native integrations (Facebook Ads etc.), use the standard handleConnect
+            if (isNative) {
+              handleConnect(name);
+            }
+
+            if (isDemoMode) {
+              // Try pre-built demo fields first
+              const aliasFields = getDemoFieldsForIntegration(displayName) || getDemoFieldsForIntegration(name);
+              if (aliasFields.length > 0) {
+                onFieldsCreated?.(aliasFields);
+              } else if (isWarehouse) {
+                // DWH: inject unmapped placeholder fields
+                const warehouseColor = wizardIntegration?.color || "#4285F4";
+                const sampleCols = [
+                  { col: "date", kind: "dimension" as const, type: "DATE" as DataTypeKey },
+                  { col: "campaign_id", kind: "dimension" as const, type: "STRING" as DataTypeKey },
+                  { col: "spend", kind: "metric" as const, type: "CURRENCY" as DataTypeKey },
+                  { col: "impressions", kind: "metric" as const, type: "INT64" as DataTypeKey },
+                  { col: "clicks", kind: "metric" as const, type: "INT64" as DataTypeKey },
+                  { col: "conversions", kind: "metric" as const, type: "FLOAT64" as DataTypeKey },
+                  { col: "revenue", kind: "metric" as const, type: "CURRENCY" as DataTypeKey },
+                ];
+                const unmappedFields: Field[] = sampleCols.map((c) => ({
+                  name: `${displayName.toLowerCase().replace(/\s+/g, "_")}_${c.col}`,
+                  displayName: c.col.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase()),
+                  columnName: c.col,
+                  kind: c.kind,
+                  source: `${displayName} (${wizardIntegration!.name})`,
+                  sourceColor: warehouseColor,
+                  sourceKey: `${wizardIntegration!.name.toLowerCase().replace(/\s+/g, "_")}.${c.col}`,
+                  dataType: c.type,
+                  transformation: c.kind === "metric" ? "SUM" : "NONE",
+                  status: "Unmapped" as const,
+                  description: "",
+                } as Field));
+                onFieldsCreated?.(unmappedFields);
               }
-              setDynamicIntegrations((prev) => [...prev, newEntry]);
-              setIntegrationStatuses((prev) => ({ ...prev, [newEntry.name]: "CONNECTED" }));
+
+              // Create monitoring entry for DWH and Google Sheets (native handled by handleConnect)
+              if (!isNative) {
+                const newEntry = createFileIntegration(displayName, wizardIntegration?.name || name, wizardIntegration);
+                if (dataCategories && dataCategories.length > 0) {
+                  (newEntry as Integration & { dataCategory?: DataCategory }).dataCategory = dataCategories[0];
+                }
+                setDynamicIntegrations((prev) => [...prev, newEntry]);
+                setIntegrationStatuses((prev) => ({ ...prev, [newEntry.name]: "CONNECTED" }));
+              }
             }
             if (wizardJspId) setConnectedJspIds((prev) => new Set(prev).add(wizardJspId));
             setWizardIntegration(null);
             setWizardJspAlias("");
             setWizardJspId(null);
+            setCustomSourcePickerJsp(null);
             onViewChange("main");
             const catLabels = dataCategories?.map((c) => DATA_CATEGORY_LABELS[c]?.label).join(", ");
-            const displayName = wizardJspAlias || name;
             setToast({ message: `${displayName} connected successfully`, subtitle: catLabels ? `Categorized as: ${catLabels}` : "Data sync will take 24-48 hours.", visible: true });
           }}
         />
@@ -506,6 +565,28 @@ export default function IntegrationsMonitoringTab({
         getEffectiveStatus={getEffectiveStatus}
         onStartWizard={handleStartWizard}
         jspIntegrationNames={jspIntegrationNames}
+      />
+    );
+  }
+
+  // ─── CUSTOM SOURCE PICKER VIEW ──────────────────────────────────────────
+  // Shown when the user clicks Connect on a non-native JSP entry. Renders
+  // the full Add Integrations page in custom-source mode: Native tab is
+  // disabled, Files & Warehouses are selectable. When user picks a source,
+  // we jump to the appropriate wizard with the JSP alias pre-filled.
+  if (view === "custom-source-picker" && customSourcePickerJsp) {
+    return (
+      <AddIntegrationPage
+        customSourceMode={{
+          alias: customSourcePickerJsp.alias || customSourcePickerJsp.integrationName,
+          onBack: () => {
+            setCustomSourcePickerJsp(null);
+            setWizardJspId(null);
+            setWizardJspAlias("");
+            onViewChange("main");
+          },
+          onSourceSelected: handleCustomSourceSelected,
+        }}
       />
     );
   }
@@ -561,6 +642,12 @@ export default function IntegrationsMonitoringTab({
                   showPartnerBadge={cat.isPartner}
                   descriptionOverride={`Connect ${jsp.integrationName} to use this integration with Lifesight.`}
                   onDelegate={() => handleDelegateJsp(jsp)}
+                  rightSlot={
+                    <JspCardMenu
+                      integrationType={jsp.type}
+                      onIgnore={() => handleIgnoreJsp(jsp)}
+                    />
+                  }
                 />
               );
             })}
@@ -583,24 +670,34 @@ export default function IntegrationsMonitoringTab({
               const desc = sourceName
                 ? `Connect ${jsp.integrationName} using ${sourceName} to use this integration with Lifesight.`
                 : `Connect ${jsp.integrationName} to use this integration with Lifesight.`;
+              const cardMenu = (
+                <JspCardMenu
+                  integrationType={jsp.type}
+                  onIgnore={() => handleIgnoreJsp(jsp)}
+                  onChangeIntegrationType={() => handleChangeJspIntegrationType(jsp)}
+                />
+              );
               if (cat) {
                 return (
                   <IntegrationCard
                     key={jsp.id}
                     integration={cat}
+                    nameOverride={jsp.integrationName}
                     onConnect={() => handleStartJspWizard(jsp)}
                     descriptionOverride={desc}
                     onDelegate={() => handleDelegateJsp(jsp)}
+                    rightSlot={cardMenu}
                   />
                 );
               }
-              // Unknown source — render a card that opens the data choice modal
+              // Unknown source — render custom fallback card with inline kebab
               return (
                 <div
                   key={jsp.id}
                   onClick={() => handleStartJspWizard(jsp)}
-                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors"
+                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors relative"
                 >
+                  <div className="absolute top-2 right-2 z-10">{cardMenu}</div>
                   <div className="w-10 h-10 rounded-[8px] bg-[#2b7fff]/10 flex items-center justify-center flex-shrink-0">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                       <path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#2b7fff" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
@@ -608,7 +705,7 @@ export default function IntegrationsMonitoringTab({
                     </svg>
                   </div>
                   <div className="min-w-0 pt-0.5 flex-1">
-                    <span className="text-[var(--text-primary)] text-sm font-medium block">{jsp.integrationName}</span>
+                    <span className="text-[var(--text-primary)] text-sm font-medium block pr-8">{jsp.integrationName}</span>
                     <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{desc}</p>
                     <div className="flex items-center gap-2 mt-3">
                       <button
@@ -647,24 +744,34 @@ export default function IntegrationsMonitoringTab({
               const desc = sourceName
                 ? `Connect ${jsp.integrationName} using ${sourceName} to use this integration with Lifesight.`
                 : `Connect ${jsp.integrationName} to use this integration with Lifesight.`;
+              const cardMenu = (
+                <JspCardMenu
+                  integrationType={jsp.type}
+                  onIgnore={() => handleIgnoreJsp(jsp)}
+                  onChangeIntegrationType={() => handleChangeJspIntegrationType(jsp)}
+                />
+              );
               if (cat) {
                 return (
                   <IntegrationCard
                     key={jsp.id}
                     integration={cat}
+                    nameOverride={jsp.integrationName}
                     onConnect={() => handleStartJspWizard(jsp)}
                     descriptionOverride={desc}
                     onDelegate={() => handleDelegateJsp(jsp)}
+                    rightSlot={cardMenu}
                   />
                 );
               }
-              // Unknown source — render a card that opens the data choice modal
+              // Unknown source — render custom fallback card with inline kebab
               return (
                 <div
                   key={jsp.id}
                   onClick={() => handleStartJspWizard(jsp)}
-                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors"
+                  className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-5 py-5 flex items-start gap-3 hover:border-[#027b8e]/40 cursor-pointer transition-colors relative"
                 >
+                  <div className="absolute top-2 right-2 z-10">{cardMenu}</div>
                   <div className="w-10 h-10 rounded-[8px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                       <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
@@ -673,7 +780,7 @@ export default function IntegrationsMonitoringTab({
                     </svg>
                   </div>
                   <div className="min-w-0 pt-0.5 flex-1">
-                    <span className="text-[var(--text-primary)] text-sm font-medium block">{jsp.integrationName}</span>
+                    <span className="text-[var(--text-primary)] text-sm font-medium block pr-8">{jsp.integrationName}</span>
                     <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{desc}</p>
                     <div className="flex items-center gap-2 mt-3">
                       <button
@@ -1311,102 +1418,36 @@ export default function IntegrationsMonitoringTab({
         </div>
       )}
 
-      {/* ── Data Source Choice Modal ──────────────────────────────────────── */}
-      {dataChoiceJsp && (
+      {/* ── Ignore JSP Confirmation Modal ──────────────────────────────────── */}
+      {ignoreConfirmJsp && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDataChoiceJsp(null)} />
-          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] max-w-lg w-full mx-4">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[var(--text-primary)] text-lg font-semibold">
-                  {dataChoiceStep === "choose"
-                    ? `Connect "${dataChoiceJsp.alias || dataChoiceJsp.integrationName}"`
-                    : dataChoiceStep === "pick-file"
-                      ? "Choose a File Source"
-                      : "Choose a Data Warehouse"}
-                </h3>
-                <button
-                  onClick={() => setDataChoiceJsp(null)}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-                </button>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIgnoreConfirmJsp(null)} />
+          <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] max-w-sm w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-[8px] bg-[var(--bg-badge)] flex items-center justify-center flex-shrink-0">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="10" cy="10" r="8" stroke="var(--text-muted)" strokeWidth="1.5" />
+                  <path d="M5 5l10 10" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
               </div>
-
-              {dataChoiceStep === "choose" ? (
-                <>
-                  <p className="text-[var(--text-muted)] text-sm mb-5">
-                    How would you like to bring this data into Lifesight?
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setDataChoiceStep("pick-file")}
-                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] p-5 text-left hover:border-[#027b8e]/50 transition-colors group"
-                    >
-                      <div className="w-10 h-10 rounded-[8px] bg-[#2b7fff]/10 flex items-center justify-center mb-3">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                          <path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#2b7fff" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
-                          <path d="M12 3v4h4" stroke="#2b7fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                        </svg>
-                      </div>
-                      <span className="text-[var(--text-primary)] text-sm font-semibold block mb-1">Files &amp; Spreadsheets</span>
-                      <span className="text-[var(--text-dim)] text-xs leading-relaxed block">Upload CSV, connect Google Sheets, Excel, or cloud storage</span>
-                    </button>
-                    <button
-                      onClick={() => setDataChoiceStep("pick-warehouse")}
-                      className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] p-5 text-left hover:border-[#027b8e]/50 transition-colors group"
-                    >
-                      <div className="w-10 h-10 rounded-[8px] bg-[#027b8e]/10 flex items-center justify-center mb-3">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                          <ellipse cx="10" cy="5" rx="7" ry="2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
-                          <path d="M3 5v10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5V5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
-                          <path d="M3 10c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5" stroke="#027b8e" strokeWidth="1.5" fill="none" />
-                        </svg>
-                      </div>
-                      <span className="text-[var(--text-primary)] text-sm font-semibold block mb-1">Data Warehouses</span>
-                      <span className="text-[var(--text-dim)] text-xs leading-relaxed block">Connect BigQuery, Snowflake, Redshift, or Databricks</span>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-[var(--text-muted)] text-sm mb-4">
-                    Select a source to connect <strong className="text-[var(--text-primary)]">{dataChoiceJsp.integrationName}</strong>
-                  </p>
-                  {/* Show Back only if we came from the choose step (type wasn't pre-determined) */}
-                  {dataChoiceJsp.type !== "file" && dataChoiceJsp.type !== "warehouse" && (
-                    <button
-                      onClick={() => setDataChoiceStep("choose")}
-                      className="text-[var(--text-muted)] text-xs hover:text-[#027b8e] mb-4 flex items-center gap-1 transition-colors"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M7.5 2.5L4 6l3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      Back
-                    </button>
-                  )}
-                  <div className="grid grid-cols-2 gap-3">
-                    {catalogIntegrations
-                      .filter((c) =>
-                        dataChoiceStep === "pick-file"
-                          ? FILE_INTEGRATION_NAMES.has(c.name)
-                          : WAREHOUSE_INTEGRATION_NAMES.has(c.name)
-                      )
-                      .map((source) => (
-                        <button
-                          key={source.name}
-                          onClick={() => handleDataChoicePick(source.name)}
-                          className="bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[8px] px-5 py-4 flex items-start gap-3 hover:border-[#027b8e]/50 transition-colors text-left"
-                        >
-                          <IntegrationIcon integration={source} />
-                          <div className="min-w-0 pt-0.5 flex-1">
-                            <span className="text-[var(--text-primary)] text-sm font-medium block">{source.name}</span>
-                            <p className="text-[var(--text-dim)] text-xs mt-1 leading-relaxed">{source.description}</p>
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                </>
-              )}
+              <h3 className="text-[var(--text-primary)] text-base font-semibold">Ignore &ldquo;{ignoreConfirmJsp.integrationName}&rdquo;?</h3>
+            </div>
+            <p className="text-[var(--text-muted)] text-sm mb-5 leading-relaxed">
+              This integration won&apos;t be shown in your setup section anymore. You can still add it later from the Add Integration page.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setIgnoreConfirmJsp(null)}
+                className="px-4 h-[28px] rounded-[6px] border border-[var(--border-secondary)] text-[12px] text-[var(--text-secondary)] hover:bg-[var(--hover-item)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmIgnoreJsp}
+                className="px-4 h-[28px] rounded-[6px] bg-[var(--bg-badge)] border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--hover-item)] text-[12px] font-medium transition-colors"
+              >
+                Ignore
+              </button>
             </div>
           </div>
         </div>

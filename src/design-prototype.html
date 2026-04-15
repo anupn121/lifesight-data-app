@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data OS — UX Redesign Concepts</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #0f0f10;
+  --bg-card: #0f0f10;
+  --bg-card-inner: #161618;
+  --bg-tertiary: #161618;
+  --bg-badge: #1f1f21;
+  --text-primary: #ffffff;
+  --text-secondary: #d1d5dc;
+  --text-muted: #9ca3af;
+  --text-label: #667085;
+  --text-dim: #71717a;
+  --border-primary: #1f1f21;
+  --border-secondary: #333333;
+  --border-subtle: rgba(255,255,255,0.05);
+  --hover-bg: rgba(255,255,255,0.01);
+  --hover-item: rgba(255,255,255,0.05);
+  --active-item: rgba(255,255,255,0.1);
+  --purple: #6941c6;
+  --purple-light: #a78bfa;
+  --purple-glow: rgba(105,65,198,0.15);
+  --green: #00bc7d;
+  --green-glow: rgba(0,188,125,0.12);
+  --red: #ff2056;
+  --red-glow: rgba(255,32,86,0.1);
+  --orange: #fe9a00;
+  --orange-glow: rgba(254,154,0,0.1);
+  --blue: #2b7fff;
+  --blue-glow: rgba(43,127,255,0.1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ATMOSPHERIC BACKGROUND
+   ═══════════════════════════════════════════════════════════════ */
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 50%, rgba(105,65,198,0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 80% 30%, rgba(43,127,255,0.02) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 50% at 50% 100%, rgba(0,188,125,0.015) 0%, transparent 60%);
+}
+
+/* Noise texture overlay */
+.noise {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT SHELL
+   ═══════════════════════════════════════════════════════════════ */
+.shell { display: flex; height: 100vh; position: relative; z-index: 2; }
+
+/* Mini sidebar (icon rail) */
+.icon-rail {
+  width: 57px;
+  background: var(--bg-secondary);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 24px;
+  flex-shrink: 0;
+}
+.icon-rail .logo {
+  width: 28px; height: 28px;
+  background: linear-gradient(180deg, #6932ef 0%, #1f0758 100%);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 36px;
+}
+.icon-rail .logo svg { width: 12px; height: 12px; }
+.icon-rail .nav-icon {
+  width: 41px; height: 36px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.icon-rail .nav-icon:hover { background: var(--hover-item); color: var(--text-muted); }
+.icon-rail .nav-icon.active { background: var(--active-item); color: var(--text-muted); }
+
+/* Main content area */
+.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Top Nav */
+.top-nav {
+  height: 51px;
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+.top-nav .workspace { display: flex; align-items: center; gap: 8px; }
+.top-nav .workspace-icon {
+  width: 20px; height: 20px; background: var(--blue); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.top-nav .workspace-icon span { width: 10px; height: 10px; background: white; border-radius: 1px; }
+.top-nav .workspace-name { color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+
+.top-nav .actions { display: flex; align-items: center; gap: 10px; }
+.top-nav .btn-mia {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
+  padding: 5px 14px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.top-nav .btn-mia:hover { border-color: var(--purple); background: var(--purple-glow); }
+.top-nav .btn-mia .mia-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid var(--purple);
+  display: flex; align-items: center; justify-content: center;
+}
+.top-nav .btn-mia .mia-dot::after {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--purple);
+}
+
+/* Concept Nav (replaces tab bar) */
+.concept-nav {
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 0;
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+.concept-tab {
+  padding: 10px 16px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-label);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.25s;
+  white-space: nowrap;
+  position: relative;
+}
+.concept-tab:hover { color: var(--text-muted); }
+.concept-tab.active {
+  color: var(--purple);
+  border-bottom-color: var(--purple);
+}
+.concept-tab .tab-num {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--bg-badge);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+  letter-spacing: 0.5px;
+}
+.concept-tab.active .tab-num { background: var(--purple-glow); color: var(--purple-light); }
+
+/* Content panels */
+.content-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.concept-panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+  overflow-y: auto;
+}
+.concept-panel.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(105,65,198,0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(105,65,198,0); }
+  100% { box-shadow: 0 0 0 0 rgba(105,65,198,0); }
+}
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(0,188,125,0.35); }
+  70% { box-shadow: 0 0 0 6px rgba(0,188,125,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,188,125,0); }
+}
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(255,32,86,0.3); }
+  70% { box-shadow: 0 0 0 8px rgba(255,32,86,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,32,86,0); }
+}
+@keyframes pulse-purple-sync {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes bar-grow {
+  from { width: 0; }
+}
+@keyframes health-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes spark {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+@keyframes glow-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,32,86,0), inset 0 0 0 0 rgba(255,32,86,0); }
+  50% { box-shadow: 0 0 20px rgba(255,32,86,0.08), inset 0 0 12px rgba(255,32,86,0.03); }
+}
+@keyframes glow-purple {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(105,65,198,0), inset 0 0 0 0 rgba(105,65,198,0); }
+  50% { box-shadow: 0 0 24px rgba(105,65,198,0.1), inset 0 0 12px rgba(105,65,198,0.04); }
+}
+@keyframes dash {
+  to { stroke-dashoffset: -20; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONCEPT 1 — PIPELINE NAVIGATION (Horizontal)
+   ═══════════════════════════════════════════════════════════════ */
+#concept-1 { display: flex; flex-direction: column; height: 100%; }
+
+/* Horizontal pipeline stepper — replaces the tab bar */
+.pipeline-stepper {
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  padding: 0 24px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.pipeline-stepper::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0; height: 40px;
+  background: linear-gradient(180deg, transparent, rgba(105,65,198,0.015));
+  pointer-events: none;
+}
+
+.pipeline-steps {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  position: relative;
+  padding: 16px 0 0;
+}
+
+.pipeline-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  padding: 0 8px 14px;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+  min-width: 0;
+}
+.pipeline-step:hover .step-label { color: var(--text-secondary); }
+.pipeline-step.active { border-bottom-color: var(--purple); }
+.pipeline-step.completed { border-bottom-color: var(--green); }
+
+/* Horizontal connecting line */
+.pipeline-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: calc(50% + 16px);
+  right: -50%;
+  width: calc(100% - 32px);
+  height: 2px;
+  background: var(--border-primary);
+  z-index: 0;
+}
+.pipeline-step.completed:not(:last-child)::after {
+  background: linear-gradient(90deg, var(--green), var(--border-primary));
+}
+.pipeline-step.active:not(:last-child)::after {
+  background: linear-gradient(90deg, var(--purple) 30%, var(--border-primary) 100%);
+}
+
+/* Node row (dot + connecting line) */
+.step-node-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-node {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s;
+}
+.step-node.completed {
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(0,188,125,0.15);
+}
+.step-node.active {
+  background: var(--purple);
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.step-node.pending {
+  background: var(--bg-badge);
+  border: 2px solid var(--border-secondary);
+}
+.step-node.locked {
+  background: var(--bg-badge);
+  border: 2px solid var(--border-primary);
+  opacity: 0.5;
+}
+
+.step-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+.step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.pipeline-step.completed .step-label { color: var(--text-secondary); }
+.pipeline-step.active .step-label { color: var(--text-primary); }
+.pipeline-step.locked .step-label { color: var(--text-dim); opacity: 0.5; }
+
+.step-progress-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pipeline-step.active .step-progress-text { color: var(--purple-light); }
+
+.step-bar {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-badge);
+  overflow: hidden;
+  width: 80px;
+}
+.step-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s ease;
+}
+.pipeline-step.completed .step-bar-fill { background: var(--green); }
+.pipeline-step.active .step-bar-fill { background: var(--purple); }
+
+/* Pipeline main content */
+.pipeline-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.pipeline-content-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.pipeline-content-header .active-badge {
+  background: var(--purple-glow);
+  color: var(--purple-light);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 100px;
+  border: 1px solid rgba(105,65,198,0.2);
+}
+.pipeline-content-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.pipeline-content-header .progress-ring {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+}
+.pipeline-content-header .progress-ring strong {
+  color: var(--purple-light);
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.pipeline-table {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.pipeline-table .table-header {
+  display: grid;
+  grid-template-columns: 32px 1fr 120px 120px 100px 80px;
+  border-bottom: 1px solid var(--border-primary);
+  padding: 0;
+}
+.pipeline-table .th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pipeline-table .table-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 120px 120px 100px 80px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.15s;
+  cursor: pointer;
+  animation: float-in 0.4s ease both;
+}
+.pipeline-table .table-row:hover { background: var(--hover-item); }
+.pipeline-table .td {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pipeline-table .td.name { font-weight: 500; color: var(--text-primary); }
+.pipeline-table .source-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.pipeline-table .badge {
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.pipeline-table .badge.mapped { background: var(--green-glow); color: var(--green); }
+.pipeline-table .badge.unmapped { background: var(--bg-badge); color: var(--text-dim); }
+.pipeline-table .badge .dot {
+  width: 5px; height: 5px; border-radius: 50%;
+}
+.pipeline-table .badge.mapped .dot { background: var(--green); }
+.pipeline-table .badge.unmapped .dot { background: var(--text-dim); }
+.type-badge {
+  font-size: 10px; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 6px; border-radius: 3px;
+  background: rgba(105,65,198,0.1); color: var(--purple-light);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONCEPT 4 — SMART FACETED TABLE
+   ═══════════════════════════════════════════════════════════════ */
+#concept-4 { padding: 24px; overflow-y: auto; height: 100%; }
+
+.faceted-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.facet-dropdown {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.facet-dropdown:hover { border-color: var(--border-secondary); background: var(--bg-card-inner); }
+.facet-dropdown .facet-label { color: var(--text-dim); font-size: 11px; }
+.facet-dropdown .facet-value { color: var(--text-primary); font-weight: 600; }
+.facet-dropdown .chevron {
+  color: var(--text-dim);
+  transition: transform 0.2s;
+}
+.facet-dropdown.open .chevron { transform: rotate(180deg); }
+
+/* Dropdown menu */
+.facet-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 180px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  display: none;
+}
+.facet-dropdown.open .facet-menu { display: block; }
+.facet-option {
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.facet-option:hover { background: var(--hover-item); color: var(--text-primary); }
+.facet-option.selected { background: var(--purple-glow); color: var(--purple-light); }
+.facet-option .check { opacity: 0; color: var(--purple); font-size: 11px; }
+.facet-option.selected .check { opacity: 1; }
+
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.filter-pill {
+  background: var(--bg-badge);
+  border: 1px solid var(--border-primary);
+  border-radius: 100px;
+  padding: 4px 10px 4px 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+  transition: all 0.2s;
+  animation: slide-right 0.25s ease both;
+}
+.filter-pill:hover { border-color: var(--border-secondary); }
+.filter-pill .pill-key {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.filter-pill .pill-value { font-weight: 600; }
+.filter-pill .pill-remove {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 10px;
+}
+.filter-pill .pill-remove:hover { background: var(--hover-item); color: var(--red); }
+
+.add-filter-btn {
+  background: none;
+  border: 1px dashed var(--border-secondary);
+  border-radius: 100px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.add-filter-btn:hover { border-color: var(--purple); color: var(--purple-light); }
+
+.faceted-count {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Faceted table */
+.faceted-table {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.faceted-table .ft-header {
+  display: grid;
+  grid-template-columns: 32px 1.5fr 120px 120px 140px 100px 80px 60px;
+  border-bottom: 1px solid var(--border-primary);
+}
+.faceted-table .ft-th {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-label);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.faceted-table .ft-th:hover { color: var(--text-muted); }
+.faceted-table .ft-th .sort-arrow { font-size: 8px; opacity: 0; transition: opacity 0.2s; }
+.faceted-table .ft-th:hover .sort-arrow { opacity: 1; }
+
+.group-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+  background: var(--bg-card-inner);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.group-header:hover { background: var(--hover-item); }
+.group-chevron {
+  color: var(--text-dim);
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+.group-header.collapsed .group-chevron { transform: rotate(-90deg); }
+.group-color {
+  width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+}
+.group-label {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+.group-count {
+  font-size: 11px; color: var(--text-dim);
+  background: var(--bg-badge);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.group-mapped-bar {
+  width: 60px; height: 4px; border-radius: 2px;
+  background: var(--bg-badge); overflow: hidden;
+  margin-left: auto;
+}
+.group-mapped-fill {
+  height: 100%; border-radius: 2px;
+  animation: bar-grow 0.6s ease both;
+}
+
+.ft-row {
+  display: grid;
+  grid-template-columns: 32px 1.5fr 120px 120px 140px 100px 80px 60px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.12s;
+  cursor: pointer;
+  animation: float-in 0.3s ease both;
+}
+.ft-row:hover { background: var(--hover-item); }
+.ft-row .ft-td {
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ft-row .ft-td.metric-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.ft-row .ft-td .source-icon {
+  width: 20px; height: 20px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.ft-row .ft-td .col-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--purple-light);
+  background: rgba(105,65,198,0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-row .edit-btn {
+  opacity: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ft-row:hover .edit-btn { opacity: 1; }
+.ft-row .edit-btn:hover { color: var(--text-primary); }
+
+/* Unmapped attention banner */
+.unmapped-banner {
+  background: linear-gradient(135deg, rgba(254,154,0,0.06) 0%, rgba(255,32,86,0.04) 100%);
+  border: 1px solid rgba(254,154,0,0.18);
+  border-radius: 10px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  animation: float-in 0.4s ease both;
+}
+.unmapped-banner .ub-icon {
+  width: 36px; height: 36px;
+  background: rgba(254,154,0,0.12);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.unmapped-banner .ub-text { flex: 1; }
+.unmapped-banner .ub-title {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.unmapped-banner .ub-subtitle {
+  font-size: 12px; color: var(--text-muted); line-height: 1.4;
+}
+.unmapped-banner .ub-count {
+  color: var(--orange); font-weight: 700;
+}
+.unmapped-banner .ub-action {
+  background: var(--orange);
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.unmapped-banner .ub-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* Status group special styling */
+.group-header.unmapped-group {
+  background: linear-gradient(90deg, rgba(254,154,0,0.04), transparent);
+}
+.group-header.unmapped-group .group-label { color: var(--orange); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CONCEPT 5 — DEPENDENCY GRAPH
+   ═══════════════════════════════════════════════════════════════ */
+#concept-5 { padding: 24px; overflow-y: auto; height: 100%; }
+
+.dep-health-banner {
+  background: linear-gradient(135deg, rgba(255,32,86,0.06) 0%, rgba(254,154,0,0.04) 50%, rgba(0,188,125,0.04) 100%);
+  border: 1px solid rgba(255,32,86,0.15);
+  border-radius: 10px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  animation: float-in 0.5s ease both;
+}
+.dep-health-banner .alert-icon {
+  width: 32px; height: 32px;
+  background: rgba(255,32,86,0.1);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--red);
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.dep-health-banner .alert-text {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+}
+.dep-health-banner .alert-text strong { color: var(--red); font-weight: 600; }
+.dep-health-banner .alert-text .model-name { color: var(--purple-light); font-weight: 600; }
+
+.dep-graph-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 32px;
+  position: relative;
+  min-height: 480px;
+}
+
+.dep-columns {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+}
+
+.dep-column {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 2;
+}
+.dep-column-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.dep-column-label .col-count {
+  background: var(--bg-badge);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.dep-node {
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  animation: float-in 0.4s ease both;
+}
+.dep-node:hover {
+  border-color: var(--border-secondary);
+  background: var(--bg-badge);
+  transform: translateY(-1px);
+}
+.dep-node.highlighted {
+  border-color: var(--purple);
+  background: var(--purple-glow);
+  box-shadow: 0 0 20px rgba(105,65,198,0.1);
+}
+.dep-node.error {
+  border-color: rgba(255,32,86,0.3);
+  animation: glow-red 3s ease infinite;
+}
+
+.dep-node-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: white;
+  flex-shrink: 0;
+}
+.dep-node-info { flex: 1; min-width: 0; }
+.dep-node-name {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.dep-node-meta {
+  font-size: 11px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+}
+.dep-node-status {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.dep-node-status.healthy { background: var(--green); animation: pulse-green 2.5s infinite; }
+.dep-node-status.error { background: var(--red); animation: pulse-red 2s infinite; }
+.dep-node-status.warning { background: var(--orange); }
+.dep-node-status.syncing { background: var(--purple); animation: pulse-purple-sync 1.5s ease infinite; }
+
+/* SVG connections */
+.dep-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.dep-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.25;
+  transition: all 0.3s;
+}
+.dep-line.healthy { stroke: var(--green); }
+.dep-line.error { stroke: var(--red); stroke-dasharray: 6 4; animation: dash 1s linear infinite; }
+.dep-line.warning { stroke: var(--orange); }
+.dep-line.highlighted { opacity: 0.7; stroke-width: 2; }
+
+/* ═══════════════════════════════════════════════════════════════
+   CONCEPT 7 — REAL-TIME STATUS PULSE
+   ═══════════════════════════════════════════════════════════════ */
+#concept-7 { padding: 24px; overflow-y: auto; height: 100%; }
+
+.health-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  animation: float-in 0.4s ease both;
+}
+.health-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--green-glow), var(--purple-glow), var(--green-glow));
+  background-size: 200% 100%;
+  animation: health-gradient 6s ease infinite;
+  opacity: 0.3;
+}
+.health-bar > * { position: relative; z-index: 1; }
+.health-score {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--green);
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.health-score span { font-size: 14px; font-weight: 600; }
+.health-info { flex: 1; }
+.health-title {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.health-subtitle {
+  font-size: 12px; color: var(--text-muted);
+}
+.health-subtitle .issue-count { color: var(--orange); font-weight: 600; }
+.health-meter {
+  width: 200px; height: 6px; border-radius: 3px;
+  background: var(--bg-badge); overflow: hidden;
+}
+.health-meter-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--green), #00d48a);
+  animation: bar-grow 1.2s ease both;
+}
+
+.needs-attention-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+  animation: float-in 0.5s ease both;
+}
+.needs-attention-label .blink {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--red);
+  animation: pulse-red 2s infinite;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 18px;
+  transition: all 0.3s;
+  cursor: pointer;
+  animation: float-in 0.4s ease both;
+  position: relative;
+  overflow: hidden;
+}
+.status-card:hover {
+  border-color: var(--border-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.status-card.error-card {
+  border-color: rgba(255,32,86,0.2);
+  animation: float-in 0.4s ease both, glow-red 3s ease infinite;
+}
+.status-card.syncing-card {
+  animation: float-in 0.4s ease both, glow-purple 3s ease infinite;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.card-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: white;
+  flex-shrink: 0;
+  position: relative;
+}
+.card-icon .sync-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 13px;
+  border: 2px solid transparent;
+  border-top-color: var(--purple);
+  animation: spin 1.2s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.card-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.card-status-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.card-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.card-status-dot.connected { background: var(--green); animation: pulse-green 2.5s infinite; }
+.card-status-dot.error { background: var(--red); animation: pulse-red 2s infinite; }
+.card-status-dot.syncing { background: var(--purple); animation: pulse-purple-sync 1.5s ease infinite; }
+.card-status-dot.warning { background: var(--orange); }
+.card-status-text { font-size: 11px; color: var(--text-dim); }
+.card-status-text.error { color: var(--red); }
+.card-status-text.syncing { color: var(--purple-light); }
+
+.card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.card-stat-label { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+.card-stat-value {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 7-day sparkline */
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+}
+.spark-bar {
+  flex: 1;
+  border-radius: 1.5px 1.5px 0 0;
+  min-height: 3px;
+  transition: all 0.3s;
+}
+.spark-bar.green { background: var(--green); }
+.spark-bar.yellow { background: var(--orange); }
+.spark-bar.red { background: var(--red); }
+.status-card:hover .spark-bar { opacity: 0.8; }
+
+/* Freshness ring */
+.freshness-ring {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-left: auto;
+  position: relative;
+}
+.freshness-ring svg { transform: rotate(-90deg); }
+.freshness-ring .fr-text {
+  position: absolute;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.card-footer .last-sync {
+  font-size: 11px; color: var(--text-dim);
+}
+.card-footer .row-count {
+  font-size: 11px; color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.connected-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+  animation: float-in 0.6s ease both;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<div class="atmosphere"></div>
+<div class="noise"></div>
+
+<div class="shell">
+  <!-- Icon Rail (sidebar) -->
+  <div class="icon-rail">
+    <div class="logo">
+      <svg viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="0.5" fill="white"/><rect x="7" y="1" width="4" height="4" rx="0.5" fill="white" fill-opacity="0.5"/><rect x="1" y="7" width="4" height="4" rx="0.5" fill="white" fill-opacity="0.5"/></svg>
+    </div>
+    <div class="nav-icon active"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6L8 1.33L14 6V13.33A1.33 1.33 0 0112.67 14.67H3.33A1.33 1.33 0 012 13.33V6Z" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 14.67V8H10V14.67" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2V6.27L2.4 12.07C2.04 12.64 2.44 13.33 3.12 13.33H12.88C13.56 13.33 13.96 12.64 13.6 12.07L10 6.27V2" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.33 2H10.67" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 13.33H2V2.67" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.67 4L8 8.67L5.33 6L2 9.33" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.33"/><path d="M8 5.33V8L10 10" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+
+  <div class="main-area">
+    <!-- Top Nav -->
+    <div class="top-nav">
+      <div class="workspace">
+        <div class="workspace-icon"><span></span></div>
+        <span class="workspace-name">Nexa</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#667085" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="actions">
+        <button class="btn-mia"><div class="mia-dot"></div> Ask Mia</button>
+      </div>
+    </div>
+
+    <!-- Concept Nav -->
+    <div class="concept-nav">
+      <div class="concept-tab active" data-concept="1"><span class="tab-num">01</span>Pipeline Nav</div>
+      <div class="concept-tab" data-concept="4"><span class="tab-num">04</span>Smart Table</div>
+      <div class="concept-tab" data-concept="5"><span class="tab-num">05</span>Dependency Graph</div>
+      <div class="concept-tab" data-concept="7"><span class="tab-num">07</span>Live Pulse</div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+
+      <!-- ═══ CONCEPT 1: PIPELINE NAVIGATION ═══ -->
+      <div class="concept-panel active" id="concept-1">
+        <!-- Horizontal Pipeline Stepper -->
+        <div class="pipeline-stepper">
+          <div class="pipeline-steps">
+            <div class="pipeline-step completed" data-step="sources">
+              <div class="step-node-row">
+                <div class="step-node completed">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+              </div>
+              <div class="step-info">
+                <div class="step-label">Sources</div>
+                <div class="step-progress-text">3 / 5 connected</div>
+                <div class="step-bar"><div class="step-bar-fill" style="width:60%"></div></div>
+              </div>
+            </div>
+            <div class="pipeline-step active" data-step="metrics">
+              <div class="step-node-row">
+                <div class="step-node active">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1.5" y="1.5" width="7" height="7" rx="1" stroke="white" stroke-width="1.2"/></svg>
+                </div>
+              </div>
+              <div class="step-info">
+                <div class="step-label">Metrics</div>
+                <div class="step-progress-text">47 / 82 mapped</div>
+                <div class="step-bar"><div class="step-bar-fill" style="width:57%"></div></div>
+              </div>
+            </div>
+            <div class="pipeline-step pending" data-step="tactics">
+              <div class="step-node-row">
+                <div class="step-node pending"></div>
+              </div>
+              <div class="step-info">
+                <div class="step-label">Tactics</div>
+                <div class="step-progress-text">0 mapped</div>
+                <div class="step-bar"><div class="step-bar-fill" style="width:0%"></div></div>
+              </div>
+            </div>
+            <div class="pipeline-step locked" data-step="models">
+              <div class="step-node-row">
+                <div class="step-node locked">
+                  <svg width="8" height="10" viewBox="0 0 8 10" fill="none"><rect x="0.5" y="4" width="7" height="5.5" rx="1" stroke="#71717a" stroke-width="1"/><path d="M2 4V2.5a2 2 0 014 0V4" stroke="#71717a" stroke-width="1" stroke-linecap="round"/></svg>
+                </div>
+              </div>
+              <div class="step-info">
+                <div class="step-label">Models</div>
+                <div class="step-progress-text">Requires Tactics</div>
+              </div>
+            </div>
+            <div class="pipeline-step locked" data-step="analysis">
+              <div class="step-node-row">
+                <div class="step-node locked">
+                  <svg width="8" height="10" viewBox="0 0 8 10" fill="none"><rect x="0.5" y="4" width="7" height="5.5" rx="1" stroke="#71717a" stroke-width="1"/><path d="M2 4V2.5a2 2 0 014 0V4" stroke="#71717a" stroke-width="1" stroke-linecap="round"/></svg>
+                </div>
+              </div>
+              <div class="step-info">
+                <div class="step-label">Analysis</div>
+                <div class="step-progress-text">Requires Models</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pipeline-content">
+          <div class="pipeline-content-header">
+            <span class="active-badge">Active Step</span>
+            <h2>Metrics Mapping</h2>
+            <div class="progress-ring">
+              <strong>57%</strong> complete
+            </div>
+          </div>
+          <div class="pipeline-table">
+            <div class="table-header">
+              <div class="th"></div>
+              <div class="th">Metric</div>
+              <div class="th">Source</div>
+              <div class="th">Category</div>
+              <div class="th">Status</div>
+              <div class="th">Type</div>
+            </div>
+            <div class="table-row" style="animation-delay:0.05s"><div class="td"></div><div class="td name">Spend</div><div class="td"><span class="source-dot" style="background:#1877F2"></span>Facebook Ads</div><div class="td"><span style="color:var(--blue);font-weight:500;font-size:11px">Paid Marketing</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">CURRENCY</span></div></div>
+            <div class="table-row" style="animation-delay:0.08s"><div class="td"></div><div class="td name">Spend</div><div class="td"><span class="source-dot" style="background:#4285F4"></span>Google Ads</div><div class="td"><span style="color:var(--blue);font-weight:500;font-size:11px">Paid Marketing</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">CURRENCY</span></div></div>
+            <div class="table-row" style="animation-delay:0.11s"><div class="td"></div><div class="td name">Impressions</div><div class="td"><span class="source-dot" style="background:#1877F2"></span>Facebook Ads</div><div class="td"><span style="color:var(--blue);font-weight:500;font-size:11px">Paid Marketing</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">INT64</span></div></div>
+            <div class="table-row" style="animation-delay:0.14s"><div class="td"></div><div class="td name">Revenue</div><div class="td"><span class="source-dot" style="background:#96BF48"></span>Shopify</div><div class="td"><span style="color:var(--green);font-weight:500;font-size:11px">KPIs</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">CURRENCY</span></div></div>
+            <div class="table-row" style="animation-delay:0.17s"><div class="td"></div><div class="td name">Clicks</div><div class="td"><span class="source-dot" style="background:#000"></span>TikTok Ads</div><div class="td"><span style="color:var(--blue);font-weight:500;font-size:11px">Paid Marketing</span></div><div class="td"><span class="badge unmapped"><span class="dot"></span>Unmapped</span></div><div class="td"><span class="type-badge">INT64</span></div></div>
+            <div class="table-row" style="animation-delay:0.20s"><div class="td"></div><div class="td name">Conversions</div><div class="td"><span class="source-dot" style="background:#4285F4"></span>Google Ads</div><div class="td"><span style="color:var(--green);font-weight:500;font-size:11px">KPIs</span></div><div class="td"><span class="badge unmapped"><span class="dot"></span>Unmapped</span></div><div class="td"><span class="type-badge">FLOAT64</span></div></div>
+            <div class="table-row" style="animation-delay:0.23s"><div class="td"></div><div class="td name">CPC</div><div class="td"><span class="source-dot" style="background:#1877F2"></span>Facebook Ads</div><div class="td"><span style="color:var(--blue);font-weight:500;font-size:11px">Paid Marketing</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">CURRENCY</span></div></div>
+            <div class="table-row" style="animation-delay:0.26s"><div class="td"></div><div class="td name">ROAS</div><div class="td"><span class="source-dot" style="background:#4285F4"></span>Google Ads</div><div class="td"><span style="color:var(--green);font-weight:500;font-size:11px">KPIs</span></div><div class="td"><span class="badge mapped"><span class="dot"></span>Mapped</span></div><div class="td"><span class="type-badge">FLOAT64</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CONCEPT 4: SMART FACETED TABLE ═══ -->
+      <div class="concept-panel" id="concept-4">
+        <!-- Unmapped attention banner -->
+        <div class="unmapped-banner">
+          <div class="ub-icon">⚡</div>
+          <div class="ub-text">
+            <div class="ub-title"><span class="ub-count">6 unmapped metrics</span> need your attention</div>
+            <div class="ub-subtitle">These fields were auto-detected from your sources but haven't been mapped yet. Mapping them unlocks model readiness.</div>
+          </div>
+          <button class="ub-action" onclick="setGroupBy('Status')">Show Unmapped First</button>
+        </div>
+
+        <div class="faceted-toolbar">
+          <div class="facet-dropdown" id="groupby-dropdown" onclick="toggleDropdown('groupby-dropdown')">
+            <span class="facet-label">Group by</span>
+            <span class="facet-value" id="groupby-value">Category</span>
+            <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 3.75L5 6.25L7.5 3.75" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <div class="facet-menu">
+              <div class="facet-option selected" data-group="Category"><span class="check">✓</span>Category</div>
+              <div class="facet-option" data-group="Source"><span class="check">✓</span>Source</div>
+              <div class="facet-option" data-group="Metric Name"><span class="check">✓</span>Metric Name</div>
+              <div class="facet-option" data-group="Status"><span class="check">✓</span>Status</div>
+              <div class="facet-option" data-group="Data Type"><span class="check">✓</span>Data Type</div>
+            </div>
+          </div>
+          <div class="facet-dropdown" id="sortby-dropdown" onclick="toggleDropdown('sortby-dropdown')">
+            <span class="facet-label">Sort by</span>
+            <span class="facet-value" id="sortby-value">Name A-Z</span>
+            <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 3.75L5 6.25L7.5 3.75" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <div class="facet-menu">
+              <div class="facet-option selected" onclick="setSortBy('Name A-Z')"><span class="check">✓</span>Name A-Z</div>
+              <div class="facet-option" onclick="setSortBy('Mapped %')"><span class="check">✓</span>Mapped %</div>
+              <div class="facet-option" onclick="setSortBy('Source count')"><span class="check">✓</span>Source count</div>
+              <div class="facet-option" onclick="setSortBy('Recently modified')"><span class="check">✓</span>Recently modified</div>
+            </div>
+          </div>
+          <div class="filter-pills" id="filter-pills">
+            <button class="add-filter-btn">+ Add filter</button>
+          </div>
+          <span class="faceted-count" id="faceted-count">15 metrics · 9 mapped · 6 unmapped</span>
+        </div>
+
+        <div class="faceted-table">
+          <div class="ft-header">
+            <div class="ft-th"></div>
+            <div class="ft-th">Metric <span class="sort-arrow">↕</span></div>
+            <div class="ft-th">Source <span class="sort-arrow">↕</span></div>
+            <div class="ft-th">Stream <span class="sort-arrow">↕</span></div>
+            <div class="ft-th">Source Column <span class="sort-arrow">↕</span></div>
+            <div class="ft-th">Status <span class="sort-arrow">↕</span></div>
+            <div class="ft-th">Type <span class="sort-arrow">↕</span></div>
+            <div class="ft-th"></div>
+          </div>
+          <div id="ft-body"></div>
+        </div>
+      </div>
+
+      <!-- ═══ CONCEPT 5: DEPENDENCY GRAPH ═══ -->
+      <div class="concept-panel" id="concept-5">
+        <div class="dep-health-banner">
+          <div class="alert-icon">⚠</div>
+          <div class="alert-text">
+            <strong>2 models at risk</strong> — Google Ads sync error propagates to <span class="model-name">Revenue MMM</span> and <span class="model-name">Attribution Model</span>. Last successful sync: 4h ago.
+          </div>
+        </div>
+
+        <div class="dep-graph-container" id="dep-graph">
+          <svg class="dep-svg" id="dep-svg"></svg>
+          <div class="dep-columns">
+            <!-- Sources Column -->
+            <div class="dep-column" id="col-sources">
+              <div class="dep-column-label">Sources <span class="col-count">4</span></div>
+              <div class="dep-node" data-id="src-fb" style="animation-delay:0.1s" onmouseenter="highlightChain('src-fb')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:#1877F2">Fb</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Facebook Ads</div>
+                  <div class="dep-node-meta"><span class="dep-node-status healthy"></span>Connected · 3m ago</div>
+                </div>
+              </div>
+              <div class="dep-node error" data-id="src-google" style="animation-delay:0.15s" onmouseenter="highlightChain('src-google')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:#4285F4">G</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Google Ads</div>
+                  <div class="dep-node-meta"><span class="dep-node-status error"></span><span style="color:var(--red)">Sync Error · 4h ago</span></div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="src-tiktok" style="animation-delay:0.2s" onmouseenter="highlightChain('src-tiktok')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:#000;border:1px solid #333">T</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">TikTok Ads</div>
+                  <div class="dep-node-meta"><span class="dep-node-status syncing"></span><span style="color:var(--purple-light)">Syncing…</span></div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="src-shopify" style="animation-delay:0.25s" onmouseenter="highlightChain('src-shopify')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:#96BF48">S</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Shopify</div>
+                  <div class="dep-node-meta"><span class="dep-node-status healthy"></span>Connected · 12m ago</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metrics Column -->
+            <div class="dep-column" id="col-metrics">
+              <div class="dep-column-label">Metrics <span class="col-count">5</span></div>
+              <div class="dep-node" data-id="met-spend" style="animation-delay:0.2s" onmouseenter="highlightChain('met-spend')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--blue)">$</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Spend</div>
+                  <div class="dep-node-meta">3 sources · Paid Marketing</div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="met-revenue" style="animation-delay:0.25s" onmouseenter="highlightChain('met-revenue')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--green)">R</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Revenue</div>
+                  <div class="dep-node-meta">1 source · KPI</div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="met-impressions" style="animation-delay:0.3s" onmouseenter="highlightChain('met-impressions')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--blue)">I</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Impressions</div>
+                  <div class="dep-node-meta">2 sources · Paid Marketing</div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="met-cpc" style="animation-delay:0.35s" onmouseenter="highlightChain('met-cpc')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--purple)">C</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">CPC</div>
+                  <div class="dep-node-meta">2 sources · Paid Marketing</div>
+                </div>
+              </div>
+              <div class="dep-node" data-id="met-roas" style="animation-delay:0.4s" onmouseenter="highlightChain('met-roas')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--green)">%</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">ROAS</div>
+                  <div class="dep-node-meta">1 source · KPI</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Models Column -->
+            <div class="dep-column" id="col-models">
+              <div class="dep-column-label">Models <span class="col-count">2</span></div>
+              <div class="dep-node error" data-id="mod-mmm" style="animation-delay:0.35s" onmouseenter="highlightChain('mod-mmm')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--purple)">M</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Revenue MMM</div>
+                  <div class="dep-node-meta"><span class="dep-node-status warning"></span><span style="color:var(--orange)">Stale data · 4h</span></div>
+                </div>
+              </div>
+              <div class="dep-node error" data-id="mod-attr" style="animation-delay:0.4s" onmouseenter="highlightChain('mod-attr')" onmouseleave="clearHighlight()">
+                <div class="dep-node-icon" style="background:var(--orange)">A</div>
+                <div class="dep-node-info">
+                  <div class="dep-node-name">Attribution Model</div>
+                  <div class="dep-node-meta"><span class="dep-node-status warning"></span><span style="color:var(--orange)">Stale data · 4h</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CONCEPT 7: REAL-TIME STATUS PULSE ═══ -->
+      <div class="concept-panel" id="concept-7">
+        <!-- Health Bar -->
+        <div class="health-bar">
+          <div class="health-score">87<span>%</span></div>
+          <div class="health-info">
+            <div class="health-title">System Health</div>
+            <div class="health-subtitle"><span class="issue-count">2 issues</span> need attention · 6 integrations active</div>
+          </div>
+          <div class="health-meter"><div class="health-meter-fill" style="width:87%"></div></div>
+        </div>
+
+        <!-- Needs Attention -->
+        <div class="needs-attention-label">
+          <span class="blink"></span> Needs Attention
+        </div>
+        <div class="status-grid" style="margin-bottom:28px">
+          <!-- Error Card: Google Ads -->
+          <div class="status-card error-card" style="animation-delay:0.1s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#4285F4">G</div>
+              <div>
+                <div class="card-name">Google Ads</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot error"></span>
+                  <span class="card-status-text error">Sync Error — Auth expired</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="60" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--red)">20</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value" style="color:var(--red)">4h ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">892K</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:85%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar yellow" style="height:60%"></div>
+              <div class="spark-bar red" style="height:20%"></div>
+              <div class="spark-bar red" style="height:10%"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Failed at 11:42 AM</span>
+              <span class="row-count" style="color:var(--red)">↓ 0 new rows</span>
+            </div>
+          </div>
+
+          <!-- Warning Card: TikTok -->
+          <div class="status-card syncing-card" style="animation-delay:0.15s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#000;border:1px solid #333">
+                T
+                <div class="sync-ring"></div>
+              </div>
+              <div>
+                <div class="card-name">TikTok Ads</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot syncing"></span>
+                  <span class="card-status-text syncing">Syncing… 68%</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--purple)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="24" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--purple-light)">68</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value">42m ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">340K</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:70%"></div>
+              <div class="spark-bar green" style="height:80%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:85%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar yellow" style="height:68%;animation:spark 1.5s ease infinite"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Syncing since 12:18 PM</span>
+              <span class="row-count" style="color:var(--purple-light)">+12.4K rows</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connected -->
+        <div class="connected-label">
+          Connected — Healthy
+        </div>
+        <div class="status-grid">
+          <!-- Facebook Ads -->
+          <div class="status-card" style="animation-delay:0.2s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#1877F2">Fb</div>
+              <div>
+                <div class="card-name">Facebook Ads</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot connected"></span>
+                  <span class="card-status-text">Connected</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="4" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--green)">95</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value">3m ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">1.2M</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:98%"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Synced 3m ago</span>
+              <span class="row-count">+2.1K rows</span>
+            </div>
+          </div>
+
+          <!-- Shopify -->
+          <div class="status-card" style="animation-delay:0.25s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#96BF48">S</div>
+              <div>
+                <div class="card-name">Shopify</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot connected"></span>
+                  <span class="card-status-text">Connected</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="8" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--green)">90</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value">12m ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">456K</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Synced 12m ago</span>
+              <span class="row-count">+847 rows</span>
+            </div>
+          </div>
+
+          <!-- GA4 -->
+          <div class="status-card" style="animation-delay:0.3s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#E37400">G</div>
+              <div>
+                <div class="card-name">Google Analytics 4</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot connected"></span>
+                  <span class="card-status-text">Connected</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="12" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--green)">84</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value">28m ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">2.8M</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:85%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:92%"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Synced 28m ago</span>
+              <span class="row-count">+5.6K rows</span>
+            </div>
+          </div>
+
+          <!-- Snapchat -->
+          <div class="status-card" style="animation-delay:0.35s">
+            <div class="card-top">
+              <div class="card-icon" style="background:#FFFC00;color:#000">Sc</div>
+              <div>
+                <div class="card-name">Snapchat Ads</div>
+                <div class="card-status-row">
+                  <span class="card-status-dot connected"></span>
+                  <span class="card-status-text">Connected</span>
+                </div>
+              </div>
+              <div class="freshness-ring">
+                <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#1f1f21" stroke-width="2.5"/><circle cx="14" cy="14" r="12" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-dasharray="75.4" stroke-dashoffset="6" stroke-linecap="round"/></svg>
+                <span class="fr-text" style="color:var(--green)">92</span>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div><div class="card-stat-label">Last Sync</div><div class="card-stat-value">8m ago</div></div>
+              <div><div class="card-stat-label">Records</div><div class="card-stat-value">124K</div></div>
+            </div>
+            <div class="sparkline">
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:95%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+              <div class="spark-bar green" style="height:90%"></div>
+              <div class="spark-bar green" style="height:100%"></div>
+            </div>
+            <div class="card-footer">
+              <span class="last-sync">Synced 8m ago</span>
+              <span class="row-count">+1.3K rows</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+  </div><!-- /main-area -->
+</div><!-- /shell -->
+
+<script>
+// ── Concept Tab Switching ──
+document.querySelectorAll('.concept-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.concept-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.concept-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const id = 'concept-' + tab.dataset.concept;
+    document.getElementById(id).classList.add('active');
+
+    // Draw lines when dep graph is shown
+    if (id === 'concept-5') {
+      requestAnimationFrame(() => requestAnimationFrame(drawDepLines));
+    }
+  });
+});
+
+// ── Concept 4: Data-driven Smart Table ──
+const METRICS_DATA = [
+  { name:'Revenue',     source:'Shopify',       sourceColor:'#96BF48', sourceInit:'S', stream:'Orders',         col:'total_revenue', status:'Mapped',   type:'CURRENCY', category:'KPIs',           catColor:'var(--green)' },
+  { name:'Conversions', source:'Google Ads',     sourceColor:'#4285F4', sourceInit:'G', stream:'Campaigns',      col:'conversions',   status:'Mapped',   type:'FLOAT64',  category:'KPIs',           catColor:'var(--green)' },
+  { name:'Orders',      source:'Shopify',        sourceColor:'#96BF48', sourceInit:'S', stream:'Orders',         col:'order_count',   status:'Mapped',   type:'INT64',    category:'KPIs',           catColor:'var(--green)' },
+  { name:'ROAS',        source:'Google Ads',     sourceColor:'#4285F4', sourceInit:'G', stream:'Campaigns',      col:'roas',          status:'Mapped',   type:'FLOAT64',  category:'KPIs',           catColor:'var(--green)' },
+  { name:'Installs',    source:'TikTok Ads',     sourceColor:'#000000', sourceInit:'T', stream:'App Events',     col:'install_count', status:'Unmapped', type:'INT64',    category:'KPIs',           catColor:'var(--green)' },
+  { name:'Spend',       source:'Facebook Ads',   sourceColor:'#1877F2', sourceInit:'F', stream:'Ad Performance', col:'spend',         status:'Mapped',   type:'CURRENCY', category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'Spend',       source:'Google Ads',     sourceColor:'#4285F4', sourceInit:'G', stream:'Campaigns',      col:'cost_micros',   status:'Mapped',   type:'CURRENCY', category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'Impressions', source:'Facebook Ads',   sourceColor:'#1877F2', sourceInit:'F', stream:'Ad Performance', col:'impressions',   status:'Mapped',   type:'INT64',    category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'Clicks',      source:'TikTok Ads',     sourceColor:'#000000', sourceInit:'T', stream:'Campaigns',      col:'clicks',        status:'Unmapped', type:'INT64',    category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'CPC',         source:'Facebook Ads',   sourceColor:'#1877F2', sourceInit:'F', stream:'Ad Performance', col:'cpc',           status:'Mapped',   type:'CURRENCY', category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'CTR',         source:'Google Ads',     sourceColor:'#4285F4', sourceInit:'G', stream:'Campaigns',      col:'ctr',           status:'Unmapped', type:'FLOAT64',  category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'Frequency',   source:'Facebook Ads',   sourceColor:'#1877F2', sourceInit:'F', stream:'Ad Performance', col:'frequency',     status:'Unmapped', type:'FLOAT64',  category:'Paid Marketing', catColor:'var(--blue)' },
+  { name:'Sessions',    source:'GA4',            sourceColor:'#E37400', sourceInit:'G', stream:'Events',         col:'sessions',      status:'Mapped',   type:'INT64',    category:'Organic',        catColor:'var(--orange)' },
+  { name:'Bounce Rate', source:'GA4',            sourceColor:'#E37400', sourceInit:'G', stream:'Events',         col:'bounce_rate',   status:'Unmapped', type:'FLOAT64',  category:'Organic',        catColor:'var(--orange)' },
+  { name:'Pageviews',   source:'GA4',            sourceColor:'#E37400', sourceInit:'G', stream:'Pages',          col:'page_views',    status:'Unmapped', type:'INT64',    category:'Organic',        catColor:'var(--orange)' },
+];
+
+const GROUP_COLORS = {
+  'KPIs': 'var(--green)', 'Paid Marketing': 'var(--blue)', 'Organic': 'var(--orange)', 'Contextual': '#6941c6', 'Halo': '#EE1D52',
+  'Facebook Ads': '#1877F2', 'Google Ads': '#4285F4', 'TikTok Ads': '#000', 'Shopify': '#96BF48', 'GA4': '#E37400',
+  'Mapped': 'var(--green)', 'Unmapped': 'var(--orange)',
+  'CURRENCY': '#2b7fff', 'FLOAT64': '#a78bfa', 'INT64': '#fe9a00', 'STRING': '#9ca3af',
+};
+
+let currentGroupBy = 'Category';
+
+function getGroupKey(m, groupBy) {
+  switch(groupBy) {
+    case 'Category': return m.category;
+    case 'Source': return m.source;
+    case 'Metric Name': return m.name;
+    case 'Status': return m.status;
+    case 'Data Type': return m.type;
+    default: return m.category;
+  }
+}
+
+function renderTable() {
+  const body = document.getElementById('ft-body');
+  if (!body) return;
+
+  // Group the data
+  const groups = new Map();
+  METRICS_DATA.forEach(m => {
+    const key = getGroupKey(m, currentGroupBy);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  });
+
+  // Sort groups: for Status, put Unmapped first; otherwise alphabetical
+  let sortedKeys = Array.from(groups.keys());
+  if (currentGroupBy === 'Status') {
+    sortedKeys.sort((a, b) => a === 'Unmapped' ? -1 : b === 'Unmapped' ? 1 : a.localeCompare(b));
+  } else {
+    sortedKeys.sort();
+  }
+
+  let html = '';
+  let delay = 0.02;
+
+  sortedKeys.forEach(key => {
+    const items = groups.get(key);
+    const mapped = items.filter(m => m.status === 'Mapped').length;
+    const pct = items.length > 0 ? Math.round(mapped / items.length * 100) : 0;
+    const color = GROUP_COLORS[key] || 'var(--text-dim)';
+    const isUnmappedGroup = key === 'Unmapped';
+
+    html += `<div class="group-header${isUnmappedGroup ? ' unmapped-group' : ''}" onclick="toggleGroupCollapse(this)">
+      <span class="group-chevron">▾</span>
+      <span class="group-color" style="background:${color}"></span>
+      <span class="group-label">${key}</span>
+      <span class="group-count">${items.length} metric${items.length !== 1 ? 's' : ''}${currentGroupBy !== 'Status' ? ' · ' + mapped + ' mapped' : ''}</span>
+      <div class="group-mapped-bar"><div class="group-mapped-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>
+    <div class="group-rows">`;
+
+    items.forEach(m => {
+      delay += 0.02;
+      const statusClass = m.status === 'Mapped' ? 'mapped' : 'unmapped';
+      html += `<div class="ft-row" style="animation-delay:${delay.toFixed(2)}s">
+        <div class="ft-td"></div>
+        <div class="ft-td metric-name">${m.name}</div>
+        <div class="ft-td"><span class="source-icon" style="background:${m.sourceColor}${m.sourceColor === '#000000' ? ';border:1px solid #333' : ''}">${m.sourceInit}</span>${m.source}</div>
+        <div class="ft-td" style="color:var(--text-dim)">${m.stream}</div>
+        <div class="ft-td"><span class="col-name">${m.col}</span></div>
+        <div class="ft-td"><span class="badge ${statusClass}"><span class="dot"></span>${m.status}</span></div>
+        <div class="ft-td"><span class="type-badge">${m.type}</span></div>
+        <div class="ft-td"><span class="edit-btn">✎</span></div>
+      </div>`;
+    });
+
+    html += '</div>';
+  });
+
+  body.innerHTML = html;
+}
+
+function setGroupBy(val) {
+  currentGroupBy = val;
+  document.getElementById('groupby-value').textContent = val;
+  document.querySelectorAll('#groupby-dropdown .facet-option').forEach(o => {
+    o.classList.toggle('selected', o.dataset.group === val);
+  });
+  document.querySelectorAll('.facet-dropdown').forEach(d => d.classList.remove('open'));
+  renderTable();
+}
+
+// Wire up dropdown option clicks
+document.querySelectorAll('#groupby-dropdown .facet-option').forEach(opt => {
+  opt.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setGroupBy(opt.dataset.group);
+  });
+});
+
+function toggleDropdown(id) {
+  const el = document.getElementById(id);
+  const wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.facet-dropdown').forEach(d => d.classList.remove('open'));
+  if (!wasOpen) el.classList.add('open');
+}
+
+function setSortBy(val) {
+  document.getElementById('sortby-value').textContent = val;
+  document.querySelectorAll('#sortby-dropdown .facet-option').forEach(o => {
+    o.classList.toggle('selected', o.textContent.trim().replace('✓','').trim() === val);
+  });
+}
+
+function toggleGroupCollapse(header) {
+  header.classList.toggle('collapsed');
+  const rows = header.nextElementSibling;
+  if (rows && rows.classList.contains('group-rows')) {
+    rows.style.display = header.classList.contains('collapsed') ? 'none' : 'block';
+  }
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.facet-dropdown')) {
+    document.querySelectorAll('.facet-dropdown').forEach(d => d.classList.remove('open'));
+  }
+});
+
+// Initial render
+renderTable();
+
+// ── Concept 5: SVG Dependency Lines ──
+const connections = [
+  // source → metric
+  { from: 'src-fb', to: 'met-spend', status: 'healthy' },
+  { from: 'src-google', to: 'met-spend', status: 'error' },
+  { from: 'src-tiktok', to: 'met-spend', status: 'healthy' },
+  { from: 'src-shopify', to: 'met-revenue', status: 'healthy' },
+  { from: 'src-fb', to: 'met-impressions', status: 'healthy' },
+  { from: 'src-google', to: 'met-impressions', status: 'error' },
+  { from: 'src-fb', to: 'met-cpc', status: 'healthy' },
+  { from: 'src-google', to: 'met-cpc', status: 'error' },
+  { from: 'src-google', to: 'met-roas', status: 'error' },
+  // metric → model
+  { from: 'met-spend', to: 'mod-mmm', status: 'warning' },
+  { from: 'met-revenue', to: 'mod-mmm', status: 'healthy' },
+  { from: 'met-impressions', to: 'mod-mmm', status: 'warning' },
+  { from: 'met-spend', to: 'mod-attr', status: 'warning' },
+  { from: 'met-cpc', to: 'mod-attr', status: 'warning' },
+  { from: 'met-roas', to: 'mod-attr', status: 'error' },
+];
+
+// Chain highlight map
+const chains = {
+  'src-fb': ['src-fb', 'met-spend', 'met-impressions', 'met-cpc', 'mod-mmm', 'mod-attr'],
+  'src-google': ['src-google', 'met-spend', 'met-impressions', 'met-cpc', 'met-roas', 'mod-mmm', 'mod-attr'],
+  'src-tiktok': ['src-tiktok', 'met-spend', 'mod-mmm', 'mod-attr'],
+  'src-shopify': ['src-shopify', 'met-revenue', 'mod-mmm'],
+  'met-spend': ['src-fb', 'src-google', 'src-tiktok', 'met-spend', 'mod-mmm', 'mod-attr'],
+  'met-revenue': ['src-shopify', 'met-revenue', 'mod-mmm'],
+  'met-impressions': ['src-fb', 'src-google', 'met-impressions', 'mod-mmm'],
+  'met-cpc': ['src-fb', 'src-google', 'met-cpc', 'mod-attr'],
+  'met-roas': ['src-google', 'met-roas', 'mod-attr'],
+  'mod-mmm': ['src-fb', 'src-google', 'src-tiktok', 'src-shopify', 'met-spend', 'met-revenue', 'met-impressions', 'mod-mmm'],
+  'mod-attr': ['src-fb', 'src-google', 'src-tiktok', 'met-spend', 'met-cpc', 'met-roas', 'mod-attr'],
+};
+
+function drawDepLines() {
+  const svg = document.getElementById('dep-svg');
+  const container = document.getElementById('dep-graph');
+  if (!svg || !container) return;
+  const rect = container.getBoundingClientRect();
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+  svg.innerHTML = '';
+
+  connections.forEach(conn => {
+    const fromEl = container.querySelector(`[data-id="${conn.from}"]`);
+    const toEl = container.querySelector(`[data-id="${conn.to}"]`);
+    if (!fromEl || !toEl) return;
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+
+    const x1 = fromRect.right - rect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - rect.top;
+    const x2 = toRect.left - rect.left;
+    const y2 = toRect.top + toRect.height / 2 - rect.top;
+
+    const cpx = (x1 + x2) / 2;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${cpx},${y1} ${cpx},${y2} ${x2},${y2}`);
+    path.classList.add('dep-line', conn.status);
+    path.dataset.from = conn.from;
+    path.dataset.to = conn.to;
+    svg.appendChild(path);
+  });
+}
+
+function highlightChain(nodeId) {
+  const chain = chains[nodeId] || [];
+  // Highlight nodes
+  document.querySelectorAll('.dep-node').forEach(n => {
+    if (chain.includes(n.dataset.id)) {
+      n.classList.add('highlighted');
+    }
+  });
+  // Highlight lines
+  document.querySelectorAll('.dep-line').forEach(l => {
+    if (chain.includes(l.dataset.from) && chain.includes(l.dataset.to)) {
+      l.classList.add('highlighted');
+    } else {
+      l.style.opacity = '0.06';
+    }
+  });
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.dep-node').forEach(n => n.classList.remove('highlighted'));
+  document.querySelectorAll('.dep-line').forEach(l => {
+    l.classList.remove('highlighted');
+    l.style.opacity = '';
+  });
+}
+
+// Draw lines on load and resize
+window.addEventListener('load', () => setTimeout(drawDepLines, 300));
+window.addEventListener('resize', drawDepLines);
+
+// ── Pipeline step click ──
+document.querySelectorAll('.pipeline-step').forEach(step => {
+  step.addEventListener('click', () => {
+    if (step.classList.contains('locked')) return;
+    document.querySelectorAll('.pipeline-step').forEach(s => {
+      if (s !== step && s.classList.contains('active')) {
+        s.classList.remove('active');
+        s.classList.add('pending');
+        s.querySelector('.step-node').classList.remove('active');
+        s.querySelector('.step-node').classList.add('pending');
+      }
+    });
+    if (!step.classList.contains('completed')) {
+      step.classList.remove('pending');
+      step.classList.add('active');
+      step.querySelector('.step-node').classList.remove('pending');
+      step.querySelector('.step-node').classList.add('active');
+    }
+  });
+});
+</script>
+</body>
+</html>

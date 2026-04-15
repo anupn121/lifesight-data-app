@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lifesight — Smart Data Import Wizard (UX Prototype)</title>
+<style>
+  /* ═══════════════════════════════════════════════════════
+     DESIGN SYSTEM
+     ═══════════════════════════════════════════════════════ */
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #13131a;
+    --bg-elevated: #1a1a24;
+    --bg-input: #1e1e2a;
+    --bg-hover: #22222e;
+    --border: #2a2a38;
+    --border-focus: #3a3a50;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a0;
+    --text-muted: #5a5a70;
+    --text-dim: #44445a;
+
+    /* Category colors */
+    --c-paid: #2b7fff;
+    --c-paid-bg: rgba(43,127,255,0.10);
+    --c-paid-border: rgba(43,127,255,0.25);
+    --c-kpi: #00bc7d;
+    --c-kpi-bg: rgba(0,188,125,0.10);
+    --c-kpi-border: rgba(0,188,125,0.25);
+    --c-organic: #fe9a00;
+    --c-organic-bg: rgba(254,154,0,0.10);
+    --c-organic-border: rgba(254,154,0,0.25);
+    --c-contextual: #a855f7;
+    --c-contextual-bg: rgba(168,85,247,0.10);
+    --c-contextual-border: rgba(168,85,247,0.25);
+    --c-date: #6b7280;
+    --c-date-bg: rgba(107,114,128,0.10);
+    --c-dimension: #64748b;
+    --c-dimension-bg: rgba(100,116,139,0.10);
+    --c-skip: #374151;
+
+    /* System */
+    --accent: #027b8e;
+    --accent-hover: #026a7a;
+    --success: #00bc7d;
+    --warning: #fe9a00;
+    --error: #ff2056;
+    --info: #2b7fff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     LAYOUT
+     ═══════════════════════════════════════════════════════ */
+  .prototype-header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .prototype-header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .prototype-header .badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(168,85,247,0.15);
+    color: #c084fc;
+    font-weight: 500;
+  }
+
+  .scenario-bar {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 0;
+  }
+  .scenario-tab {
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .scenario-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .scenario-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+  }
+  .scenario-tab .persona {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 1px;
+  }
+
+  .wizard-container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     STEP INDICATOR
+     ═══════════════════════════════════════════════════════ */
+  .steps-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+    padding: 0 40px;
+  }
+  .step-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .step-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    background: var(--bg-card);
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .step-node.active .step-circle {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: white;
+  }
+  .step-node.done .step-circle {
+    border-color: var(--success);
+    background: rgba(0,188,125,0.15);
+    color: var(--success);
+  }
+  .step-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .step-node.active .step-label { color: var(--text-primary); }
+  .step-node.done .step-label { color: var(--text-secondary); }
+  .step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin: 0 12px;
+  }
+  .step-line.done { background: var(--success); }
+
+  /* ═══════════════════════════════════════════════════════
+     WIZARD CARD
+     ═══════════════════════════════════════════════════════ */
+  .wizard-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .wizard-card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wizard-card-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .wizard-card-header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .wizard-card-body { padding: 24px; }
+  .wizard-card-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     BUTTONS
+     ═══════════════════════════════════════════════════════ */
+  .btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .btn-text {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .btn-text:hover { color: var(--text-primary); }
+
+  /* ═══════════════════════════════════════════════════════
+     SCENARIO 1: SMART DETECTION SCREEN
+     ═══════════════════════════════════════════════════════ */
+
+  /* Detection summary card */
+  .detection-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .detection-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .detection-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .detection-icon.paid { background: var(--c-paid-bg); }
+  .detection-icon.kpi { background: var(--c-kpi-bg); }
+  .detection-icon.mixed { background: linear-gradient(135deg, var(--c-paid-bg), var(--c-kpi-bg)); }
+  .detection-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .detection-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .detection-subtitle .editable {
+    color: var(--accent);
+    cursor: pointer;
+    border-bottom: 1px dashed var(--accent);
+    transition: color 0.15s;
+  }
+  .detection-subtitle .editable:hover {
+    color: #03a0b8;
+  }
+
+  .detection-stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .detection-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .detection-stat svg { flex-shrink: 0; }
+  .detection-stat .value { color: var(--text-primary); font-weight: 500; }
+
+  .source-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .source-pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .source-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     COLUMN DETECTION TABLE
+     ═══════════════════════════════════════════════════════ */
+  .columns-section {
+    margin-top: 8px;
+  }
+  .columns-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .data-preview {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .data-preview table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  /* Column header with detection tag */
+  .data-preview thead th {
+    background: var(--bg-elevated);
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .data-preview thead th:last-child { border-right: none; }
+
+  .col-header {
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-width: 110px;
+  }
+  .col-header:hover { background: var(--bg-hover); }
+
+  .col-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    margin-bottom: 6px;
+  }
+
+  .col-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .col-tag.paid { background: var(--c-paid-bg); color: var(--c-paid); border: 1px solid var(--c-paid-border); }
+  .col-tag.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); border: 1px solid var(--c-kpi-border); }
+  .col-tag.organic { background: var(--c-organic-bg); color: var(--c-organic); border: 1px solid var(--c-organic-border); }
+  .col-tag.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); border: 1px solid var(--c-contextual-border); }
+  .col-tag.date { background: var(--c-date-bg); color: var(--c-date); border: 1px solid rgba(107,114,128,0.25); }
+  .col-tag.dimension { background: var(--c-dimension-bg); color: var(--c-dimension); border: 1px solid rgba(100,116,139,0.25); }
+  .col-tag.skip { background: rgba(55,65,81,0.3); color: var(--text-muted); border: 1px solid rgba(55,65,81,0.5); }
+
+  .col-tag .tag-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Confidence dot */
+  .confidence-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 4px;
+  }
+  .confidence-dot.high { background: var(--success); }
+  .confidence-dot.medium { background: var(--warning); }
+  .confidence-dot.low { background: var(--error); }
+
+  /* Data rows */
+  .data-preview tbody td {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(42,42,56,0.5);
+    border-right: 1px solid rgba(42,42,56,0.5);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .data-preview tbody td:last-child { border-right: none; }
+  .data-preview tbody tr:last-child td { border-bottom: none; }
+  .data-preview tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .data-preview tbody td.number { text-align: right; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .data-preview tbody td.dim { color: var(--text-muted); }
+  .data-preview tbody td.date-val { color: var(--c-date); }
+
+  .preview-footer {
+    padding: 8px 14px;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     COLUMN EDIT POPOVER
+     ═══════════════════════════════════════════════════════ */
+  .col-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border-focus);
+    border-radius: 10px;
+    padding: 14px;
+    width: 260px;
+    z-index: 50;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .col-popover::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-focus);
+    border-left: 1px solid var(--border-focus);
+  }
+  .col-popover-title {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .col-popover-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.1s;
+    margin-bottom: 2px;
+  }
+  .col-popover-option:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .col-popover-option.selected {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .col-popover-option .opt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .col-popover-option .opt-check {
+    margin-left: auto;
+    color: var(--success);
+    font-size: 14px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     DETECTION FIELD SUMMARY (alternative to table for mobile)
+     ═══════════════════════════════════════════════════════ */
+  .field-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .field-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .field-item:hover {
+    border-color: var(--border-focus);
+    background: var(--bg-hover);
+  }
+  .field-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .field-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .field-col-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-family: 'SF Mono', monospace;
+  }
+  .field-detection {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .field-arrow {
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     DATA ROUTING SUMMARY
+     ═══════════════════════════════════════════════════════ */
+  .routing-summary {
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .routing-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .routing-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+  .routing-item + .routing-item { border-top: 1px solid rgba(42,42,56,0.5); }
+  .routing-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .routing-icon.paid { background: var(--c-paid-bg); color: var(--c-paid); }
+  .routing-icon.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); }
+  .routing-icon.organic { background: var(--c-organic-bg); color: var(--c-organic); }
+  .routing-icon.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); }
+  .routing-label { color: var(--text-secondary); flex: 1; }
+  .routing-label strong { color: var(--text-primary); font-weight: 500; }
+  .routing-dest {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', monospace;
+    background: var(--bg-card);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SOURCE MATCHING SCREEN
+     ═══════════════════════════════════════════════════════ */
+  .source-match-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .source-match-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .source-match-row:hover { border-color: var(--border-focus); }
+  .source-value {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'SF Mono', monospace;
+    min-width: 100px;
+    color: var(--text-primary);
+  }
+  .source-arrow {
+    color: var(--text-dim);
+    font-size: 18px;
+  }
+  .source-match-result {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .source-icon-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .source-match-info { flex: 1; }
+  .source-match-name { font-size: 14px; font-weight: 500; }
+  .source-match-status {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .source-match-status.matched { color: var(--success); }
+  .source-match-status.new { color: var(--info); }
+  .source-match-status.manual { color: var(--warning); }
+  .source-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .source-badge.auto {
+    background: rgba(0,188,125,0.12);
+    color: var(--success);
+  }
+  .source-badge.new-source {
+    background: rgba(43,127,255,0.12);
+    color: var(--info);
+  }
+  .source-badge.conflict {
+    background: rgba(254,154,0,0.12);
+    color: var(--warning);
+  }
+
+  /* Overlap warning */
+  .overlap-callout {
+    margin-top: 8px;
+    padding: 12px 16px;
+    background: rgba(254,154,0,0.08);
+    border: 1px solid rgba(254,154,0,0.2);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--warning);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .overlap-callout svg { flex-shrink: 0; margin-top: 2px; }
+  .overlap-options {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .overlap-opt {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .overlap-opt:hover { border-color: var(--warning); color: var(--text-primary); }
+  .overlap-opt.selected { border-color: var(--warning); color: var(--warning); background: rgba(254,154,0,0.08); }
+
+  /* ═══════════════════════════════════════════════════════
+     INFO BOX
+     ═══════════════════════════════════════════════════════ */
+  .info-box {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .info-box.success {
+    background: rgba(0,188,125,0.08);
+    border: 1px solid rgba(0,188,125,0.2);
+    color: var(--success);
+  }
+  .info-box.info {
+    background: rgba(43,127,255,0.08);
+    border: 1px solid rgba(43,127,255,0.2);
+    color: var(--info);
+  }
+  .info-box svg { flex-shrink: 0; }
+
+  /* ═══════════════════════════════════════════════════════
+     GRANULARITY DROPDOWN
+     ═══════════════════════════════════════════════════════ */
+  .granularity-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-focus);
+    border-radius: 8px;
+    padding: 6px;
+    width: 280px;
+    z-index: 50;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .granularity-opt {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .granularity-opt:hover { background: var(--bg-hover); }
+  .granularity-opt.selected { background: var(--bg-hover); }
+  .granularity-opt .g-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .granularity-opt .g-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+  .granularity-opt .g-check {
+    float: right;
+    color: var(--success);
+    margin-top: 2px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SECTION DIVIDERS & DESIGN ANNOTATIONS
+     ═══════════════════════════════════════════════════════ */
+  .annotation {
+    margin: 40px 0 20px;
+    padding: 16px 20px;
+    background: rgba(168,85,247,0.06);
+    border-left: 3px solid var(--c-contextual);
+    border-radius: 0 8px 8px 0;
+    font-size: 13px;
+    color: #c084fc;
+  }
+  .annotation strong {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .section-divider {
+    margin: 48px 0;
+    border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SCHEDULE SECTION (reused from existing wizard)
+     ═══════════════════════════════════════════════════════ */
+  .schedule-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .schedule-block {
+    padding: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .schedule-block label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 10px;
+  }
+  .freq-pills {
+    display: flex;
+    gap: 4px;
+  }
+  .freq-pill {
+    padding: 7px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .freq-pill.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(2,123,142,0.08);
+  }
+
+  .backfill-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .backfill-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .backfill-pill.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(2,123,142,0.08);
+  }
+  .backfill-pill .rec {
+    font-size: 10px;
+    color: var(--success);
+    margin-left: 4px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     SCENARIO CONTENT
+     ═══════════════════════════════════════════════════════ */
+  .scenario-content { display: none; }
+  .scenario-content.active { display: block; }
+
+  /* ═══════════════════════════════════════════════════════
+     RESPONSIVE TWEAKS
+     ═══════════════════════════════════════════════════════ */
+  .data-preview { overflow-x: auto; }
+  @media (max-width: 768px) {
+    .schedule-grid { grid-template-columns: 1fr; }
+    .field-summary { grid-template-columns: 1fr; }
+    .detection-stats { flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════ -->
+<div class="prototype-header">
+  <h1>Smart Data Import Wizard — UX Prototype</h1>
+  <span class="badge">Interactive Design</span>
+</div>
+
+<!-- Scenario tabs -->
+<div class="scenario-bar">
+  <div class="scenario-tab active" onclick="showScenario('simple')">
+    Scenario 1: Simple Upload
+    <span class="persona">Channel manager uploads campaign CSV</span>
+  </div>
+  <div class="scenario-tab" onclick="showScenario('multi')">
+    Scenario 2: Multi-Source Spend
+    <span class="persona">Marketer connects DWH with 3 channels</span>
+  </div>
+  <div class="scenario-tab" onclick="showScenario('mixed')">
+    Scenario 3: Mixed MMM Data
+    <span class="persona">Analyst uploads spend + KPI + organic + contextual</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCENARIO 1: SIMPLE CAMPAIGN CSV (CHANNEL MANAGER)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="scenario-content active" id="scenario-simple">
+  <div class="wizard-container">
+
+    <div class="annotation">
+      <strong>Design Goal</strong>
+      A channel manager uploads a CSV of their Facebook campaign data. They shouldn't need to know what "granularity" or "data category" means. The system detects everything and they just confirm.
+    </div>
+
+    <!-- Steps bar -->
+    <div class="steps-bar">
+      <div class="step-node done">
+        <div class="step-circle">&#10003;</div>
+        <span class="step-label">Upload</span>
+      </div>
+      <div class="step-line done"></div>
+      <div class="step-node active">
+        <div class="step-circle">2</div>
+        <span class="step-label">Review</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step-node">
+        <div class="step-circle">3</div>
+        <span class="step-label">Import</span>
+      </div>
+    </div>
+
+    <!-- Smart Detection Card -->
+    <div class="wizard-card">
+      <div class="wizard-card-header">
+        <h2>We analyzed your data</h2>
+        <p>Everything below was auto-detected. Click anything to change it.</p>
+      </div>
+
+      <div class="wizard-card-body">
+
+        <!-- Detection Summary -->
+        <div class="detection-card">
+          <div class="detection-header">
+            <div class="detection-icon paid">💰</div>
+            <div>
+              <div class="detection-title">Ad Spend Data</div>
+              <div class="detection-subtitle">
+                Each row is <span class="editable" title="Click to change">one campaign per day</span> from <strong>Facebook Ads</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="detection-stats">
+            <div class="detection-stat">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm1 3h6v1H5V5zm0 2.5h6v1H5v-1zm0 2.5h4v1H5V10z"/></svg>
+              <span><span class="value">842</span> rows &middot; <span class="value">6</span> columns</span>
+            </div>
+            <div class="detection-stat">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1a1 1 0 0 0-1 1v1H2a1 1 0 0 0-1 1v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a1 1 0 0 0-1-1h-1V2a1 1 0 1 0-2 0v1H5V2a1 1 0 0 0-1-1zM2 6h12v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"/></svg>
+              <span><span class="value">Jan 1, 2024</span> &rarr; <span class="value">Dec 31, 2024</span></span>
+            </div>
+            <div class="detection-stat">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8z"/><path d="M8 4a.5.5 0 0 1 .5.5V8h2.5a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5v-4A.5.5 0 0 1 8 4z"/></svg>
+              <span>Single source &middot; <span class="value">Facebook Ads</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column Detection in Data Preview -->
+        <div class="columns-section">
+          <div class="columns-section-title">Data Preview — click any column header to change its assignment</div>
+
+          <div class="data-preview">
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">date</div>
+                      <span class="col-tag date">
+                        <span class="tag-icon">📅</span> Date
+                      </span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">campaign_name</div>
+                      <span class="col-tag dimension">
+                        <span class="tag-icon">🏷</span> Campaign
+                      </span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">spend</div>
+                      <span class="col-tag paid">
+                        <span class="tag-icon">💰</span> Spend
+                        <span class="confidence-dot high" title="High confidence"></span>
+                      </span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">impressions</div>
+                      <span class="col-tag paid">
+                        <span class="tag-icon">👁</span> Impressions
+                        <span class="confidence-dot high"></span>
+                      </span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">clicks</div>
+                      <span class="col-tag paid">
+                        <span class="tag-icon">🖱</span> Clicks
+                        <span class="confidence-dot high"></span>
+                      </span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">conversions</div>
+                      <span class="col-tag paid">
+                        <span class="tag-icon">🎯</span> Conversions
+                        <span class="confidence-dot high"></span>
+                      </span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="date-val">2024-01-01</td>
+                  <td>Brand Awareness Q1</td>
+                  <td class="number">$5,240.00</td>
+                  <td class="number">248,300</td>
+                  <td class="number">3,120</td>
+                  <td class="number">142</td>
+                </tr>
+                <tr>
+                  <td class="date-val">2024-01-01</td>
+                  <td>Retargeting Jan</td>
+                  <td class="number">$2,100.00</td>
+                  <td class="number">89,400</td>
+                  <td class="number">1,845</td>
+                  <td class="number">97</td>
+                </tr>
+                <tr>
+                  <td class="date-val">2024-01-02</td>
+                  <td>Brand Awareness Q1</td>
+                  <td class="number">$4,980.00</td>
+                  <td class="number">239,100</td>
+                  <td class="number">2,980</td>
+                  <td class="number">138</td>
+                </tr>
+                <tr>
+                  <td class="date-val">2024-01-02</td>
+                  <td>Retargeting Jan</td>
+                  <td class="number">$2,050.00</td>
+                  <td class="number">85,200</td>
+                  <td class="number">1,720</td>
+                  <td class="number">91</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="preview-footer">
+              <span>Showing 4 of 842 rows</span>
+              <span>All 6 columns auto-detected ✓</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Where data goes -->
+        <div class="routing-summary">
+          <div class="routing-title">Where this data will go</div>
+          <div class="routing-item">
+            <div class="routing-icon paid">📊</div>
+            <div class="routing-label"><strong>4 spend metrics</strong> &rarr; Ad Insights (campaign level)</div>
+            <div class="routing-dest">ad_insights</div>
+          </div>
+          <div class="routing-item">
+            <div class="routing-icon paid">📈</div>
+            <div class="routing-label">Auto-aggregated by tactic for <strong>MMM models</strong></div>
+            <div class="routing-dest">mmm_spend_view</div>
+          </div>
+        </div>
+
+        <div class="info-box success">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.354 5.354-4 4a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7 9.293l3.646-3.647a.5.5 0 0 1 .708.708z"/></svg>
+          <span>Everything looks good! This data will appear in your Ad Spends dashboard once imported.</span>
+        </div>
+
+      </div>
+
+      <div class="wizard-card-footer">
+        <button class="btn btn-ghost">&larr; Back</button>
+        <button class="btn btn-primary">Looks Good — Import &rarr;</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCENARIO 2: MULTI-SOURCE DWH TABLE (MARKETER)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="scenario-content" id="scenario-multi">
+  <div class="wizard-container">
+
+    <div class="annotation">
+      <strong>Design Goal</strong>
+      A performance marketer connects a BigQuery table containing ad spend data from 3 channels (Facebook, Google, TikTok). The system detects the multi-source pattern, auto-matches source names to known platforms, and flags an overlap with an existing native Facebook integration.
+    </div>
+
+    <!-- Steps bar -->
+    <div class="steps-bar">
+      <div class="step-node done">
+        <div class="step-circle">&#10003;</div>
+        <span class="step-label">Connect</span>
+      </div>
+      <div class="step-line done"></div>
+      <div class="step-node done">
+        <div class="step-circle">&#10003;</div>
+        <span class="step-label">Review</span>
+      </div>
+      <div class="step-line done"></div>
+      <div class="step-node active">
+        <div class="step-circle">3</div>
+        <span class="step-label">Sources</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step-node">
+        <div class="step-circle">4</div>
+        <span class="step-label">Import</span>
+      </div>
+    </div>
+
+    <div class="wizard-card">
+      <div class="wizard-card-header">
+        <h2>We found multiple sources in your data</h2>
+        <p>Your <code style="background:var(--bg-input);padding:2px 8px;border-radius:4px;font-size:12px;">source</code> column contains 3 different values. We matched them to known platforms.</p>
+      </div>
+
+      <div class="wizard-card-body">
+
+        <!-- Source matching -->
+        <div class="source-match-grid">
+
+          <!-- Facebook - matched but has overlap -->
+          <div class="source-match-row">
+            <div class="source-value">FB</div>
+            <div class="source-arrow">&rarr;</div>
+            <div class="source-match-result">
+              <div class="source-icon-circle" style="background:#1877F2;color:white;">f</div>
+              <div class="source-match-info">
+                <div class="source-match-name">Facebook Ads</div>
+                <div class="source-match-status matched">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.354 5.354-4 4a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7 9.293l3.646-3.647a.5.5 0 0 1 .708.708z"/></svg>
+                  Auto-matched
+                </div>
+              </div>
+            </div>
+            <span class="source-badge conflict">Native exists</span>
+          </div>
+
+          <!-- Overlap callout for Facebook -->
+          <div class="overlap-callout">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 4zm0 7a.6.6 0 1 1 0-1.2.6.6 0 0 1 0 1.2z"/></svg>
+            <div>
+              <div>You already have a <strong>native Facebook Ads</strong> integration. For dates where both have data:</div>
+              <div class="overlap-options">
+                <div class="overlap-opt">Use native data</div>
+                <div class="overlap-opt selected">This data fills gaps</div>
+                <div class="overlap-opt">This data overrides</div>
+                <div class="overlap-opt">Keep both</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Google - matched, no conflict -->
+          <div class="source-match-row">
+            <div class="source-value">Google</div>
+            <div class="source-arrow">&rarr;</div>
+            <div class="source-match-result">
+              <div class="source-icon-circle" style="background:#34A853;color:white;">G</div>
+              <div class="source-match-info">
+                <div class="source-match-name">Google Ads</div>
+                <div class="source-match-status matched">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.354 5.354-4 4a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7 9.293l3.646-3.647a.5.5 0 0 1 .708.708z"/></svg>
+                  Auto-matched
+                </div>
+              </div>
+            </div>
+            <span class="source-badge auto">&#10003; Matched</span>
+          </div>
+
+          <!-- TikTok - matched, no conflict -->
+          <div class="source-match-row">
+            <div class="source-value">TT</div>
+            <div class="source-arrow">&rarr;</div>
+            <div class="source-match-result">
+              <div class="source-icon-circle" style="background:#EE1D52;color:white;">T</div>
+              <div class="source-match-info">
+                <div class="source-match-name">TikTok Ads</div>
+                <div class="source-match-status matched">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.354 5.354-4 4a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7 9.293l3.646-3.647a.5.5 0 0 1 .708.708z"/></svg>
+                  Auto-matched
+                </div>
+              </div>
+            </div>
+            <span class="source-badge auto">&#10003; Matched</span>
+          </div>
+
+        </div>
+
+        <div class="info-box info">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.5 3h1v1h-1V4zm-.5 2.5h2v5H7v-5z"/></svg>
+          <span>Source names like "FB" and "TT" are automatically matched. These mappings are saved so future uploads use the same matching.</span>
+        </div>
+
+      </div>
+
+      <div class="wizard-card-footer">
+        <button class="btn btn-ghost">&larr; Back</button>
+        <button class="btn btn-primary">Continue &rarr;</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCENARIO 3: MIXED MMM DATA (ANALYST)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="scenario-content" id="scenario-mixed">
+  <div class="wizard-container">
+
+    <div class="annotation">
+      <strong>Design Goal</strong>
+      An analyst uploads a Google Sheet with mixed data: ad spend per channel, revenue, organic impressions, and contextual variables (product launches, temperature). The system detects ALL categories from column names and shows where each column will go — splitting the single sheet into 4 different data pipelines automatically.
+    </div>
+
+    <!-- Steps bar -->
+    <div class="steps-bar">
+      <div class="step-node done">
+        <div class="step-circle">&#10003;</div>
+        <span class="step-label">Connect</span>
+      </div>
+      <div class="step-line done"></div>
+      <div class="step-node active">
+        <div class="step-circle">2</div>
+        <span class="step-label">Review</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step-node">
+        <div class="step-circle">3</div>
+        <span class="step-label">Schedule</span>
+      </div>
+    </div>
+
+    <div class="wizard-card">
+      <div class="wizard-card-header">
+        <h2>We analyzed your data</h2>
+        <p>We detected <strong>4 different types</strong> of data in this sheet. Each will be routed to the right place automatically.</p>
+      </div>
+
+      <div class="wizard-card-body">
+
+        <!-- Detection Summary - Mixed -->
+        <div class="detection-card">
+          <div class="detection-header">
+            <div class="detection-icon mixed">📊</div>
+            <div>
+              <div class="detection-title">Mixed Marketing Data</div>
+              <div class="detection-subtitle">
+                Each row is <span class="editable">one channel per day</span> &middot; aggregated level
+              </div>
+            </div>
+          </div>
+
+          <div class="detection-stats">
+            <div class="detection-stat">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm1 3h6v1H5V5zm0 2.5h6v1H5v-1zm0 2.5h4v1H5V10z"/></svg>
+              <span><span class="value">730</span> rows &middot; <span class="value">10</span> columns</span>
+            </div>
+            <div class="detection-stat">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1a1 1 0 0 0-1 1v1H2a1 1 0 0 0-1 1v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a1 1 0 0 0-1-1h-1V2a1 1 0 1 0-2 0v1H5V2a1 1 0 0 0-1-1zM2 6h12v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z"/></svg>
+              <span><span class="value">Jan 1, 2023</span> &rarr; <span class="value">Dec 31, 2024</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column Detection with Mixed Categories -->
+        <div class="columns-section">
+          <div class="columns-section-title">Data Preview — columns are color-coded by detected category</div>
+
+          <div class="data-preview">
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">date</div>
+                      <span class="col-tag date">📅 Date</span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">channel</div>
+                      <span class="col-tag dimension">🏷 Channel</span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">spend</div>
+                      <span class="col-tag paid">💰 Spend <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">impressions</div>
+                      <span class="col-tag paid">👁 Impressions <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">revenue</div>
+                      <span class="col-tag kpi">💵 Revenue <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">orders</div>
+                      <span class="col-tag kpi">📦 Orders <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">organic_imps</div>
+                      <span class="col-tag organic">🌱 Organic <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">email_opens</div>
+                      <span class="col-tag organic">✉ Organic <span class="confidence-dot high"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header">
+                      <div class="col-name">temperature</div>
+                      <span class="col-tag contextual">🌡 Contextual <span class="confidence-dot medium"></span></span>
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header" style="position:relative;">
+                      <div class="col-name">product_launch</div>
+                      <span class="col-tag contextual">🚀 Contextual <span class="confidence-dot high"></span></span>
+
+                      <!-- Example popover (shown for this column) -->
+                      <div class="col-popover" style="display:block;">
+                        <div class="col-popover-title">Assign "product_launch" to:</div>
+                        <div class="col-popover-option">
+                          <span class="opt-dot" style="background:var(--c-paid)"></span>
+                          Paid Marketing metric
+                        </div>
+                        <div class="col-popover-option">
+                          <span class="opt-dot" style="background:var(--c-kpi)"></span>
+                          KPI / Revenue
+                        </div>
+                        <div class="col-popover-option">
+                          <span class="opt-dot" style="background:var(--c-organic)"></span>
+                          Organic metric
+                        </div>
+                        <div class="col-popover-option selected">
+                          <span class="opt-dot" style="background:var(--c-contextual)"></span>
+                          Contextual variable
+                          <span class="opt-check">&#10003;</span>
+                        </div>
+                        <div class="col-popover-option">
+                          <span class="opt-dot" style="background:var(--c-dimension)"></span>
+                          Dimension (grouping)
+                        </div>
+                        <div class="col-popover-option">
+                          <span class="opt-dot" style="background:var(--c-skip)"></span>
+                          Skip this column
+                        </div>
+                      </div>
+
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="date-val">2024-01-01</td>
+                  <td>Facebook</td>
+                  <td class="number">$12,400</td>
+                  <td class="number">580K</td>
+                  <td class="number">$48,200</td>
+                  <td class="number">312</td>
+                  <td class="number">125K</td>
+                  <td class="number">4,500</td>
+                  <td class="number">72</td>
+                  <td class="number dim">0</td>
+                </tr>
+                <tr>
+                  <td class="date-val">2024-01-01</td>
+                  <td>Google</td>
+                  <td class="number">$8,900</td>
+                  <td class="number">320K</td>
+                  <td class="number">$48,200</td>
+                  <td class="number">312</td>
+                  <td class="number dim">—</td>
+                  <td class="number dim">—</td>
+                  <td class="number">72</td>
+                  <td class="number dim">0</td>
+                </tr>
+                <tr>
+                  <td class="date-val">2024-01-15</td>
+                  <td>Facebook</td>
+                  <td class="number">$15,200</td>
+                  <td class="number">710K</td>
+                  <td class="number">$62,100</td>
+                  <td class="number">428</td>
+                  <td class="number">142K</td>
+                  <td class="number">5,100</td>
+                  <td class="number">68</td>
+                  <td class="number" style="color:var(--c-contextual);">1</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="preview-footer">
+              <span>Showing 3 of 730 rows</span>
+              <span>
+                <span style="color:var(--c-paid)">&#9679;</span> 2 Paid &nbsp;
+                <span style="color:var(--c-kpi)">&#9679;</span> 2 KPI &nbsp;
+                <span style="color:var(--c-organic)">&#9679;</span> 2 Organic &nbsp;
+                <span style="color:var(--c-contextual)">&#9679;</span> 2 Contextual
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Smart Routing Summary -->
+        <div class="routing-summary">
+          <div class="routing-title">This single sheet will be split into 4 pipelines</div>
+
+          <div class="routing-item">
+            <div class="routing-icon paid">💰</div>
+            <div class="routing-label"><strong>spend, impressions</strong> &rarr; Aggregated channel-level spend for MMM</div>
+            <div class="routing-dest">paid_agg_input</div>
+          </div>
+
+          <div class="routing-item">
+            <div class="routing-icon kpi">💵</div>
+            <div class="routing-label"><strong>revenue, orders</strong> &rarr; KPI metrics (outcome variables for MMM)</div>
+            <div class="routing-dest">kpi_data</div>
+          </div>
+
+          <div class="routing-item">
+            <div class="routing-icon organic">🌱</div>
+            <div class="routing-label"><strong>organic_imps, email_opens</strong> &rarr; Organic marketing activity</div>
+            <div class="routing-dest">organic_data</div>
+          </div>
+
+          <div class="routing-item">
+            <div class="routing-icon contextual">🌡</div>
+            <div class="routing-label"><strong>temperature</strong> (continuous), <strong>product_launch</strong> (binary) &rarr; Control variables</div>
+            <div class="routing-dest">contextual_data</div>
+          </div>
+        </div>
+
+        <div class="info-box info">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.5 3h1v1h-1V4zm-.5 2.5h2v5H7v-5z"/></svg>
+          <span>Each row will be split so metrics go to the right pipeline. Revenue and orders will be available as outcome variables when you build an MMM model.</span>
+        </div>
+
+      </div>
+
+      <div class="wizard-card-footer">
+        <button class="btn btn-ghost">&larr; Back</button>
+        <button class="btn btn-primary">Continue to Schedule &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SCHEDULE STEP (shown below for reference)
+         ═══════════════════════════════════════════════════════ -->
+    <div style="margin-top: 32px;">
+      <div class="annotation">
+        <strong>Schedule & Backfill Step</strong>
+        The schedule step is the same regardless of data complexity. For sheets/DWH, we also ask about historical data backfill with smart defaults based on the detected categories.
+      </div>
+
+      <div class="wizard-card">
+        <div class="wizard-card-header">
+          <h2>Schedule & Import</h2>
+          <p>How often should we pull new data, and how far back should we go?</p>
+        </div>
+
+        <div class="wizard-card-body">
+          <div class="schedule-grid">
+
+            <div class="schedule-block">
+              <label>Sync Frequency</label>
+              <div class="freq-pills">
+                <div class="freq-pill selected">Daily</div>
+                <div class="freq-pill">Weekly</div>
+                <div class="freq-pill">Monthly</div>
+              </div>
+            </div>
+
+            <div class="schedule-block">
+              <label>Historical Data</label>
+              <div class="backfill-pills">
+                <div class="backfill-pill">30 days</div>
+                <div class="backfill-pill">6 months</div>
+                <div class="backfill-pill">1 year</div>
+                <div class="backfill-pill selected">2 years <span class="rec">Recommended</span></div>
+                <div class="backfill-pill">3 years</div>
+                <div class="backfill-pill">All data</div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="info-box success" style="margin-top: 20px;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.354 5.354-4 4a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7 9.293l3.646-3.647a.5.5 0 0 1 .708.708z"/></svg>
+            <span>We'll import ~730 rows covering Jan 2023 – Dec 2024, then sync daily at 6:00 AM (your timezone). Estimated first sync: under 1 minute.</span>
+          </div>
+
+        </div>
+
+        <div class="wizard-card-footer">
+          <button class="btn btn-ghost">&larr; Back</button>
+          <button class="btn btn-primary">Start Import &rarr;</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     JAVASCRIPT: Scenario switching
+     ═══════════════════════════════════════════════════════ -->
+<script>
+function showScenario(id) {
+  // Update tabs
+  document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  // Update content
+  document.querySelectorAll('.scenario-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('scenario-' + id).classList.add('active');
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>

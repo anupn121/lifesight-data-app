@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lifesight — Smart Import: All Scenarios + End-to-End Flow</title>
+<style>
+  :root {
+    --bg-page:#0a0a0f;--bg-card:#13131a;--bg-el:#1a1a24;--bg-input:#1e1e2a;--bg-hover:#22222e;
+    --border:#2a2a38;--border-f:#3a3a50;
+    --t1:#e8e8f0;--t2:#8888a0;--t3:#5a5a70;--t4:#44445a;
+    --c-paid:#2b7fff;--c-paid-bg:rgba(43,127,255,.10);--c-paid-b:rgba(43,127,255,.25);
+    --c-kpi:#00bc7d;--c-kpi-bg:rgba(0,188,125,.10);--c-kpi-b:rgba(0,188,125,.25);
+    --c-org:#fe9a00;--c-org-bg:rgba(254,154,0,.10);--c-org-b:rgba(254,154,0,.25);
+    --c-ctx:#a855f7;--c-ctx-bg:rgba(168,85,247,.10);--c-ctx-b:rgba(168,85,247,.25);
+    --c-dim:#64748b;--c-dim-bg:rgba(100,116,139,.10);
+    --c-date:#6b7280;
+    --accent:#027b8e;--success:#00bc7d;--warn:#fe9a00;--err:#ff2056;--info:#2b7fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg-page);color:var(--t1);line-height:1.5;font-size:14px}
+
+  /* ── LAYOUT ── */
+  .hdr{background:var(--bg-card);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .hdr h1{font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--t2)}
+  .hdr .badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(168,85,247,.15);color:#c084fc;font-weight:500}
+  .tabs{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:0;overflow-x:auto}
+  .tab{padding:11px 18px;font-size:12px;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;font-weight:600;white-space:nowrap;transition:.15s}
+  .tab:hover{color:var(--t1);background:var(--bg-hover)}
+  .tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+  .tab .sub{font-size:10px;color:var(--t3);display:block;font-weight:400;margin-top:1px}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 24px}
+  .scene{display:none}.scene.on{display:block}
+
+  /* ── ANNOTATION ── */
+  .ann{margin:0 0 24px;padding:14px 18px;background:rgba(168,85,247,.06);border-left:3px solid var(--c-ctx);border-radius:0 8px 8px 0;font-size:13px;color:#c084fc}
+  .ann b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+
+  /* ── CARD ── */
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px}
+  .card-h{padding:18px 22px;border-bottom:1px solid var(--border)}
+  .card-h h2{font-size:15px;font-weight:600;margin-bottom:2px}
+  .card-h p{font-size:13px;color:var(--t2)}
+  .card-b{padding:22px}
+  .card-f{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+
+  /* ── BUTTONS ── */
+  .btn{padding:7px 18px;border-radius:7px;font-size:13px;font-weight:600;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+  .btn-p{background:var(--accent);color:#fff}.btn-p:hover{filter:brightness(1.1)}
+  .btn-g{background:transparent;color:var(--t2);border:1px solid var(--border)}.btn-g:hover{background:var(--bg-hover);color:var(--t1)}
+  .btn-sm{padding:5px 12px;font-size:12px;border-radius:6px}
+
+  /* ── STEPS BAR ── */
+  .steps{display:flex;align-items:center;gap:0;margin-bottom:28px;padding:0 20px}
+  .sn{display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .sc{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid var(--border);color:var(--t3);background:var(--bg-card);flex-shrink:0}
+  .sn.on .sc{border-color:var(--accent);background:var(--accent);color:#fff}
+  .sn.ok .sc{border-color:var(--success);background:rgba(0,188,125,.15);color:var(--success)}
+  .sl{font-size:12px;color:var(--t3);font-weight:500}
+  .sn.on .sl{color:var(--t1)}.sn.ok .sl{color:var(--t2)}
+  .sline{flex:1;height:1px;background:var(--border);margin:0 10px}
+  .sline.ok{background:var(--success)}
+
+  /* ── DETECTION CARD ── */
+  .det{background:var(--bg-el);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:20px}
+  .det-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+  .det-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .det-title{font-size:16px;font-weight:600;margin-bottom:1px}
+  .det-sub{font-size:13px;color:var(--t2)}
+  .det-sub .ed{color:var(--accent);cursor:pointer;border-bottom:1px dashed var(--accent)}
+  .det-sub .ed:hover{color:#03a0b8}
+  .det-stats{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px}
+  .det-stat{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2)}
+  .det-stat .v{color:var(--t1);font-weight:500}
+
+  /* ── FORMAT BADGE ── */
+  .fmt-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:14px}
+  .fmt-badge.wide{background:rgba(168,85,247,.1);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+  .fmt-badge.long{background:rgba(43,127,255,.1);color:var(--c-paid);border:1px solid var(--c-paid-b)}
+  .fmt-badge.single{background:rgba(254,154,0,.1);color:var(--warn);border:1px solid var(--c-org-b)}
+  .fmt-badge.event{background:rgba(0,188,125,.1);color:var(--c-kpi);border:1px solid var(--c-kpi-b)}
+
+  /* ── DATA PREVIEW TABLE ── */
+  .dp{border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:13px;overflow-x:auto;margin-bottom:16px}
+  .dp table{width:100%;border-collapse:collapse;min-width:600px}
+  .dp thead th{background:var(--bg-el);padding:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);position:relative}
+  .dp thead th:last-child{border-right:none}
+  .ch{padding:9px 12px;cursor:pointer;transition:background .15s;min-width:100px}
+  .ch:hover{background:var(--bg-hover)}
+  .cn{font-size:12px;font-weight:600;color:var(--t1);font-family:'SF Mono','Fira Code',monospace;margin-bottom:5px}
+  .ct{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:.3px}
+  .ct.paid{background:var(--c-paid-bg);color:var(--c-paid);border:1px solid var(--c-paid-b)}
+  .ct.kpi{background:var(--c-kpi-bg);color:var(--c-kpi);border:1px solid var(--c-kpi-b)}
+  .ct.org{background:var(--c-org-bg);color:var(--c-org);border:1px solid var(--c-org-b)}
+  .ct.ctx{background:var(--c-ctx-bg);color:var(--c-ctx);border:1px solid var(--c-ctx-b)}
+  .ct.date{background:var(--c-dim-bg);color:var(--c-date);border:1px solid rgba(107,114,128,.25)}
+  .ct.dim{background:var(--c-dim-bg);color:var(--c-dim);border:1px solid rgba(100,116,139,.25)}
+  .dp tbody td{padding:7px 12px;border-bottom:1px solid rgba(42,42,56,.4);border-right:1px solid rgba(42,42,56,.4);color:var(--t2);font-size:12px;font-variant-numeric:tabular-nums}
+  .dp tbody td:last-child{border-right:none}
+  .dp tbody tr:last-child td{border-bottom:none}
+  .dp tbody td.n{text-align:right;font-family:'SF Mono',monospace;font-size:11px}
+  .dp tbody td.d{color:var(--t3)}
+  .dp-foot{padding:7px 12px;background:var(--bg-el);border-top:1px solid var(--border);font-size:11px;color:var(--t3);display:flex;justify-content:space-between}
+
+  /* ── CHANNEL EXTRACTION (Wide Format) ── */
+  .cx-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .cx-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-el);border:1px solid var(--border);border-radius:8px}
+  .cx-prefix{font-size:14px;font-weight:700;font-family:'SF Mono',monospace;min-width:70px;color:var(--t1)}
+  .cx-arrow{color:var(--t4);font-size:16px}
+  .cx-name{font-size:14px;font-weight:500;flex:1}
+  .cx-metrics{display:flex;gap:4px;flex-wrap:wrap}
+  .cx-metric{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:var(--c-paid-bg);color:var(--c-paid);border:1px solid var(--c-paid-b)}
+  .cx-metric.kpi{background:var(--c-kpi-bg);color:var(--c-kpi);border:1px solid var(--c-kpi-b)}
+  .cx-metric.org{background:var(--c-org-bg);color:var(--c-org);border:1px solid var(--c-org-b)}
+  .cx-metric.ctx{background:var(--c-ctx-bg);color:var(--c-ctx);border:1px solid var(--c-ctx-b)}
+  .cx-count{font-size:11px;color:var(--t3);margin-left:8px}
+  .cx-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;color:#fff}
+
+  /* ── UNPIVOT PREVIEW ── */
+  .unpivot{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:start;margin-bottom:16px}
+  .unpivot-arrow{display:flex;align-items:center;justify-content:center;padding-top:60px;color:var(--t3);font-size:24px;flex-direction:column;gap:6px}
+  .unpivot-arrow span{font-size:11px;color:var(--t3);font-weight:500}
+  .unpivot-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:8px}
+
+  /* ── SOURCE PICKER (Single Source) ── */
+  .src-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .src-opt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;background:var(--bg-el);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:.15s;text-align:center}
+  .src-opt:hover{border-color:var(--border-f);background:var(--bg-hover)}
+  .src-opt.sel{border-color:var(--accent);background:rgba(2,123,142,.08)}
+  .src-opt .ico{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff}
+  .src-opt .nm{font-size:12px;font-weight:500;color:var(--t2)}
+  .src-opt.sel .nm{color:var(--t1)}
+
+  /* ── ROUTING SUMMARY ── */
+  .route{margin-top:16px;padding:14px 18px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px}
+  .route-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:10px}
+  .route-row{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px}
+  .route-row+.route-row{border-top:1px solid rgba(42,42,56,.4)}
+  .route-ico{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+  .route-ico.paid{background:var(--c-paid-bg);color:var(--c-paid)}
+  .route-ico.kpi{background:var(--c-kpi-bg);color:var(--c-kpi)}
+  .route-ico.org{background:var(--c-org-bg);color:var(--c-org)}
+  .route-ico.ctx{background:var(--c-ctx-bg);color:var(--c-ctx)}
+  .route-lbl{color:var(--t2);flex:1}.route-lbl strong{color:var(--t1);font-weight:500}
+  .route-dest{font-size:10px;color:var(--t3);font-family:'SF Mono',monospace;background:var(--bg-card);padding:2px 7px;border-radius:3px;border:1px solid var(--border)}
+
+  /* ── INFO BOX ── */
+  .ib{padding:10px 14px;border-radius:7px;font-size:13px;display:flex;align-items:flex-start;gap:8px;margin-top:14px}
+  .ib.ok{background:rgba(0,188,125,.07);border:1px solid rgba(0,188,125,.2);color:var(--success)}
+  .ib.inf{background:rgba(43,127,255,.07);border:1px solid rgba(43,127,255,.2);color:var(--info)}
+  .ib.wrn{background:rgba(254,154,0,.07);border:1px solid rgba(254,154,0,.2);color:var(--warn)}
+
+  /* ── END-TO-END: METRICS TAB PREVIEW ── */
+  .e2e-tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+  .e2e-tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--t3);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer}
+  .e2e-tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .e2e-tab .ct-count{background:rgba(0,188,125,.15);color:var(--success);padding:1px 7px;border-radius:10px;font-size:10px;margin-left:6px;font-weight:600}
+
+  .field-table{width:100%;border-collapse:collapse;font-size:13px}
+  .field-table thead th{text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);border-bottom:1px solid var(--border);background:var(--bg-el)}
+  .field-table tbody td{padding:10px 12px;border-bottom:1px solid rgba(42,42,56,.4);color:var(--t2)}
+  .field-table tbody tr:hover td{background:rgba(255,255,255,.015)}
+  .field-table .fname{font-weight:500;color:var(--t1)}
+  .field-table .src-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+  .field-table .src-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .field-table .status-ok{color:var(--success);font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px}
+  .field-table .new-badge{background:rgba(43,127,255,.12);color:var(--info);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px}
+  .field-table .auto-badge{background:rgba(0,188,125,.1);color:var(--success);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px}
+
+  /* ── TACTIC MAPPER PREVIEW ── */
+  .tm-table{width:100%;border-collapse:collapse;font-size:13px}
+  .tm-table thead th{text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);border-bottom:1px solid var(--border);background:var(--bg-el)}
+  .tm-table tbody td{padding:10px 12px;border-bottom:1px solid rgba(42,42,56,.4);color:var(--t2)}
+  .tm-table tbody tr:hover td{background:rgba(255,255,255,.015)}
+  .tm-tactic{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid var(--border)}
+  .tm-tactic.suggested{background:rgba(0,188,125,.06);border-color:rgba(0,188,125,.2);color:var(--success)}
+  .tm-tactic.manual{background:var(--bg-input);border-color:var(--border);color:var(--t2);cursor:pointer}
+  .tm-tactic.manual:hover{border-color:var(--accent);color:var(--accent)}
+  .tm-rule{font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px}
+
+  /* ── PIPELINE FLOW DIAGRAM ── */
+  .pipeline{display:flex;align-items:stretch;gap:0;margin:20px 0;overflow-x:auto}
+  .pipe-stage{flex:1;min-width:180px;position:relative}
+  .pipe-header{padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;text-align:center;border-radius:8px 8px 0 0}
+  .pipe-header.s1{background:rgba(43,127,255,.12);color:var(--c-paid)}
+  .pipe-header.s2{background:rgba(0,188,125,.12);color:var(--c-kpi)}
+  .pipe-header.s3{background:rgba(254,154,0,.12);color:var(--c-org)}
+  .pipe-body{padding:12px;background:var(--bg-el);border:1px solid var(--border);border-radius:0 0 8px 8px;min-height:100px;font-size:12px;color:var(--t2)}
+  .pipe-body li{margin-bottom:4px;list-style:none}
+  .pipe-body li::before{content:'→ ';color:var(--t4)}
+  .pipe-conn{display:flex;align-items:center;justify-content:center;width:32px;color:var(--t4);font-size:18px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Smart Import Wizard v2 — Format-Agnostic End-to-End Flow</h1>
+  <span class="badge">UX Prototype</span>
+</div>
+
+<div class="tabs">
+  <div class="tab on" onclick="show(this,'s1')">Wide Format<span class="sub">channel_metric columns</span></div>
+  <div class="tab" onclick="show(this,'s2')">Single Source<span class="sub">no source column</span></div>
+  <div class="tab" onclick="show(this,'s3')">Event-Level KPI<span class="sub">event_name, value rows</span></div>
+  <div class="tab" onclick="show(this,'s4')">Mixed Wide + All Categories<span class="sub">paid + kpi + organic + ctx</span></div>
+  <div class="tab" onclick="show(this,'s5')">End-to-End Flow<span class="sub">Import → Metrics → Tactic Mapper</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SCENARIO 1: WIDE FORMAT (channel as prefix)
+     ═══════════════════════════════════════════ -->
+<div class="scene on" id="s1"><div class="wrap">
+  <div class="ann"><b>Scenario: Paid Marketing Format #2</b>
+    Columns are named <code>fb_spend</code>, <code>fb_impressions</code>, <code>google_spend</code> etc. The system detects the <code>{channel}_{metric}</code> pattern, extracts channels, and shows a before/after unpivot preview. Some channels may have metrics others don't (sparse).</div>
+
+  <div class="steps">
+    <div class="sn ok"><div class="sc">&#10003;</div><span class="sl">Upload</span></div>
+    <div class="sline ok"></div>
+    <div class="sn on"><div class="sc">2</div><span class="sl">Review</span></div>
+    <div class="sline"></div>
+    <div class="sn"><div class="sc">3</div><span class="sl">Import</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>We analyzed your data</h2>
+      <p>We detected a <strong>wide format</strong> with channel names embedded in column names.</p>
+    </div>
+    <div class="card-b">
+
+      <span class="fmt-badge wide">&#9638; Wide Format Detected — channel-prefixed columns</span>
+
+      <div class="det">
+        <div class="det-top">
+          <div class="det-icon" style="background:var(--c-paid-bg)">💰</div>
+          <div>
+            <div class="det-title">Ad Spend Data (Wide Format)</div>
+            <div class="det-sub">Each row is <span class="ed">one day</span> with metrics for <strong>3 channels</strong> as separate columns</div>
+          </div>
+        </div>
+        <div class="det-stats">
+          <div class="det-stat"><span class="v">730</span> rows &middot; <span class="v">10</span> columns</div>
+          <div class="det-stat"><span class="v">Jan 1, 2023</span> &rarr; <span class="v">Dec 31, 2024</span></div>
+        </div>
+      </div>
+
+      <!-- Channel Extraction -->
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:10px">Channels extracted from column prefixes</div>
+
+      <div class="cx-grid">
+        <div class="cx-row">
+          <div class="cx-prefix">fb_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#1877F2">f</div>
+          <div class="cx-name">Facebook Ads</div>
+          <div class="cx-metrics">
+            <span class="cx-metric">spend</span>
+            <span class="cx-metric">impressions</span>
+            <span class="cx-metric">clicks</span>
+            <span class="cx-metric">cpc</span>
+          </div>
+          <span class="cx-count">4 metrics</span>
+        </div>
+        <div class="cx-row">
+          <div class="cx-prefix">google_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#34A853">G</div>
+          <div class="cx-name">Google Ads</div>
+          <div class="cx-metrics">
+            <span class="cx-metric">spend</span>
+            <span class="cx-metric">impressions</span>
+          </div>
+          <span class="cx-count">2 metrics</span>
+        </div>
+        <div class="cx-row">
+          <div class="cx-prefix">tt_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#EE1D52">T</div>
+          <div class="cx-name">TikTok Ads</div>
+          <div class="cx-metrics">
+            <span class="cx-metric">spend</span>
+            <span class="cx-metric">impressions</span>
+            <span class="cx-metric">clicks</span>
+          </div>
+          <span class="cx-count">3 metrics</span>
+        </div>
+      </div>
+
+      <div class="ib inf" style="margin-top:0;margin-bottom:20px">
+        <span>&#9432;</span>
+        <span>Some channels have metrics others don't (e.g., Facebook has CPC but Google doesn't). Missing metrics will be stored as empty — this is normal.</span>
+      </div>
+
+      <!-- Unpivot Before/After -->
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:10px">How we'll transform your data</div>
+
+      <div class="unpivot">
+        <!-- BEFORE -->
+        <div>
+          <div class="unpivot-label">Your data (wide)</div>
+          <div class="dp">
+            <table>
+              <thead><tr>
+                <th><div class="ch"><div class="cn">date</div><span class="ct date">Date</span></div></th>
+                <th><div class="ch"><div class="cn">fb_spend</div><span class="ct paid">FB</span></div></th>
+                <th><div class="ch"><div class="cn">fb_imps</div><span class="ct paid">FB</span></div></th>
+                <th><div class="ch"><div class="cn">goog_spend</div><span class="ct paid">G</span></div></th>
+                <th><div class="ch"><div class="cn">goog_imps</div><span class="ct paid">G</span></div></th>
+              </tr></thead>
+              <tbody>
+                <tr><td class="d">2024-01-01</td><td class="n">$5,000</td><td class="n">250K</td><td class="n">$3,000</td><td class="n">120K</td></tr>
+                <tr><td class="d">2024-01-02</td><td class="n">$4,800</td><td class="n">240K</td><td class="n">$2,900</td><td class="n">115K</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ARROW -->
+        <div class="unpivot-arrow">
+          <span>&rArr;</span>
+          <span>unpivot</span>
+        </div>
+
+        <!-- AFTER -->
+        <div>
+          <div class="unpivot-label">Stored as (long)</div>
+          <div class="dp">
+            <table>
+              <thead><tr>
+                <th><div class="ch"><div class="cn">date</div><span class="ct date">Date</span></div></th>
+                <th><div class="ch"><div class="cn">source</div><span class="ct dim">Source</span></div></th>
+                <th><div class="ch"><div class="cn">spend</div><span class="ct paid">Spend</span></div></th>
+                <th><div class="ch"><div class="cn">imps</div><span class="ct paid">Imps</span></div></th>
+              </tr></thead>
+              <tbody>
+                <tr><td class="d">2024-01-01</td><td>Facebook Ads</td><td class="n">$5,000</td><td class="n">250K</td></tr>
+                <tr><td class="d">2024-01-01</td><td>Google Ads</td><td class="n">$3,000</td><td class="n">120K</td></tr>
+                <tr><td class="d">2024-01-02</td><td>Facebook Ads</td><td class="n">$4,800</td><td class="n">240K</td></tr>
+                <tr><td class="d">2024-01-02</td><td>Google Ads</td><td class="n">$2,900</td><td class="n">115K</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="route">
+        <div class="route-title">Where this data goes</div>
+        <div class="route-row">
+          <div class="route-ico paid">💰</div>
+          <div class="route-lbl"><strong>spend, impressions, clicks, cpc</strong> &rarr; Channel-level daily spend</div>
+          <div class="route-dest">paid_agg_input</div>
+        </div>
+        <div class="route-row">
+          <div class="route-ico paid">📈</div>
+          <div class="route-lbl">Available as <strong>independent variables</strong> in MMM models</div>
+          <div class="route-dest">mmm_spend_view</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="card-f">
+      <button class="btn btn-g">&larr; Back</button>
+      <button class="btn btn-p">Looks Good &rarr;</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════════
+     SCENARIO 2: SINGLE SOURCE (no source column)
+     ═══════════════════════════════════════════ -->
+<div class="scene" id="s2"><div class="wrap">
+  <div class="ann"><b>Scenario: Paid Marketing Format #4</b>
+    Data has <code>date, spend, impressions, clicks</code> but NO source/channel column. The system asks which channel this is for with a simple visual picker. Filename is used to pre-select if possible.</div>
+
+  <div class="steps">
+    <div class="sn ok"><div class="sc">&#10003;</div><span class="sl">Upload</span></div>
+    <div class="sline ok"></div>
+    <div class="sn on"><div class="sc">2</div><span class="sl">Review</span></div>
+    <div class="sline"></div>
+    <div class="sn"><div class="sc">3</div><span class="sl">Import</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>We analyzed your data</h2>
+      <p>This looks like ad spend data, but we need to know which channel it belongs to.</p>
+    </div>
+    <div class="card-b">
+
+      <span class="fmt-badge single">&#9679; Single Source — no channel column detected</span>
+
+      <div class="det">
+        <div class="det-top">
+          <div class="det-icon" style="background:var(--c-paid-bg)">💰</div>
+          <div>
+            <div class="det-title">Ad Spend Data</div>
+            <div class="det-sub">Each row is <span class="ed">one campaign per day</span> &middot; 4 spend metrics detected</div>
+          </div>
+        </div>
+        <div class="det-stats">
+          <div class="det-stat"><span class="v">1,247</span> rows &middot; <span class="v">5</span> columns</div>
+          <div class="det-stat">Filename: <span class="v">facebook_q4_campaigns.csv</span></div>
+        </div>
+      </div>
+
+      <!-- Source Picker -->
+      <div style="font-size:13px;font-weight:500;color:var(--t1);margin-bottom:12px">Which channel is this data for?</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:14px">We suggest <strong>Facebook Ads</strong> based on your filename.</div>
+
+      <div class="src-picker">
+        <div class="src-opt sel">
+          <div class="ico" style="background:#1877F2">f</div>
+          <div class="nm">Facebook Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#34A853">G</div>
+          <div class="nm">Google Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#EE1D52">T</div>
+          <div class="nm">TikTok Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#0077B5">in</div>
+          <div class="nm">LinkedIn Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#FFFC00;color:#000">S</div>
+          <div class="nm">Snapchat Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#E60023">P</div>
+          <div class="nm">Pinterest Ads</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:#6B7280">TV</div>
+          <div class="nm">TV</div>
+        </div>
+        <div class="src-opt">
+          <div class="ico" style="background:var(--accent)">+</div>
+          <div class="nm">Other...</div>
+        </div>
+      </div>
+
+      <!-- Data Preview -->
+      <div class="dp">
+        <table>
+          <thead><tr>
+            <th><div class="ch"><div class="cn">date</div><span class="ct date">Date</span></div></th>
+            <th><div class="ch"><div class="cn">campaign</div><span class="ct dim">Campaign</span></div></th>
+            <th><div class="ch"><div class="cn">spend</div><span class="ct paid">Spend</span></div></th>
+            <th><div class="ch"><div class="cn">impressions</div><span class="ct paid">Impressions</span></div></th>
+            <th><div class="ch"><div class="cn">clicks</div><span class="ct paid">Clicks</span></div></th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="d">2024-10-01</td><td>Brand Awareness Q4</td><td class="n">$5,240</td><td class="n">248,300</td><td class="n">3,120</td></tr>
+            <tr><td class="d">2024-10-01</td><td>Holiday Retargeting</td><td class="n">$2,100</td><td class="n">89,400</td><td class="n">1,845</td></tr>
+            <tr><td class="d">2024-10-02</td><td>Brand Awareness Q4</td><td class="n">$4,980</td><td class="n">239,100</td><td class="n">2,980</td></tr>
+          </tbody>
+        </table>
+        <div class="dp-foot">
+          <span>Showing 3 of 1,247 rows</span>
+          <span>Source will be set to: <strong>Facebook Ads</strong></span>
+        </div>
+      </div>
+
+      <div class="route">
+        <div class="route-title">Where this data goes</div>
+        <div class="route-row">
+          <div class="route-ico paid">💰</div>
+          <div class="route-lbl"><strong>Facebook Ads</strong> campaign-level spend &rarr; Ad Spends pipeline</div>
+          <div class="route-dest">ad_insights</div>
+        </div>
+        <div class="route-row">
+          <div class="route-ico paid">📈</div>
+          <div class="route-lbl">2 campaigns will appear in <strong>Tactic Mapper</strong> for mapping</div>
+          <div class="route-dest">tactic_mappings</div>
+        </div>
+      </div>
+
+      <div class="ib ok">
+        <span>&#10003;</span>
+        <span>All columns auto-detected. Campaign names will appear in Tactic Mapper after import.</span>
+      </div>
+
+    </div>
+    <div class="card-f">
+      <button class="btn btn-g">&larr; Back</button>
+      <button class="btn btn-p">Looks Good — Import &rarr;</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════════
+     SCENARIO 3: EVENT-LEVEL KPI
+     ═══════════════════════════════════════════ -->
+<div class="scene" id="s3"><div class="wrap">
+  <div class="ann"><b>Scenario: KPI Formats #1 and #2</b>
+    Data has <code>date, event_name, value</code> (long/event format) or <code>date, source, event_name, value_src1, value_src2</code>. The system detects this as event-level KPI data and shows the unique events found.</div>
+
+  <div class="steps">
+    <div class="sn ok"><div class="sc">&#10003;</div><span class="sl">Upload</span></div>
+    <div class="sline ok"></div>
+    <div class="sn on"><div class="sc">2</div><span class="sl">Review</span></div>
+    <div class="sline"></div>
+    <div class="sn"><div class="sc">3</div><span class="sl">Import</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>We analyzed your data</h2>
+      <p>This looks like KPI / conversion data in event format.</p>
+    </div>
+    <div class="card-b">
+
+      <span class="fmt-badge event">&#9679; Event Format — one row per event per day</span>
+
+      <div class="det">
+        <div class="det-top">
+          <div class="det-icon" style="background:var(--c-kpi-bg)">💵</div>
+          <div>
+            <div class="det-title">KPI / Conversion Data</div>
+            <div class="det-sub">Each row is <span class="ed">one event type per day</span> with a value</div>
+          </div>
+        </div>
+        <div class="det-stats">
+          <div class="det-stat"><span class="v">2,190</span> rows &middot; <span class="v">3</span> columns</div>
+          <div class="det-stat"><span class="v">3</span> unique events found</div>
+        </div>
+      </div>
+
+      <!-- Event Detection -->
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:10px">Events detected in your data</div>
+
+      <div class="cx-grid">
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-kpi);flex-shrink:0"></div>
+          <div class="cx-name" style="flex:0;min-width:120px"><strong>purchase</strong></div>
+          <div class="cx-arrow">&rarr;</div>
+          <div style="flex:1;font-size:13px;color:var(--t2)">Revenue KPI</div>
+          <span class="cx-metric kpi">Revenue</span>
+        </div>
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-kpi);flex-shrink:0"></div>
+          <div class="cx-name" style="flex:0;min-width:120px"><strong>add_to_cart</strong></div>
+          <div class="cx-arrow">&rarr;</div>
+          <div style="flex:1;font-size:13px;color:var(--t2)">Conversion KPI</div>
+          <span class="cx-metric kpi">Conversions</span>
+        </div>
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-kpi);flex-shrink:0"></div>
+          <div class="cx-name" style="flex:0;min-width:120px"><strong>signup</strong></div>
+          <div class="cx-arrow">&rarr;</div>
+          <div style="flex:1;font-size:13px;color:var(--t2)">Registration KPI</div>
+          <span class="cx-metric kpi">Registrations</span>
+        </div>
+      </div>
+
+      <!-- Data Preview -->
+      <div class="dp" style="margin-top:16px">
+        <table>
+          <thead><tr>
+            <th><div class="ch"><div class="cn">date</div><span class="ct date">Date</span></div></th>
+            <th><div class="ch"><div class="cn">event_name</div><span class="ct kpi">Event Type</span></div></th>
+            <th><div class="ch"><div class="cn">value</div><span class="ct kpi">KPI Value</span></div></th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="d">2024-01-01</td><td>purchase</td><td class="n">$48,200</td></tr>
+            <tr><td class="d">2024-01-01</td><td>add_to_cart</td><td class="n">312</td></tr>
+            <tr><td class="d">2024-01-01</td><td>signup</td><td class="n">87</td></tr>
+            <tr><td class="d">2024-01-02</td><td>purchase</td><td class="n">$52,100</td></tr>
+          </tbody>
+        </table>
+        <div class="dp-foot"><span>Showing 4 of 2,190 rows</span><span>Event format: 3 KPIs &#215; 730 days</span></div>
+      </div>
+
+      <div class="route">
+        <div class="route-title">Where this data goes</div>
+        <div class="route-row">
+          <div class="route-ico kpi">💵</div>
+          <div class="route-lbl"><strong>purchase, add_to_cart, signup</strong> &rarr; KPI metrics (outcome variables for MMM)</div>
+          <div class="route-dest">kpi_data</div>
+        </div>
+      </div>
+
+      <div class="ib ok">
+        <span>&#10003;</span>
+        <span>These KPIs will be available as outcome variables when you build an MMM or experiment model.</span>
+      </div>
+
+    </div>
+    <div class="card-f">
+      <button class="btn btn-g">&larr; Back</button>
+      <button class="btn btn-p">Looks Good — Import &rarr;</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════════
+     SCENARIO 4: MIXED WIDE FORMAT (ALL CATEGORIES)
+     ═══════════════════════════════════════════ -->
+<div class="scene" id="s4"><div class="wrap">
+  <div class="ann"><b>Scenario: Paid Marketing Format #3 (the hardest case)</b>
+    Wide format with ALL categories mixed: <code>fb_spend, fb_imps, google_spend, revenue, orders, email_opens, organic_imps, temperature, product_launch</code>. The system detects channel prefixes for paid metrics AND identifies non-prefixed columns as KPI/Organic/Contextual.</div>
+
+  <div class="steps">
+    <div class="sn ok"><div class="sc">&#10003;</div><span class="sl">Upload</span></div>
+    <div class="sline ok"></div>
+    <div class="sn on"><div class="sc">2</div><span class="sl">Review</span></div>
+    <div class="sline"></div>
+    <div class="sn"><div class="sc">3</div><span class="sl">Import</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>We analyzed your data</h2>
+      <p>We detected <strong>4 types of data</strong> in this sheet — channel-prefixed spend metrics plus KPI, organic, and contextual columns.</p>
+    </div>
+    <div class="card-b">
+
+      <span class="fmt-badge wide">&#9638; Wide Format + Mixed Categories</span>
+
+      <div class="det">
+        <div class="det-top">
+          <div class="det-icon" style="background:linear-gradient(135deg,var(--c-paid-bg),var(--c-kpi-bg),var(--c-org-bg),var(--c-ctx-bg))">📊</div>
+          <div>
+            <div class="det-title">Complete MMM Dataset</div>
+            <div class="det-sub">Each row is <span class="ed">one day</span> with spend by channel + KPIs + organic + contextual variables</div>
+          </div>
+        </div>
+        <div class="det-stats">
+          <div class="det-stat"><span class="v">730</span> rows &middot; <span class="v">12</span> columns</div>
+          <div class="det-stat"><span class="v">Jan 1, 2023</span> &rarr; <span class="v">Dec 31, 2024</span></div>
+        </div>
+      </div>
+
+      <!-- Grouped by category -->
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:10px">Columns grouped by detected category</div>
+
+      <!-- Paid Marketing - Channels -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="ct paid" style="font-size:12px;padding:4px 10px">Paid Marketing</span>
+        <span style="font-size:12px;color:var(--t2)">Channel-prefixed columns → will be unpivoted</span>
+      </div>
+      <div class="cx-grid" style="margin-bottom:16px">
+        <div class="cx-row">
+          <div class="cx-prefix">fb_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#1877F2">f</div>
+          <div class="cx-name">Facebook Ads</div>
+          <div class="cx-metrics"><span class="cx-metric">spend</span><span class="cx-metric">impressions</span><span class="cx-metric">clicks</span></div>
+        </div>
+        <div class="cx-row">
+          <div class="cx-prefix">google_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#34A853">G</div>
+          <div class="cx-name">Google Ads</div>
+          <div class="cx-metrics"><span class="cx-metric">spend</span><span class="cx-metric">impressions</span></div>
+        </div>
+        <div class="cx-row">
+          <div class="cx-prefix">tv_</div>
+          <div class="cx-arrow">&rarr;</div>
+          <div class="cx-icon" style="background:#6B7280">TV</div>
+          <div class="cx-name">TV</div>
+          <div class="cx-metrics"><span class="cx-metric">spend</span></div>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="ct kpi" style="font-size:12px;padding:4px 10px">KPI</span>
+        <span style="font-size:12px;color:var(--t2)">Standalone metric columns → outcome variables</span>
+      </div>
+      <div class="cx-grid" style="margin-bottom:16px">
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-kpi);flex-shrink:0"></div>
+          <div class="cx-name"><strong>revenue</strong></div>
+          <div style="flex:1"></div>
+          <span class="cx-metric kpi">Revenue</span>
+        </div>
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-kpi);flex-shrink:0"></div>
+          <div class="cx-name"><strong>orders</strong></div>
+          <div style="flex:1"></div>
+          <span class="cx-metric kpi">Orders</span>
+        </div>
+      </div>
+
+      <!-- Organic -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="ct org" style="font-size:12px;padding:4px 10px">Organic</span>
+        <span style="font-size:12px;color:var(--t2)">Non-paid marketing metrics</span>
+      </div>
+      <div class="cx-grid" style="margin-bottom:16px">
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-org);flex-shrink:0"></div>
+          <div class="cx-name"><strong>email_opens</strong></div>
+          <div style="flex:1"></div>
+          <span class="cx-metric org">Email</span>
+        </div>
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-org);flex-shrink:0"></div>
+          <div class="cx-name"><strong>organic_imps</strong></div>
+          <div style="flex:1"></div>
+          <span class="cx-metric org">Social</span>
+        </div>
+      </div>
+
+      <!-- Contextual -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="ct ctx" style="font-size:12px;padding:4px 10px">Contextual</span>
+        <span style="font-size:12px;color:var(--t2)">External variables → control variables for MMM</span>
+      </div>
+      <div class="cx-grid" style="margin-bottom:16px">
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-ctx);flex-shrink:0"></div>
+          <div class="cx-name"><strong>temperature</strong></div>
+          <div style="flex:1;font-size:12px;color:var(--t3)">Detected: continuous (range 32–105)</div>
+          <span class="cx-metric ctx">Continuous</span>
+        </div>
+        <div class="cx-row">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--c-ctx);flex-shrink:0"></div>
+          <div class="cx-name"><strong>product_launch</strong></div>
+          <div style="flex:1;font-size:12px;color:var(--t3)">Detected: binary (values are 0 or 1)</div>
+          <span class="cx-metric ctx">Binary</span>
+        </div>
+      </div>
+
+      <!-- Routing -->
+      <div class="route">
+        <div class="route-title">This single sheet will split into 4 pipelines</div>
+        <div class="route-row">
+          <div class="route-ico paid">💰</div>
+          <div class="route-lbl"><strong>fb_, google_, tv_</strong> columns unpivoted &rarr; channel-level spend</div>
+          <div class="route-dest">paid_agg_input</div>
+        </div>
+        <div class="route-row">
+          <div class="route-ico kpi">💵</div>
+          <div class="route-lbl"><strong>revenue, orders</strong> &rarr; KPI (outcome variables)</div>
+          <div class="route-dest">kpi_data</div>
+        </div>
+        <div class="route-row">
+          <div class="route-ico org">🌱</div>
+          <div class="route-lbl"><strong>email_opens, organic_imps</strong> &rarr; organic activity</div>
+          <div class="route-dest">organic_data</div>
+        </div>
+        <div class="route-row">
+          <div class="route-ico ctx">🌡</div>
+          <div class="route-lbl"><strong>temperature</strong> (continuous), <strong>product_launch</strong> (binary) &rarr; control variables</div>
+          <div class="route-dest">contextual_data</div>
+        </div>
+      </div>
+
+      <div class="ib ok">
+        <span>&#10003;</span>
+        <span>All 12 columns classified. This data is ready to power an MMM model with all variable types.</span>
+      </div>
+
+    </div>
+    <div class="card-f">
+      <button class="btn btn-g">&larr; Back</button>
+      <button class="btn btn-p">Continue to Schedule &rarr;</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════════
+     SCENARIO 5: END-TO-END FLOW
+     ═══════════════════════════════════════════ -->
+<div class="scene" id="s5"><div class="wrap">
+
+  <div class="ann"><b>End-to-End: Import &rarr; Metrics &amp; Dimensions &rarr; Tactic Mapper</b>
+    Shows how importing data auto-populates downstream tabs — eliminating manual field registration and campaign listing. The user's work during import propagates automatically.</div>
+
+  <!-- Pipeline diagram -->
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:12px">Auto-propagation Pipeline</div>
+
+  <div class="pipeline">
+    <div class="pipe-stage">
+      <div class="pipe-header s1">1. Import Wizard</div>
+      <div class="pipe-body">
+        <li>Detect format &amp; categories</li>
+        <li>Map columns to roles</li>
+        <li>Match source names</li>
+        <li>Import data to tables</li>
+      </div>
+    </div>
+    <div class="pipe-conn">&rArr;</div>
+    <div class="pipe-stage">
+      <div class="pipe-header s2">2. Metrics &amp; Dimensions</div>
+      <div class="pipe-body">
+        <li>Fields auto-registered</li>
+        <li>Categories pre-assigned</li>
+        <li>Sources linked</li>
+        <li>Status: Mapped &#10003;</li>
+      </div>
+    </div>
+    <div class="pipe-conn">&rArr;</div>
+    <div class="pipe-stage">
+      <div class="pipe-header s3">3. Tactic Mapper</div>
+      <div class="pipe-body">
+        <li>Campaigns auto-listed</li>
+        <li>Sources pre-filled</li>
+        <li>Tactics auto-suggested</li>
+        <li>Rules auto-created</li>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── After Import: Metrics & Dimensions ── -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-h">
+      <h2>After Import: Metrics &amp; Dimensions Tab</h2>
+      <p>Fields auto-appear with correct source, category, and status. No manual registration needed.</p>
+    </div>
+    <div class="card-b" style="padding:0">
+
+      <!-- Tab bar mockup -->
+      <div class="e2e-tab-bar" style="padding:0 22px">
+        <div class="e2e-tab on">All Fields <span class="ct-count">+8 new</span></div>
+        <div class="e2e-tab">Paid Marketing</div>
+        <div class="e2e-tab">KPI</div>
+        <div class="e2e-tab">Organic</div>
+        <div class="e2e-tab">Contextual</div>
+      </div>
+
+      <!-- Recently Added Banner -->
+      <div style="margin:16px 22px;padding:10px 14px;background:rgba(43,127,255,.06);border:1px solid rgba(43,127,255,.15);border-radius:8px;font-size:13px;color:var(--info);display:flex;align-items:center;gap:8px">
+        <span>&#9432;</span>
+        <span><strong>8 new fields</strong> added from "Q4 MMM Data" import (2 min ago)</span>
+        <span style="margin-left:auto;font-size:12px;cursor:pointer;text-decoration:underline">View import</span>
+      </div>
+
+      <table class="field-table">
+        <thead><tr>
+          <th>Field Name</th>
+          <th>Source</th>
+          <th>Category</th>
+          <th>Status</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="fname">spend <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="ct paid" style="font-size:11px">Paid Marketing</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">impressions <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="ct paid" style="font-size:11px">Paid Marketing</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">spend <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#34A853"></span> Google Ads</span></td>
+            <td><span class="ct paid" style="font-size:11px">Paid Marketing</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">spend <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#6B7280"></span> TV</span></td>
+            <td><span class="ct paid" style="font-size:11px">Paid Marketing</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">revenue <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:var(--c-kpi)"></span> Q4 MMM Data</span></td>
+            <td><span class="ct kpi" style="font-size:11px">KPI</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">orders <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:var(--c-kpi)"></span> Q4 MMM Data</span></td>
+            <td><span class="ct kpi" style="font-size:11px">KPI</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">email_opens <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:var(--c-org)"></span> Q4 MMM Data</span></td>
+            <td><span class="ct org" style="font-size:11px">Organic</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <tr>
+            <td class="fname">temperature <span class="new-badge">New</span></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:var(--c-ctx)"></span> Q4 MMM Data</span></td>
+            <td><span class="ct ctx" style="font-size:11px">Contextual</span></td>
+            <td><span class="status-ok"><span class="auto-badge">Auto</span> Mapped</span></td>
+          </tr>
+          <!-- Existing fields -->
+          <tr style="opacity:.5">
+            <td class="fname">fb_spend</td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="ct paid" style="font-size:11px">Paid Marketing</span></td>
+            <td><span class="status-ok">Mapped</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── After Import: Tactic Mapper ── -->
+  <div class="card">
+    <div class="card-h">
+      <h2>After Import: Tactic Mapper Tab</h2>
+      <p>Campaigns from granular data auto-appear with source and suggested tactic mapping. Aggregated data (channel-level) skips this step — channels are already the tactics.</p>
+    </div>
+    <div class="card-b" style="padding:0">
+
+      <div style="margin:16px 22px;padding:10px 14px;background:rgba(0,188,125,.06);border:1px solid rgba(0,188,125,.15);border-radius:8px;font-size:13px;color:var(--success);display:flex;align-items:center;gap:8px">
+        <span>&#10003;</span>
+        <span><strong>4 campaigns</strong> auto-imported from "Facebook Q4 Campaigns". 3 tactics auto-suggested from naming patterns.</span>
+      </div>
+
+      <table class="tm-table">
+        <thead><tr>
+          <th>Campaign</th>
+          <th>Source</th>
+          <th>Suggested Tactic</th>
+          <th>How</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Brand Awareness Q4</strong></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="tm-tactic suggested">&#10003; Meta Brand</span></td>
+            <td><span class="tm-rule">&#9889; Rule: name contains "brand"</span></td>
+          </tr>
+          <tr>
+            <td><strong>Holiday Retargeting</strong></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="tm-tactic suggested">&#10003; Meta Retargeting</span></td>
+            <td><span class="tm-rule">&#9889; Rule: name contains "retarget"</span></td>
+          </tr>
+          <tr>
+            <td><strong>DPA Holiday Collection</strong></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="tm-tactic suggested">&#10003; Meta Shopping</span></td>
+            <td><span class="tm-rule">&#9889; Rule: name contains "DPA"</span></td>
+          </tr>
+          <tr>
+            <td><strong>Video Views Q4</strong></td>
+            <td><span class="src-badge"><span class="src-dot" style="background:#1877F2"></span> Facebook Ads</span></td>
+            <td><span class="tm-tactic manual">+ Assign tactic...</span></td>
+            <td><span class="tm-rule" style="color:var(--warn)">&#9888; No matching rule</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-f">
+      <span style="font-size:12px;color:var(--t3)">3 of 4 campaigns auto-mapped &middot; 1 needs manual assignment</span>
+      <button class="btn btn-p btn-sm">Confirm All &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ── Summary: What was eliminated ── -->
+  <div class="card">
+    <div class="card-h">
+      <h2>Touchpoints Eliminated</h2>
+      <p>Comparison of manual steps before vs. after the smart import flow.</p>
+    </div>
+    <div class="card-b">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <!-- BEFORE -->
+        <div style="padding:16px;background:rgba(255,32,86,.05);border:1px solid rgba(255,32,86,.15);border-radius:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--err);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Before (manual flow)</div>
+          <div style="font-size:13px;color:var(--t2);line-height:2">
+            <div>1. Upload file</div>
+            <div>2. Select data type (custom_costs / mmm / custom)</div>
+            <div>3. Map each column manually</div>
+            <div>4. Set category for each metric</div>
+            <div>5. Go to Metrics tab → register each field</div>
+            <div>6. Set source for each field</div>
+            <div>7. Set transformation for each field</div>
+            <div>8. Go to Tactic Mapper → find campaigns</div>
+            <div>9. Manually assign tactic for each campaign</div>
+            <div style="margin-top:8px;font-weight:600;color:var(--err)">~9 manual steps, ~15 min for 10 columns</div>
+          </div>
+        </div>
+        <!-- AFTER -->
+        <div style="padding:16px;background:rgba(0,188,125,.05);border:1px solid rgba(0,188,125,.15);border-radius:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">After (smart import)</div>
+          <div style="font-size:13px;color:var(--t2);line-height:2">
+            <div>1. Upload file</div>
+            <div>2. Review auto-detection → "Looks Good"</div>
+            <div style="color:var(--t4);text-decoration:line-through">3-7. Auto-detected and propagated</div>
+            <div>3. Confirm tactic suggestions (1 click)</div>
+            <div style="color:var(--t4)"><br></div>
+            <div style="color:var(--t4)"><br></div>
+            <div style="color:var(--t4)"><br></div>
+            <div style="color:var(--t4)"><br></div>
+            <div style="margin-top:8px;font-weight:600;color:var(--success)">3 steps, ~2 min for any number of columns</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div></div>
+
+<script>
+function show(el,id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('.scene').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>

@@ -6,6 +6,9 @@ import { DATA_CATEGORY_LABELS } from "../monitoringData";
 import type { MetricCategory } from "../fieldsData";
 import { METRIC_CATEGORIES, initialFields, classifyColumn, SYSTEM_DIMENSIONS } from "../fieldsData";
 import { IntegrationIcon } from "./icons";
+import { DataCategoryPicker } from "./DataCategoryPicker";
+import { DataFormatPicker, type DataLayout } from "./DataFormatPicker";
+import { DataPreviewTable } from "./DataPreviewTable";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -16,6 +19,12 @@ interface TreeNode {
   checked?: boolean;
 }
 
+interface TableColumn {
+  name: string;
+  type: string;
+  isAutoKey?: boolean; // auto-detected as likely primary key
+}
+
 interface ColumnMapping {
   sourceColumn: string;
   category: MetricCategory | "";
@@ -23,6 +32,176 @@ interface ColumnMapping {
   displayName: string;
   isNewKey: boolean;
 }
+
+type DedupStrategy = "upsert" | "replace" | "append";
+
+// Mock table columns for warehouse tables
+const TABLE_COLUMNS: Record<string, TableColumn[]> = {
+  "t-events": [
+    { name: "event_id", type: "STRING", isAutoKey: true },
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "user_id", type: "STRING" },
+    { name: "event_name", type: "STRING" },
+    { name: "revenue", type: "FLOAT64" },
+    { name: "session_id", type: "STRING" },
+  ],
+  "t-sessions": [
+    { name: "session_id", type: "STRING", isAutoKey: true },
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "user_id", type: "STRING" },
+    { name: "duration_sec", type: "INT64" },
+    { name: "page_views", type: "INT64" },
+    { name: "bounce", type: "BOOLEAN" },
+  ],
+  "t-pageviews": [
+    { name: "view_id", type: "STRING", isAutoKey: true },
+    { name: "session_id", type: "STRING" },
+    { name: "url", type: "STRING" },
+    { name: "timestamp", type: "TIMESTAMP", isAutoKey: true },
+    { name: "referrer", type: "STRING" },
+  ],
+  "t-spend": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "STRING", isAutoKey: true },
+    { name: "channel", type: "STRING" },
+    { name: "spend", type: "FLOAT64" },
+    { name: "impressions", type: "INT64" },
+    { name: "clicks", type: "INT64" },
+  ],
+  "t-attribution": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "STRING", isAutoKey: true },
+    { name: "source", type: "STRING" },
+    { name: "conversions", type: "FLOAT64" },
+    { name: "revenue", type: "FLOAT64" },
+  ],
+  "t-orders": [
+    { name: "order_id", type: "STRING", isAutoKey: true },
+    { name: "date", type: "DATE" },
+    { name: "customer_id", type: "STRING" },
+    { name: "total", type: "FLOAT64" },
+    { name: "currency", type: "STRING" },
+    { name: "status", type: "STRING" },
+  ],
+  "t-products": [
+    { name: "product_id", type: "STRING", isAutoKey: true },
+    { name: "name", type: "STRING" },
+    { name: "category", type: "STRING" },
+    { name: "price", type: "FLOAT64" },
+    { name: "sku", type: "STRING" },
+  ],
+  // Snowflake tables
+  "sf-t-revenue": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "channel", type: "VARCHAR" },
+    { name: "revenue", type: "NUMBER" },
+    { name: "orders", type: "NUMBER" },
+    { name: "aov", type: "NUMBER" },
+  ],
+  "sf-t-orders": [
+    { name: "order_id", type: "VARCHAR", isAutoKey: true },
+    { name: "date", type: "DATE" },
+    { name: "customer_id", type: "VARCHAR" },
+    { name: "total", type: "NUMBER" },
+    { name: "status", type: "VARCHAR" },
+  ],
+  "sf-t-sessions": [
+    { name: "session_id", type: "VARCHAR", isAutoKey: true },
+    { name: "date", type: "DATE" },
+    { name: "user_id", type: "VARCHAR" },
+    { name: "duration", type: "NUMBER" },
+    { name: "pages", type: "NUMBER" },
+  ],
+  "sf-t-spend": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "VARCHAR", isAutoKey: true },
+    { name: "spend", type: "NUMBER" },
+    { name: "impressions", type: "NUMBER" },
+    { name: "clicks", type: "NUMBER" },
+  ],
+  "sf-t-campaigns": [
+    { name: "campaign_id", type: "VARCHAR", isAutoKey: true },
+    { name: "name", type: "VARCHAR" },
+    { name: "channel", type: "VARCHAR" },
+    { name: "start_date", type: "DATE" },
+    { name: "end_date", type: "DATE" },
+  ],
+  "sf-t-attribution": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "VARCHAR", isAutoKey: true },
+    { name: "touchpoint", type: "VARCHAR" },
+    { name: "conversions", type: "NUMBER" },
+    { name: "revenue", type: "NUMBER" },
+  ],
+  // Redshift
+  "rs-t-transactions": [
+    { name: "transaction_id", type: "VARCHAR", isAutoKey: true },
+    { name: "date", type: "DATE" },
+    { name: "amount", type: "DECIMAL" },
+    { name: "customer_id", type: "VARCHAR" },
+    { name: "product_id", type: "VARCHAR" },
+  ],
+  "rs-t-customers": [
+    { name: "customer_id", type: "VARCHAR", isAutoKey: true },
+    { name: "email", type: "VARCHAR" },
+    { name: "created_at", type: "TIMESTAMP" },
+    { name: "segment", type: "VARCHAR" },
+  ],
+  "rs-t-products": [
+    { name: "product_id", type: "VARCHAR", isAutoKey: true },
+    { name: "name", type: "VARCHAR" },
+    { name: "category", type: "VARCHAR" },
+    { name: "price", type: "DECIMAL" },
+  ],
+  "rs-t-ad-spend": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "channel", type: "VARCHAR", isAutoKey: true },
+    { name: "spend", type: "DECIMAL" },
+    { name: "impressions", type: "INTEGER" },
+    { name: "clicks", type: "INTEGER" },
+  ],
+  "rs-t-conversions": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "VARCHAR", isAutoKey: true },
+    { name: "conversions", type: "INTEGER" },
+    { name: "revenue", type: "DECIMAL" },
+  ],
+  // Databricks
+  "db-t-events": [
+    { name: "event_id", type: "STRING", isAutoKey: true },
+    { name: "timestamp", type: "TIMESTAMP", isAutoKey: true },
+    { name: "user_id", type: "STRING" },
+    { name: "event_type", type: "STRING" },
+    { name: "properties", type: "STRING" },
+  ],
+  "db-t-revenue": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "channel", type: "STRING" },
+    { name: "revenue", type: "DOUBLE" },
+    { name: "orders", type: "LONG" },
+  ],
+  "db-t-funnel": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "step", type: "STRING", isAutoKey: true },
+    { name: "users", type: "LONG" },
+    { name: "conversion_rate", type: "DOUBLE" },
+  ],
+  "db-t-campaigns": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "campaign_id", type: "STRING", isAutoKey: true },
+    { name: "spend", type: "DOUBLE" },
+    { name: "impressions", type: "LONG" },
+    { name: "clicks", type: "LONG" },
+    { name: "conversions", type: "LONG" },
+  ],
+  "db-t-channels": [
+    { name: "date", type: "DATE", isAutoKey: true },
+    { name: "channel", type: "STRING", isAutoKey: true },
+    { name: "sessions", type: "LONG" },
+    { name: "revenue", type: "DOUBLE" },
+    { name: "bounce_rate", type: "DOUBLE" },
+  ],
+};
 
 // ─── Mock Data ─────────────────────────────────────────────────────────────
 
@@ -60,6 +239,86 @@ const BIGQUERY_TREE: TreeNode[] = [
   },
 ];
 
+const SNOWFLAKE_TREE: TreeNode[] = [
+  {
+    id: "sf-db-analytics",
+    label: "ANALYTICS_DB",
+    children: [
+      {
+        id: "sf-schema-public",
+        label: "PUBLIC",
+        children: [
+          { id: "sf-t-revenue", label: "revenue_daily" },
+          { id: "sf-t-orders", label: "orders" },
+          { id: "sf-t-sessions", label: "user_sessions" },
+        ],
+      },
+      {
+        id: "sf-schema-marketing",
+        label: "MARKETING",
+        children: [
+          { id: "sf-t-spend", label: "ad_spend" },
+          { id: "sf-t-campaigns", label: "campaigns" },
+          { id: "sf-t-attribution", label: "multi_touch_attribution" },
+        ],
+      },
+    ],
+  },
+];
+
+const REDSHIFT_TREE: TreeNode[] = [
+  {
+    id: "rs-schema-public",
+    label: "public",
+    children: [
+      { id: "rs-t-transactions", label: "transactions" },
+      { id: "rs-t-customers", label: "customers" },
+      { id: "rs-t-products", label: "products" },
+    ],
+  },
+  {
+    id: "rs-schema-marketing",
+    label: "marketing",
+    children: [
+      { id: "rs-t-ad-spend", label: "ad_spend_daily" },
+      { id: "rs-t-conversions", label: "conversions" },
+    ],
+  },
+];
+
+const DATABRICKS_TREE: TreeNode[] = [
+  {
+    id: "db-catalog-main",
+    label: "main",
+    children: [
+      {
+        id: "db-schema-analytics",
+        label: "analytics",
+        children: [
+          { id: "db-t-events", label: "events" },
+          { id: "db-t-revenue", label: "revenue_summary" },
+          { id: "db-t-funnel", label: "conversion_funnel" },
+        ],
+      },
+      {
+        id: "db-schema-marketing",
+        label: "marketing",
+        children: [
+          { id: "db-t-campaigns", label: "campaign_performance" },
+          { id: "db-t-channels", label: "channel_metrics" },
+        ],
+      },
+    ],
+  },
+];
+
+function getWarehouseTree(name: string): TreeNode[] {
+  if (name === "Snowflake") return SNOWFLAKE_TREE;
+  if (name === "Amazon Redshift") return REDSHIFT_TREE;
+  if (name === "Databricks") return DATABRICKS_TREE;
+  return BIGQUERY_TREE;
+}
+
 const SHEETS_LIST = [
   { id: "sh-1", name: "Campaign Performance Q4", rows: 2340, lastUpdated: "2 hours ago" },
   { id: "sh-2", name: "Monthly Revenue Summary", rows: 156, lastUpdated: "1 day ago" },
@@ -88,7 +347,7 @@ const MOCK_COLUMNS: Record<string, { sourceColumn: string; suggestedCategory: Me
   ],
 };
 
-const DATA_SOURCE_INTEGRATIONS = new Set(["BigQuery", "Google Sheets"]);
+const DATA_SOURCE_INTEGRATIONS = new Set(["BigQuery", "Google Sheets", "Snowflake", "Amazon Redshift", "Databricks"]);
 
 // ─── Mock Streams Data (for standard integrations) ──────────────────────────
 
@@ -183,59 +442,293 @@ function StepAuthorize({
   onNext,
   onInviteUser,
   isDataSource,
+  channelName,
+  onChangeChannelName,
+  connected,
+  onChangeConnected,
+  authValues: authValuesProp,
+  onChangeAuthValues,
+  onChangeIntegrationType,
 }: {
   integration: CatalogIntegration;
   onNext: () => void;
   onInviteUser?: (name: string) => void;
   isDataSource?: boolean;
+  channelName?: string;
+  onChangeChannelName?: (v: string) => void;
+  connected?: boolean;
+  onChangeConnected?: (v: boolean) => void;
+  authValues?: Record<string, string>;
+  onChangeAuthValues?: (v: Record<string, string>) => void;
+  /** When set, renders a "Change integration type" link in the header so
+      the user can switch to a different source (opens the custom source
+      picker view in the parent). Only passed from non-native JSP flows. */
+  onChangeIntegrationType?: () => void;
 }) {
   const isGoogleSheets = integration.name === "Google Sheets";
   const isApiKey = integration.authType === "api_key";
   const [sheetUrl, setSheetUrl] = useState("");
   const [authMethod, setAuthMethod] = useState<"oauth" | "url">("oauth");
+  const [localConnected, setLocalConnected] = useState(false);
+  const isConnected = connected ?? localConnected;
+  const setIsConnected = onChangeConnected ?? setLocalConnected;
+  const [localAuthValues, setLocalAuthValues] = useState<Record<string, string>>({});
+  const authValues = authValuesProp ?? localAuthValues;
+  const updateAuthValue = (key: string, value: string) => {
+    const next = { ...authValues, [key]: value };
+    if (onChangeAuthValues) onChangeAuthValues(next);
+    else setLocalAuthValues(next);
+  };
   // Dynamic auth fields for API key integrations
   const defaultAuthFields: { key: string; label: string; type: "text" | "password" | "textarea"; placeholder: string }[] = [
     { key: "account_id", label: "Account ID", type: "text", placeholder: `Enter your ${integration.name} account ID` },
     { key: "bearer_token", label: "Bearer Token", type: "password", placeholder: "Paste your API token or bearer token" },
   ];
   const authFields = integration.authFields ?? defaultAuthFields;
-  const [authValues, setAuthValues] = useState<Record<string, string>>({});
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const allAuthFilled = isApiKey ? authFields.every((f) => (authValues[f.key] || "").trim() !== "") : true;
-  // Data-source path (BigQuery / Google Sheets) — compact centered layout
+
+  const isWarehouse = !isGoogleSheets && isDataSource;
+  const [credMode, setCredMode] = useState<"saved" | "new">("saved");
+  const [selectedCredId, setSelectedCredId] = useState<string>("");
+  const canProceed = isDataSource
+    ? (channelName || "").trim().length > 0 && isConnected
+    : true;
+
+  // Data-source path (BigQuery / Snowflake / Redshift / Databricks / Google Sheets)
   if (isDataSource) {
     return (
       <div className="max-w-lg mx-auto">
-        <div className="flex justify-center mb-5">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${integration.color}20` }}>
-            <IntegrationIcon integration={integration} />
+        {/* Contextual banner shown only in JSP flow. Matches the FileIntegrationWizard
+            version for visual consistency — see its implementation for the design rationale. */}
+        {onChangeIntegrationType && (
+          <div className="mb-6 bg-[#027b8e]/6 border border-[#027b8e]/25 rounded-[10px] overflow-hidden">
+            <div className="px-5 py-4 flex items-center gap-4">
+              <div className="w-9 h-9 rounded-[8px] bg-[#027b8e]/12 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="7.25" stroke="#027b8e" strokeWidth="1.3" />
+                  <path d="M9 5.5V9.5M9 12V12.2" stroke="#027b8e" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[var(--text-primary)] text-sm font-semibold leading-tight">
+                  Setting up &ldquo;{channelName || integration.name}&rdquo;
+                </div>
+              </div>
+              <button
+                onClick={onChangeIntegrationType}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 h-[32px] rounded-[8px] bg-[var(--bg-card)] border border-[#027b8e]/40 text-[#027b8e] hover:bg-[#027b8e]/10 hover:border-[#027b8e] text-xs font-semibold transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 4h7l-2-2M11.5 10h-7l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Change source type
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mb-6">
+          <IntegrationIcon integration={integration} />
+          <div>
+            <h2 className="text-[var(--text-primary)] text-xl font-semibold">Set up {integration.name}</h2>
+            <p className="text-[var(--text-muted)] text-sm mt-0.5">Name your integration and connect your data source.</p>
           </div>
         </div>
-        <h2 className="text-[var(--text-primary)] text-xl font-semibold text-center mb-1">
-          Connect {integration.name}
-        </h2>
-        <p className="text-[var(--text-muted)] text-sm text-center mb-8">
-          {isGoogleSheets ? "Connect your Google account or paste a sheet URL" : `Authenticate Lifesight to access your ${integration.name} data`}
-        </p>
 
-        {isGoogleSheets && (
-          <div className="flex gap-2 p-1 bg-[var(--bg-card-inner)] rounded-[6px] border border-[var(--border-primary)] mb-4">
-            <button onClick={() => setAuthMethod("oauth")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${authMethod === "oauth" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}>Google Account</button>
-            <button onClick={() => setAuthMethod("url")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${authMethod === "url" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}>Sheet URL</button>
+        {/* Integration Name */}
+        <div className="mb-6">
+          <label className="text-[var(--text-secondary)] text-sm font-medium block mb-2">Integration Name</label>
+          <input
+            type="text"
+            value={channelName || ""}
+            onChange={(e) => onChangeChannelName?.(e.target.value)}
+            placeholder={`e.g., Revenue Data, Attribution Model, ${integration.name} Analytics`}
+            className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
+          />
+          <p className="text-[var(--text-dim)] text-xs mt-2">This name will appear on your integrations list. Use something recognizable.</p>
+        </div>
+
+        <div className="border-t border-[var(--border-primary)] mb-6" />
+
+        {/* Credential selector for warehouses */}
+        {isWarehouse && (() => {
+          const DEMO_SAVED_CREDS: { id: string; label: string; description: string; values: Record<string, string> }[] = integration.name === "BigQuery" ? [
+            { id: "cred-1", label: "Production", description: "skyscanner-prod / Service Account", values: { project_id: "skyscanner-prod", service_account_json: "{...service-account-key...}" } },
+            { id: "cred-2", label: "Staging", description: "skyscanner-staging / Service Account", values: { project_id: "skyscanner-staging", service_account_json: "{...staging-key...}" } },
+          ] : integration.name === "Snowflake" ? [
+            { id: "cred-1", label: "Production Warehouse", description: "account.snowflakecomputing.com / COMPUTE_WH", values: { host: "account.snowflakecomputing.com", account: "skyscanner", warehouse: "COMPUTE_WH", database: "ANALYTICS_DB", schema: "PUBLIC", username: "svc_lifesight", password: "••••••" } },
+          ] : integration.name === "Amazon Redshift" ? [
+            { id: "cred-1", label: "Analytics Cluster", description: "cluster.us-east-1.redshift.amazonaws.com", values: { host: "cluster.us-east-1.redshift.amazonaws.com", port: "5439", database: "analytics", username: "lifesight_ro", password: "••••••" } },
+          ] : integration.name === "Databricks" ? [
+            { id: "cred-1", label: "Azure Workspace", description: "adb-1234.azuredatabricks.net", values: { host: "adb-1234.azuredatabricks.net", http_path: "/sql/1.0/warehouses/abc123", access_token: "dapi..." } },
+          ] : [];
+
+          const handleSelectCred = (cred: typeof DEMO_SAVED_CREDS[0]) => {
+            setSelectedCredId(cred.id);
+            setCredMode("saved");
+            for (const [key, val] of Object.entries(cred.values)) updateAuthValue(key, val);
+            setIsConnected(true);
+          };
+
+          return (
+            <div className="mb-6">
+              <label className="text-[var(--text-secondary)] text-sm font-medium block mb-3">Credentials</label>
+
+              {DEMO_SAVED_CREDS.length > 0 && (
+                <div className="flex flex-col gap-2 mb-3">
+                  {DEMO_SAVED_CREDS.map((cred) => {
+                    const isActive = isConnected && selectedCredId === cred.id && credMode === "saved";
+                    return (
+                      <button
+                        key={cred.id}
+                        onClick={() => handleSelectCred(cred)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                          isActive ? "border-[#00bc7d] bg-[#00bc7d]/5" : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isActive ? "border-[#00bc7d]" : "border-[var(--border-secondary)]"}`}>
+                          {isActive && <div className="w-2 h-2 rounded-full bg-[#00bc7d]" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[var(--text-primary)] text-sm font-medium">{cred.label}</span>
+                            {isActive && <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#00bc7d]/10 text-[#00bc7d] font-medium">Connected</span>}
+                          </div>
+                          <span className="text-[var(--text-dim)] text-xs">{cred.description}</span>
+                        </div>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
+                          <rect x="3" y="7" width="10" height="7" rx="1.5" stroke={isActive ? "#00bc7d" : "var(--text-dim)"} strokeWidth="1.2" fill="none" />
+                          <path d="M5 7V5a3 3 0 016 0v2" stroke={isActive ? "#00bc7d" : "var(--text-dim)"} strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                onClick={() => { setCredMode("new"); setIsConnected(false); setSelectedCredId(""); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                  credMode === "new" ? "border-[#027b8e] bg-[#027b8e]/5" : "border-dashed border-[var(--border-secondary)] hover:border-[var(--border-secondary)]"
+                }`}
+              >
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${credMode === "new" ? "border-[#027b8e]" : "border-[var(--border-secondary)]"}`}>
+                  {credMode === "new" && <div className="w-2 h-2 rounded-full bg-[#027b8e]" />}
+                </div>
+                <div className="flex-1">
+                  <span className="text-[var(--text-primary)] text-sm font-medium">Add new credentials</span>
+                  <span className="text-[var(--text-dim)] text-xs block">Enter new {integration.name} credentials</span>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 text-[var(--text-dim)]"><path d="M7 3v8M3 7h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </button>
+
+              {credMode === "new" && isApiKey && (
+                <div className="mt-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
+                  <div className="px-4 py-4 flex flex-col gap-3">
+                    {authFields.map((field) => (
+                      <div key={field.key}>
+                        <label className="text-[var(--text-muted)] text-xs font-medium block mb-1.5">{field.label}</label>
+                        {field.type === "textarea" ? (
+                          <textarea value={authValues[field.key] || ""} onChange={(e) => updateAuthValue(field.key, e.target.value)} placeholder={field.placeholder} rows={3}
+                            className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors resize-none font-mono text-xs" />
+                        ) : field.type === "password" ? (
+                          <div className="relative">
+                            <input type={visibleFields.has(field.key) ? "text" : "password"} value={authValues[field.key] || ""} onChange={(e) => updateAuthValue(field.key, e.target.value)} placeholder={field.placeholder}
+                              className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 pr-10 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+                            <button type="button" onClick={() => setVisibleFields((prev) => { const next = new Set(prev); if (next.has(field.key)) next.delete(field.key); else next.add(field.key); return next; })}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors">
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" /><circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2" /></svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <input type="text" value={authValues[field.key] || ""} onChange={(e) => updateAuthValue(field.key, e.target.value)} placeholder={field.placeholder}
+                            className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={() => { setIsConnected(true); if ((channelName || "").trim()) onNext(); }} disabled={!allAuthFilled || !(channelName || "").trim()}
+                      className="w-full px-4 py-3 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7l2.5 2.5L10.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      Verify &amp; Connect
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Google Sheets connection */}
+        {isGoogleSheets && !isConnected && (
+          <div className="mb-6">
+            <label className="text-[var(--text-secondary)] text-sm font-medium block mb-3">Connect to {integration.name}</label>
+            <div className="flex gap-2 p-1 bg-[var(--bg-card-inner)] rounded-[6px] border border-[var(--border-primary)] mb-4">
+              <button onClick={() => setAuthMethod("oauth")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${authMethod === "oauth" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}>Google Account</button>
+              <button onClick={() => setAuthMethod("url")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${authMethod === "url" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"}`}>Sheet URL</button>
+            </div>
+            {authMethod === "url" && (
+              <input type="text" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 mb-4 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
+            )}
+            <button onClick={() => setIsConnected(true)} disabled={authMethod === "url" && !sheetUrl.trim()}
+              className="w-full px-4 py-3 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+              Authenticate
+            </button>
           </div>
         )}
-        {isGoogleSheets && authMethod === "url" && (
-          <input type="text" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 mb-4 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors" />
-        )}
-        <button onClick={onNext} disabled={isGoogleSheets && authMethod === "url" && !sheetUrl.trim()} className="w-full px-4 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
-          Authenticate
-        </button>
-        {onInviteUser && (
-          <button onClick={() => onInviteUser(integration.name)} className="w-full mt-3 text-center text-[#027b8e] text-xs hover:underline transition-colors">
-            Don&apos;t have access? Invite a teammate
+
+        {/* Continue button */}
+        {canProceed && (
+          <button
+            onClick={onNext}
+            className="w-full px-4 py-3 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors mb-4"
+          >
+            Continue
           </button>
         )}
+
+        {/* Invite teammate */}
+        {onInviteUser && (
+          <button
+            onClick={() => onInviteUser(integration.name)}
+            className="w-full flex items-center gap-3 px-5 py-3 bg-[var(--bg-card)] border border-dashed border-[var(--border-secondary)] rounded-[8px] hover:border-[#027b8e]/40 hover:bg-[var(--hover-bg)] transition-colors mb-4"
+          >
+            <div className="w-9 h-9 rounded-[6px] bg-[var(--bg-card-inner)] flex items-center justify-center flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M10.67 14v-1.33a2.67 2.67 0 00-2.67-2.67H4a2.67 2.67 0 00-2.67 2.67V14" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" />
+                <circle cx="6" cy="5.33" r="2" stroke="var(--text-dim)" strokeWidth="1.2" />
+                <path d="M13.33 5.33v4M11.33 7.33h4" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="text-left flex-1">
+              <span className="text-[var(--text-secondary)] text-sm font-medium block">Don&apos;t have access?</span>
+              <span className="text-[var(--text-dim)] text-[11px]">Request a teammate or invite someone new</span>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--text-dim)] flex-shrink-0"><path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        )}
+
+        {/* Help documentation */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-[6px] bg-[#2b7fff]/10 flex items-center justify-center flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="#2b7fff" strokeWidth="1.2" />
+              <path d="M6.5 6.5a1.5 1.5 0 012.83.7c0 1-1.33 1.3-1.33 1.3" stroke="#2b7fff" strokeWidth="1.2" strokeLinecap="round" />
+              <circle cx="8" cy="11.5" r="0.5" fill="#2b7fff" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-[var(--text-primary)] text-sm font-medium block">Need help connecting {integration.name}?</span>
+            <p className="text-[var(--text-dim)] text-xs mt-0.5 leading-relaxed">
+              Check our setup guide for step-by-step instructions on how to connect and configure this integration.
+            </p>
+            <button className="mt-2 text-[#2b7fff] text-xs font-medium hover:underline transition-colors flex items-center gap-1">
+              View documentation
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 1h6v6M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -252,93 +745,125 @@ function StepAuthorize({
         <p className="text-[var(--text-muted)] text-sm">Securely authenticate Lifesight to sync your data</p>
       </div>
 
-      {/* Auth card */}
-      {isApiKey ? (
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-4">
-          <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[6px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M10 1L9 5h4l-5 10 1-6H5l5-8z" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-            </div>
-            <span className="text-[var(--text-primary)] text-sm font-medium">API Credentials</span>
-          </div>
-          <div className="px-5 py-4 flex flex-col gap-3">
-            {authFields.map((field) => (
-              <div key={field.key}>
-                <label className="text-[var(--text-muted)] text-xs font-medium block mb-1.5">{field.label}</label>
-                {field.type === "textarea" ? (
-                  <textarea
-                    value={authValues[field.key] || ""}
-                    onChange={(e) => setAuthValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    rows={4}
-                    className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors resize-none font-mono text-xs"
-                  />
-                ) : field.type === "password" ? (
-                  <div className="relative">
-                    <input
-                      type={visibleFields.has(field.key) ? "text" : "password"}
-                      value={authValues[field.key] || ""}
-                      onChange={(e) => setAuthValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder}
-                      className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 pr-10 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVisibleFields((prev) => { const next = new Set(prev); if (next.has(field.key)) next.delete(field.key); else next.add(field.key); return next; })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
-                    >
-                      {visibleFields.has(field.key) ? (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" /><circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2" /></svg>
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" /><circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M2 12L12 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
-                      )}
-                    </button>
+      {/* Auth card — show when not yet connected */}
+      {!isConnected && (
+        <>
+          {isApiKey ? (
+            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-4">
+              <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
+                <div className="w-9 h-9 rounded-[6px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M10 1L9 5h4l-5 10 1-6H5l5-8z" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  </svg>
+                </div>
+                <span className="text-[var(--text-primary)] text-sm font-medium">API Credentials</span>
+              </div>
+              <div className="px-5 py-4 flex flex-col gap-3">
+                {authFields.map((field) => (
+                  <div key={field.key}>
+                    <label className="text-[var(--text-muted)] text-xs font-medium block mb-1.5">{field.label}</label>
+                    {field.type === "textarea" ? (
+                      <textarea
+                        value={authValues[field.key] || ""}
+                        onChange={(e) => updateAuthValue(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        rows={4}
+                        className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors resize-none font-mono text-xs"
+                      />
+                    ) : field.type === "password" ? (
+                      <div className="relative">
+                        <input
+                          type={visibleFields.has(field.key) ? "text" : "password"}
+                          value={authValues[field.key] || ""}
+                          onChange={(e) => updateAuthValue(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 pr-10 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setVisibleFields((prev) => { const next = new Set(prev); if (next.has(field.key)) next.delete(field.key); else next.add(field.key); return next; })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
+                        >
+                          {visibleFields.has(field.key) ? (
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" /><circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2" /></svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="currentColor" strokeWidth="1.2" /><circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M2 12L12 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={authValues[field.key] || ""}
+                        onChange={(e) => updateAuthValue(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
+                      />
+                    )}
                   </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={authValues[field.key] || ""}
-                    onChange={(e) => setAuthValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    className="w-full bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
-                  />
-                )}
-              </div>
-            ))}
-            <button
-              onClick={onNext}
-              disabled={!allAuthFilled}
-              className="w-full px-4 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7l2.5 2.5L10.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Verify & Connect
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-4">
-          <div className="px-5 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-[6px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="#027b8e" strokeWidth="1.2" fill="none" />
-                  <path d="M5 7V5a3 3 0 016 0v2" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-[var(--text-primary)] text-sm font-medium block">OAuth 2.0 Authentication</span>
+                ))}
+                <button
+                  onClick={() => setIsConnected(true)}
+                  disabled={!allAuthFilled}
+                  className="w-full px-4 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7l2.5 2.5L10.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  Verify & Connect
+                </button>
               </div>
             </div>
+          ) : (
+            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-4">
+              <div className="px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[6px] bg-[#027b8e]/10 flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="#027b8e" strokeWidth="1.2" fill="none" />
+                      <path d="M5 7V5a3 3 0 016 0v2" stroke="#027b8e" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[var(--text-primary)] text-sm font-medium block">OAuth 2.0 Authentication</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsConnected(true)}
+                  className="px-5 h-[32px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors flex items-center gap-2 flex-shrink-0"
+                >
+                  Authenticate
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Connected state — shown after authentication */}
+      {isConnected && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between px-4 py-3 rounded-[8px] bg-[#00bc7d]/5 border border-[#00bc7d]/20 mb-4">
+            <div className="flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" fill="#00bc7d" />
+                <path d="M5 8l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-[#00bc7d] text-xs font-medium">Connected as marketing@acme.com</span>
+            </div>
             <button
-              onClick={onNext}
-              className="px-5 h-[32px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors flex items-center gap-2 flex-shrink-0"
+              onClick={() => setIsConnected(false)}
+              className="text-[var(--text-dim)] text-[10px] hover:text-[var(--text-muted)] transition-colors"
             >
-              Authenticate
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              Change account
             </button>
           </div>
+          <button
+            onClick={onNext}
+            className="w-full px-4 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            Continue
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
         </div>
       )}
 
@@ -466,312 +991,36 @@ function StepSelectAccounts({
           disabled={selectedAccounts.length === 0}
           className="px-6 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue
+          Connect {integration.name}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Standard Mapping Step (with Lifesight template) ─────────────────────
+// ─── Select Tables Step ───────────────────────────────────────────────────
 
-function StepStandardMapping({
-  integration,
-  templateFields,
-  onUpdateField,
-  onNext,
-}: {
-  integration: CatalogIntegration;
-  templateFields: MappingTemplateField[];
-  onUpdateField: (index: number, update: Partial<MappingTemplateField>) => void;
-  onNext: () => void;
-}) {
-  const [mode, setMode] = useState<"none" | "template" | "custom">("template");
-  const streams = getStreamsForIntegration(integration.name);
-  const metricCount = templateFields.filter((f) => f.fieldType === "metric").length;
-  const dimensionCount = templateFields.filter((f) => f.fieldType === "dimension").length;
-
-  return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header with integration branding */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
-          <IntegrationIcon integration={integration} />
-        </div>
-        <div>
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Field Mapping</h2>
-          <p className="text-[var(--text-muted)] text-sm">Map {integration.name} fields to Lifesight metrics and dimensions</p>
-        </div>
-      </div>
-
-      {/* Two choice cards */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <button
-          onClick={() => setMode("template")}
-          className={`text-left p-4 rounded-[8px] border-[1.5px] transition-all ${
-            mode === "template" ? "border-[#027b8e] bg-[#027b8e]/5" : "border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)]"
-          }`}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-              <rect x="2" y="2" width="12" height="12" rx="2" stroke={mode === "template" ? "#027b8e" : "var(--text-dim)"} strokeWidth="1.2" fill="none" />
-              <path d="M5 6h6M5 8.5h4M5 11h5" stroke={mode === "template" ? "#027b8e" : "var(--text-dim)"} strokeWidth="1" strokeLinecap="round" />
-            </svg>
-            <span className="text-[var(--text-primary)] text-sm font-semibold">Lifesight Template</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#027b8e]/10 text-[#027b8e] font-medium">Recommended</span>
-          </div>
-          <p className="text-[var(--text-muted)] text-xs leading-relaxed">
-            Pre-configured mapping based on best practices for {integration.name}. Fields are automatically mapped to the right metrics and dimensions.
-          </p>
-          <div className="flex gap-3 mt-3">
-            <span className="text-[var(--text-dim)] text-[11px] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2b7fff]" />{metricCount} metrics
-            </span>
-            <span className="text-[var(--text-dim)] text-[11px] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#027b8e]" />{dimensionCount} dimensions
-            </span>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setMode("custom")}
-          className={`text-left p-4 rounded-[8px] border-[1.5px] transition-all ${
-            mode === "custom" ? "border-[#027b8e] bg-[#027b8e]/5" : "border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)]"
-          }`}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-              <path d="M11.5 1.5l3 3-8.5 8.5H3v-3l8.5-8.5z" stroke={mode === "custom" ? "#027b8e" : "var(--text-dim)"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
-            <span className="text-[var(--text-primary)] text-sm font-semibold">Custom Template</span>
-          </div>
-          <p className="text-[var(--text-muted)] text-xs leading-relaxed">
-            Start from the template and customize each field. Change types, rename fields, and adjust categories to match your workflow.
-          </p>
-          <div className="flex gap-3 mt-3">
-            <span className="text-[var(--text-dim)] text-[11px]">Full control over every field</span>
-          </div>
-        </button>
-      </div>
-
-      {/* Mapping table — shown when either mode is selected */}
-      {mode !== "none" && (
-        <>
-          <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-4">
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_80px_1fr_1fr_140px] gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-card-inner)]">
-              <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Source Field</span>
-              <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Type</span>
-              <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Display Name</span>
-              <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Lifesight Field</span>
-              <span className="text-[var(--text-dim)] text-[10px] font-semibold uppercase tracking-wider">Category</span>
-            </div>
-
-            {templateFields.map((field, i) => (
-              <div
-                key={field.sourceField}
-                className="grid grid-cols-[1fr_80px_1fr_1fr_140px] gap-3 px-4 py-2.5 border-b border-[var(--border-primary)] last:border-b-0 items-center"
-              >
-                {/* Source Field */}
-                <code className="text-[var(--text-secondary)] text-sm bg-[var(--bg-card-inner)] px-2 py-0.5 rounded font-mono text-xs">{field.sourceField}</code>
-
-                {/* Type toggle */}
-                {mode === "custom" ? (
-                  <button
-                    onClick={() => onUpdateField(i, { fieldType: field.fieldType === "metric" ? "dimension" : "metric" })}
-                    className={`px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${
-                      field.fieldType === "metric" ? "bg-[#2b7fff]/15 text-[#2b7fff] hover:bg-[#2b7fff]/25" : "bg-[#027b8e]/15 text-[#027b8e] hover:bg-[#027b8e]/25"
-                    }`}
-                  >
-                    {field.fieldType === "metric" ? "Metric" : "Dimension"}
-                  </button>
-                ) : (
-                  <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
-                    field.fieldType === "metric" ? "bg-[#2b7fff]/15 text-[#2b7fff]" : "bg-[#027b8e]/15 text-[#027b8e]"
-                  }`}>
-                    {field.fieldType === "metric" ? "Metric" : "Dimension"}
-                  </span>
-                )}
-
-                {/* Display Name */}
-                {mode === "custom" ? (
-                  <input
-                    type="text"
-                    value={field.displayName}
-                    onChange={(e) => onUpdateField(i, { displayName: e.target.value })}
-                    className="px-2.5 py-1.5 rounded-[6px] border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm text-[var(--text-primary)] placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
-                  />
-                ) : (
-                  <span className="text-[var(--text-secondary)] text-sm truncate">{field.displayName}</span>
-                )}
-
-                {/* Lifesight Field */}
-                {mode === "custom" ? (
-                  <input
-                    type="text"
-                    value={field.lifesightField}
-                    onChange={(e) => onUpdateField(i, { lifesightField: e.target.value })}
-                    className="px-2.5 py-1.5 rounded-[6px] border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm text-[var(--text-primary)] placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
-                  />
-                ) : (
-                  <span className="text-[var(--text-secondary)] text-sm truncate">{field.lifesightField}</span>
-                )}
-
-                {/* Category */}
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: METRIC_CATEGORIES[field.category]?.color }} />
-                  <span className="text-[var(--text-secondary)] text-sm truncate">{METRIC_CATEGORIES[field.category]?.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Help text */}
-          <div className="flex items-start gap-2.5 mb-6 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[6px] px-4 py-3">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5">
-              <circle cx="7" cy="7" r="6" stroke="var(--text-dim)" strokeWidth="1.2" />
-              <path d="M7 6.5V10" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" />
-              <circle cx="7" cy="4.5" r="0.75" fill="var(--text-dim)" />
-            </svg>
-            <p className="text-[var(--text-muted)] text-xs leading-relaxed">
-              These mappings determine how {integration.name} data flows into your Lifesight models. Need to make changes later? Head to the <strong className="text-[var(--text-secondary)]">Metrics &amp; Dimensions</strong> tab where you can edit, add, or remove any field mapping at any time.
-            </p>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              onClick={onNext}
-              className="px-6 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
-            >
-              Continue
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
+// Flatten warehouse tree into dataset → tables structure for cleaner rendering
+function flattenTree(tree: TreeNode[]): { dataset: string; datasetId: string; tables: { id: string; label: string }[] }[] {
+  const result: { dataset: string; datasetId: string; tables: { id: string; label: string }[] }[] = [];
+  for (const node of tree) {
+    if (node.children) {
+      for (const child of node.children) {
+        if (child.children) {
+          // 3-level: project > dataset > table
+          result.push({ dataset: child.label, datasetId: child.id, tables: child.children.map((t) => ({ id: t.id, label: t.label })) });
+        } else {
+          // 2-level: schema > table (Redshift)
+          if (!result.find((r) => r.datasetId === node.id)) {
+            result.push({ dataset: node.label, datasetId: node.id, tables: [] });
+          }
+          result.find((r) => r.datasetId === node.id)!.tables.push({ id: child.id, label: child.label });
+        }
+      }
+    }
+  }
+  return result;
 }
-
-// ─── Standard Review Step ────────────────────────────────────────────────
-
-function StepStandardReview({
-  integration,
-  selectedAccounts,
-  templateFields,
-  onComplete,
-}: {
-  integration: CatalogIntegration;
-  selectedAccounts: string[];
-  templateFields: MappingTemplateField[];
-  onComplete: () => void;
-}) {
-  const streams = getStreamsForIntegration(integration.name);
-  const metricCount = templateFields.filter((f) => f.fieldType === "metric").length;
-  const dimensionCount = templateFields.filter((f) => f.fieldType === "dimension").length;
-
-  const metricFields = templateFields.filter((f) => f.fieldType === "metric");
-  const dimensionFields = templateFields.filter((f) => f.fieldType === "dimension");
-
-  return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header with integration branding */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
-          <IntegrationIcon integration={integration} />
-        </div>
-        <div>
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Review &amp; Connect</h2>
-          <p className="text-[var(--text-muted)] text-sm">Confirm your setup before syncing</p>
-        </div>
-      </div>
-
-      {/* Summary cards — 3-col */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5 text-center">
-          <span className="text-[var(--text-primary)] text-lg font-semibold block">{selectedAccounts.length}</span>
-          <span className="text-[var(--text-dim)] text-xs">Account{selectedAccounts.length !== 1 ? "s" : ""}</span>
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5 text-center">
-          <span className="text-[#2b7fff] text-lg font-semibold block">{metricCount}</span>
-          <span className="text-[var(--text-dim)] text-xs">Metrics</span>
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5 text-center">
-          <span className="text-[#027b8e] text-lg font-semibold block">{dimensionCount}</span>
-          <span className="text-[var(--text-dim)] text-xs">Dimensions</span>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 mb-6">
-        {/* Accounts */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5">
-          <span className="text-[var(--text-dim)] text-[10px] font-bold uppercase tracking-[1.12px] block mb-2">Accounts</span>
-          <div className="flex flex-wrap gap-2">
-            {selectedAccounts.map((a) => (
-              <span key={a} className="px-2 py-[5.5px] rounded-[4px] bg-[var(--bg-badge)] text-[var(--text-secondary)] text-xs font-medium">{a}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Metrics Section */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-[#2b7fff]" />
-            <span className="text-[var(--text-dim)] text-[10px] font-bold uppercase tracking-[1.12px]">Metrics ({metricCount})</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {metricFields.map((m) => (
-              <div key={m.sourceField} className="flex items-center gap-3 text-sm">
-                <code className="text-[var(--text-muted)] bg-[var(--bg-card-inner)] px-1.5 py-0.5 rounded font-mono text-xs">{m.sourceField}</code>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="var(--text-dim)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[#ebebeb] font-medium text-xs">{m.displayName}</span>
-                <span className="ml-auto flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: METRIC_CATEGORIES[m.category]?.color }} />
-                  <span className="text-[var(--text-dim)] text-[10.5px]">{METRIC_CATEGORIES[m.category]?.label}</span>
-                </span>
-              </div>
-            ))}
-            {metricFields.length === 0 && (
-              <span className="text-[var(--text-dim)] text-xs italic">No metrics mapped</span>
-            )}
-          </div>
-        </div>
-
-        {/* Dimensions Section */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-[#027b8e]" />
-            <span className="text-[var(--text-dim)] text-[10px] font-bold uppercase tracking-[1.12px]">Dimensions ({dimensionCount})</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {dimensionFields.map((m) => (
-              <div key={m.sourceField} className="flex items-center gap-3 text-sm">
-                <code className="text-[var(--text-muted)] bg-[var(--bg-card-inner)] px-1.5 py-0.5 rounded font-mono text-xs">{m.sourceField}</code>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="var(--text-dim)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[#ebebeb] font-medium text-xs">{m.displayName}</span>
-                <span className="ml-auto flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: METRIC_CATEGORIES[m.category]?.color }} />
-                  <span className="text-[var(--text-dim)] text-[10.5px]">{METRIC_CATEGORIES[m.category]?.label}</span>
-                </span>
-              </div>
-            ))}
-            {dimensionFields.length === 0 && (
-              <span className="text-[var(--text-dim)] text-xs italic">No dimensions mapped</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <button
-        onClick={onComplete}
-        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
-      >
-        Connect {integration.name}
-      </button>
-    </div>
-  );
-}
-
-// ─── Tree View ─────────────────────────────────────────────────────────────
 
 function TreeCheckbox({
   node,
@@ -900,19 +1149,32 @@ function StepSelectTables({
   integration,
   selectedTables,
   onSelectTables,
+  selectedKeys,
+  onToggleKey,
   onNext,
 }: {
   integration: CatalogIntegration;
   selectedTables: Set<string>;
   onSelectTables: (tables: Set<string>) => void;
+  selectedKeys: Record<string, Set<string>>;
+  onToggleKey: (tableId: string, colName: string) => void;
   onNext: () => void;
 }) {
-  const isBigQuery = integration.name === "BigQuery";
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["project-1", "ds-analytics", "ds-marketing", "ds-ecommerce"]));
+  const isGoogleSheets = integration.name === "Google Sheets";
+  const isWarehouse = !isGoogleSheets;
+  const warehouseTree = isWarehouse ? getWarehouseTree(integration.name) : [];
+  const defaultExpanded = useMemo(() => {
+    const ids = new Set<string>();
+    for (const node of warehouseTree) {
+      ids.add(node.id);
+      if (node.children) for (const child of node.children) ids.add(child.id);
+    }
+    return ids;
+  }, [warehouseTree]);
+  const [expanded, setExpanded] = useState<Set<string>>(defaultExpanded);
   const [selectedSheets, setSelectedSheets] = useState<Set<string>>(new Set());
-
   const toggleCheck = (id: string) => {
-    if (isBigQuery) {
+    if (isWarehouse) {
       const next = new Set(selectedTables);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -933,56 +1195,24 @@ function StepSelectTables({
     setExpanded(next);
   };
 
-  const selectionCount = isBigQuery ? selectedTables.size : selectedSheets.size;
+  const selectionCount = isWarehouse ? selectedTables.size : selectedSheets.size;
 
-  return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">
-        {isBigQuery ? "Select Tables" : "Select Sheets"}
-      </h2>
-      <p className="text-[var(--text-muted)] text-sm mb-6">
-        {isBigQuery
-          ? "Choose which BigQuery tables to sync into Lifesight"
-          : "Choose which sheets to import"}
-      </p>
 
-      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden mb-6">
-        {isBigQuery ? (
-          <div className="p-3 max-h-[400px] overflow-y-auto">
-            {BIGQUERY_TREE.map((node) => (
-              <TreeCheckbox
-                key={node.id}
-                node={node}
-                depth={0}
-                checked={selectedTables}
-                expanded={expanded}
-                onToggleCheck={toggleCheck}
-                onToggleExpand={toggleExpand}
-              />
-            ))}
-          </div>
-        ) : (
+  if (!isWarehouse) {
+    // Google Sheets: simple list
+    return (
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Select Sheets</h2>
+        <p className="text-[var(--text-muted)] text-sm mb-6">Choose which sheets to import.</p>
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden mb-6">
           <div className="divide-y divide-[var(--border-primary)]">
             {SHEETS_LIST.map((sheet) => {
               const isSelected = selectedSheets.has(sheet.id);
               return (
-                <button
-                  key={sheet.id}
-                  onClick={() => toggleCheck(sheet.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                    isSelected ? "bg-[#027b8e]/5" : "hover:bg-[var(--hover-item)]"
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                      isSelected ? "bg-[#027b8e] border-[#027b8e]" : "border-[var(--border-secondary)]"
-                    }`}
-                  >
-                    {isSelected && (
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                        <path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+                <button key={sheet.id} onClick={() => toggleCheck(sheet.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? "bg-[#027b8e]/5" : "hover:bg-[var(--hover-item)]"}`}>
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? "bg-[#027b8e] border-[#027b8e]" : "border-[var(--border-secondary)]"}`}>
+                    {isSelected && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </span>
                   <div className="flex-1 min-w-0">
                     <span className="text-[var(--text-primary)] text-sm font-medium block">{sheet.name}</span>
@@ -992,20 +1222,240 @@ function StepSelectTables({
               );
             })}
           </div>
-        )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[var(--text-muted)] text-xs">{selectionCount} sheet{selectionCount !== 1 ? "s" : ""} selected</span>
+          <button onClick={onNext} disabled={selectionCount === 0}
+            className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+        </div>
       </div>
+    );
+  }
 
-      <div className="flex items-center justify-between">
-        <span className="text-[var(--text-muted)] text-xs">
-          {selectionCount} {isBigQuery ? "table" : "sheet"}{selectionCount !== 1 ? "s" : ""} selected
-        </span>
+  // Warehouse: single list with inline column expansion
+  const datasets = useMemo(() => flattenTree(warehouseTree), [warehouseTree]);
+  const [search, setSearch] = useState("");
+  const [collapsedDatasets, setCollapsedDatasets] = useState<Set<string>>(new Set());
+  const [expandedTable, setExpandedTable] = useState<string | null>(null);
+
+  const filteredDatasets = useMemo(() => {
+    if (!search) return datasets;
+    const q = search.toLowerCase();
+    return datasets.map((ds) => ({
+      ...ds,
+      tables: ds.tables.filter((t) => t.label.toLowerCase().includes(q)),
+    })).filter((ds) => ds.tables.length > 0);
+  }, [datasets, search]);
+
+  const toggleDatasetCollapse = (id: string) => {
+    setCollapsedDatasets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleTableClick = (tableId: string) => {
+    const isSelected = selectedTables.has(tableId);
+    if (!isSelected) {
+      toggleCheck(tableId);
+      setExpandedTable(tableId);
+    } else {
+      setExpandedTable(expandedTable === tableId ? null : tableId);
+    }
+  };
+
+  return (
+    <div>
+      {/* Header with Continue button */}
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-1">Select Tables</h2>
+          <p className="text-[var(--text-muted)] text-sm">
+            Choose which {integration.name} tables to sync. Select a table to configure its primary key.
+          </p>
+        </div>
         <button
           onClick={onNext}
           disabled={selectionCount === 0}
-          className="px-6 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-5 h-[36px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[13px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ml-6"
         >
           Continue
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-5">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-label)]">
+          <circle cx="7.33" cy="7.33" r="4.33" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M13 13l-3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search tables..."
+          className="w-full bg-[var(--bg-card)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-secondary)] pl-10 pr-3 py-2.5 placeholder-[var(--text-label)] focus:outline-none focus:border-[#027b8e] transition-colors"
+        />
+      </div>
+
+      {/* Dataset sections */}
+      <div className="flex flex-col gap-5">
+        {filteredDatasets.map((ds) => {
+          const isCollapsed = collapsedDatasets.has(ds.datasetId);
+          const selectedInDs = ds.tables.filter((t) => selectedTables.has(t.id)).length;
+          return (
+            <div key={ds.datasetId}>
+              {/* Dataset header */}
+              <div className="flex items-center gap-2 mb-2">
+                <button onClick={() => toggleDatasetCollapse(ds.datasetId)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`flex-shrink-0 transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}>
+                    <path d="M3 1.5L7 5L3 8.5" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                    <path d="M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1V3.5z" stroke="var(--text-dim)" strokeWidth="1" fill="none" />
+                  </svg>
+                  <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">{ds.dataset}</span>
+                </button>
+                <span className="text-[var(--text-dim)] text-[10px] font-medium bg-[var(--bg-badge)] px-1.5 py-0.5 rounded-[4px]">{ds.tables.length}</span>
+                {selectedInDs > 0 && (
+                  <span className="text-[#027b8e] text-[10px] font-semibold bg-[#027b8e]/10 px-1.5 py-0.5 rounded-[4px]">{selectedInDs} selected</span>
+                )}
+              </div>
+
+              {/* Table card */}
+              {!isCollapsed && (
+                <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
+                  {ds.tables.map((table, tableIdx) => {
+                    const isSelected = selectedTables.has(table.id);
+                    const isExpanded = expandedTable === table.id && isSelected;
+                    const cols = TABLE_COLUMNS[table.id];
+                    const keys = selectedKeys[table.id] || new Set<string>();
+                    const keyList = Array.from(keys);
+                    const isLast = tableIdx === ds.tables.length - 1;
+
+                    return (
+                      <div key={table.id}>
+                        {/* Table row */}
+                        <button
+                          onClick={() => handleTableClick(table.id)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 group ${
+                            !isLast && !isExpanded ? "border-b border-[var(--border-subtle)]" : ""
+                          } ${
+                            isSelected ? "bg-[var(--hover-bg)]" : "hover:bg-[var(--hover-item)]"
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <span
+                            onClick={(e) => { e.stopPropagation(); const wasSelected = selectedTables.has(table.id); toggleCheck(table.id); if (wasSelected) setExpandedTable(null); else setExpandedTable(table.id); }}
+                            className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isSelected ? "bg-[#027b8e] border-[#027b8e]" : "border-[var(--border-secondary)] group-hover:border-[#027b8e]/50"
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            )}
+                          </span>
+                          {/* Table icon */}
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                            <rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke={isSelected ? "#027b8e" : "var(--text-dim)"} strokeWidth="1" fill="none" />
+                            <path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke={isSelected ? "#027b8e" : "var(--text-dim)"} strokeWidth="0.7" strokeLinecap="round" />
+                          </svg>
+                          <span className={`text-sm flex-1 ${isSelected ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"}`}>{table.label}</span>
+                          {/* Column count + expand indicator */}
+                          {isSelected && cols && (
+                            <span className="text-[var(--text-dim)] text-[10px]">{cols.length} cols</span>
+                          )}
+                          {isSelected && (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`flex-shrink-0 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`}>
+                              <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Inline column panel */}
+                        {isExpanded && cols && (
+                          <div className={`bg-[var(--bg-card-inner)] mx-3 mb-3 rounded-lg overflow-hidden border border-[var(--border-primary)] ${!isLast ? "border-b border-[var(--border-subtle)]" : ""}`}>
+                            {/* Key summary — at the top */}
+                            <div className="px-4 py-2.5 border-b border-[var(--border-subtle)] flex items-center gap-2">
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                                <path d="M8 1.5a3.5 3.5 0 00-3.08 5.16L1.5 10.08V12.5h2.42l.58-.58v-1.34h1.34l1.24-1.24A3.5 3.5 0 108 1.5z" stroke={keyList.length > 0 ? "#fe9a00" : "var(--text-dim)"} strokeWidth="1.2" fill="none" />
+                                {keyList.length > 0 && <circle cx="9.25" cy="4.75" r="0.75" fill="#fe9a00" />}
+                              </svg>
+                              {keyList.length > 0 ? (
+                                <span className="text-[#fe9a00] text-xs font-medium">Primary key: {keyList.join(" + ")}</span>
+                              ) : (
+                                <span className="text-[var(--text-dim)] text-xs">Click PK to set primary key columns for deduplication</span>
+                              )}
+                            </div>
+                            {/* Column header */}
+                            <div className="grid grid-cols-3 px-4 py-2 border-b border-[var(--border-subtle)]">
+                              <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider">Column</span>
+                              <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider text-center">Type</span>
+                              <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider text-right">Key</span>
+                            </div>
+                            {/* Column rows */}
+                            {cols.map((col) => {
+                              const isKey = keys.has(col.name);
+                              return (
+                                <div
+                                  key={col.name}
+                                  className={`grid grid-cols-3 px-4 py-2.5 border-b border-[var(--border-subtle)] last:border-b-0 ${
+                                    isKey ? "bg-[#fe9a00]/5" : ""
+                                  }`}
+                                >
+                                  <code className={`text-[11px] font-mono ${isKey ? "text-[var(--text-primary)] font-semibold" : "text-[var(--text-secondary)]"}`}>{col.name}</code>
+                                  <span className="text-[var(--text-dim)] text-[10px] font-mono text-center">{col.type}</span>
+                                  <div className="flex justify-end">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); onToggleKey(table.id, col.name); }}
+                                      className={`w-[42px] h-[22px] rounded-[4px] flex items-center justify-center gap-1 transition-all text-[10px] font-medium ${
+                                        isKey
+                                          ? "bg-[#fe9a00] text-white"
+                                          : "bg-transparent border border-[var(--border-secondary)] text-[var(--text-dim)] hover:border-[#fe9a00]/40 hover:text-[#fe9a00]"
+                                      }`}
+                                      title={isKey ? "Remove from primary key" : "Set as primary key"}
+                                    >
+                                      <svg width="8" height="8" viewBox="0 0 14 14" fill="none"><path d="M8 1.5a3.5 3.5 0 00-3.08 5.16L1.5 10.08V12.5h2.42l.58-.58v-1.34h1.34l1.24-1.24A3.5 3.5 0 108 1.5z" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>
+                                      PK
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {filteredDatasets.length === 0 && (
+          <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-[var(--bg-badge)] flex items-center justify-center mx-auto mb-4">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="9" cy="9" r="6" stroke="var(--text-dim)" strokeWidth="1.2" />
+                <path d="M18 18l-4-4" stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="text-[var(--text-muted)] text-sm">No tables match your search</p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer count */}
+      <div className="flex items-center justify-between mt-4">
+        <span className="text-[var(--text-muted)] text-xs">{selectionCount} table{selectionCount !== 1 ? "s" : ""} selected</span>
+        {selectionCount > 0 && (
+          <button onClick={() => { onSelectTables(new Set()); setExpandedTable(null); }} className="text-[var(--text-dim)] text-[10px] hover:text-[var(--text-muted)] transition-colors">
+            Clear all
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1099,12 +1549,6 @@ function StepChannelName({
         <p className="text-[var(--text-dim)] text-xs mt-2">
           Name this data source to identify it (e.g., SkyScanner, Kayak, Internal CRM)
         </p>
-        {isJspPreFilled && (
-          <p className="text-[#027b8e] text-xs mt-1.5 flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.32 2.68L10 4.18l-2 1.95.47 2.75L6 7.7 3.53 8.88 4 6.13 2 4.18l2.68-.5L6 1z" fill="#027b8e" /></svg>
-            Pre-filled from your setup plan
-          </p>
-        )}
       </div>
 
       <button
@@ -1454,100 +1898,370 @@ function StepColumnMapping({
   );
 }
 
+// ─── Schedule & Sync Step ──────────────────────────────────────────────────
+
+const SCHEDULE_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+const SCHEDULE_MINS = ["00", "15", "30", "45"];
+const WEEK_DAYS = [
+  { value: "monday", label: "Mon" }, { value: "tuesday", label: "Tue" }, { value: "wednesday", label: "Wed" },
+  { value: "thursday", label: "Thu" }, { value: "friday", label: "Fri" }, { value: "saturday", label: "Sat" }, { value: "sunday", label: "Sun" },
+];
+
+const DEDUP_OPTIONS: { value: DedupStrategy; label: string; desc: string; badge?: string }[] = [
+  { value: "upsert", label: "Upsert", desc: "Update existing rows by primary key, insert new ones. Best for most cases.", badge: "Recommended" },
+  { value: "replace", label: "Full Replace", desc: "Drop and re-create the table on each sync. Use when source data is a complete snapshot." },
+  { value: "append", label: "Append Only", desc: "Always insert new rows without checking for duplicates. Use for event/log data." },
+];
+
+function StepScheduleAndSync({
+  integration,
+  dedupStrategy,
+  onChangeDedupStrategy,
+  frequency,
+  onChangeFrequency,
+  refreshDay,
+  onChangeDay,
+  refreshHour,
+  onChangeHour,
+  refreshMinute,
+  onChangeMinute,
+  refreshAmPm,
+  onChangeAmPm,
+  selectedKeys,
+  selectedTables,
+  onNext,
+}: {
+  integration: CatalogIntegration;
+  dedupStrategy: DedupStrategy;
+  onChangeDedupStrategy: (s: DedupStrategy) => void;
+  frequency: "daily" | "weekly" | "monthly";
+  onChangeFrequency: (f: "daily" | "weekly" | "monthly") => void;
+  refreshDay: string;
+  onChangeDay: (d: string) => void;
+  refreshHour: string;
+  onChangeHour: (h: string) => void;
+  refreshMinute: string;
+  onChangeMinute: (m: string) => void;
+  refreshAmPm: "AM" | "PM";
+  onChangeAmPm: (ap: "AM" | "PM") => void;
+  selectedKeys: Record<string, Set<string>>;
+  selectedTables: Set<string>;
+  onNext: () => void;
+}) {
+  const tz = useMemo(() => {
+    const name = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(new Date());
+    const abbr = parts.find((p) => p.type === "timeZoneName")?.value || "";
+    return { name, abbr };
+  }, []);
+
+  const scheduleLabel = useMemo(() => {
+    const time = `${refreshHour}:${refreshMinute} ${refreshAmPm}`;
+    if (frequency === "daily") return `Every day at ${time}`;
+    if (frequency === "weekly") return `Every ${refreshDay.charAt(0).toUpperCase() + refreshDay.slice(1)} at ${time}`;
+    return `Monthly at ${time}`;
+  }, [frequency, refreshDay, refreshHour, refreshMinute, refreshAmPm]);
+
+  // Check if upsert needs keys
+  const tablesWithoutKeys = dedupStrategy === "upsert"
+    ? Array.from(selectedTables).filter((t) => !(selectedKeys[t]?.size > 0))
+    : [];
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Schedule &amp; Sync</h2>
+      <p className="text-[var(--text-muted)] text-sm mb-6">Configure how and when data syncs from {integration.name}.</p>
+
+      {/* ── Dedup Strategy ────────────────────────────────── */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6h8M4 10h8M2 2h12v12H2z" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+          <h3 className="text-[var(--text-primary)] text-base font-semibold">Deduplication</h3>
+        </div>
+        <p className="text-[var(--text-muted)] text-sm mb-4">How should we handle duplicate rows when syncing new data?</p>
+
+        <div className="flex flex-col gap-2 mb-4">
+          {DEDUP_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onChangeDedupStrategy(opt.value)}
+              className={`flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                dedupStrategy === opt.value ? "border-[#027b8e] bg-[#027b8e]/5" : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+              }`}
+            >
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
+                dedupStrategy === opt.value ? "border-[#027b8e]" : "border-[var(--border-secondary)]"
+              }`}>
+                {dedupStrategy === opt.value && <div className="w-2 h-2 rounded-full bg-[#027b8e]" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--text-primary)] text-sm font-medium">{opt.label}</span>
+                  {opt.badge && <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#027b8e]/10 text-[#027b8e] font-medium">{opt.badge}</span>}
+                </div>
+                <p className="text-[var(--text-dim)] text-xs mt-0.5">{opt.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Warning if upsert selected but tables have no keys */}
+        {dedupStrategy === "upsert" && tablesWithoutKeys.length > 0 && (
+          <div className="flex items-start gap-2 bg-[#fe9a00]/5 border border-[#fe9a00]/20 rounded-lg px-4 py-3">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0 mt-0.5">
+              <circle cx="8" cy="8" r="6" stroke="#fe9a00" strokeWidth="1.2" />
+              <path d="M8 5.5v3" stroke="#fe9a00" strokeWidth="1.2" strokeLinecap="round" />
+              <circle cx="8" cy="11" r="0.75" fill="#fe9a00" />
+            </svg>
+            <p className="text-[#fe9a00] text-xs leading-relaxed">
+              <strong>{tablesWithoutKeys.length} table{tablesWithoutKeys.length > 1 ? "s" : ""}</strong> ha{tablesWithoutKeys.length > 1 ? "ve" : "s"} no primary key set. Go back to Select Tables to set keys, or switch to Full Replace / Append Only.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Schedule Section ──────────────────────────────── */}
+      <div className="border-t border-[var(--border-primary)] pt-6 mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="var(--text-muted)" strokeWidth="1.2" />
+            <path d="M8 5v3.5l2.5 1.5" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <h3 className="text-[var(--text-primary)] text-base font-semibold">Sync Schedule</h3>
+        </div>
+        <p className="text-[var(--text-muted)] text-sm mb-5">Set how often we should pull new data from {integration.name}.</p>
+
+        <div className="mb-5">
+          <label className="text-[var(--text-secondary)] text-xs font-medium block mb-2.5">Frequency</label>
+          <div className="flex gap-3">
+            {(["daily", "weekly", "monthly"] as const).map((f) => (
+              <button key={f} onClick={() => onChangeFrequency(f)} className={`flex-1 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                frequency === f ? "border-[#027b8e] bg-[#027b8e]/5 text-[#027b8e]" : "border-[var(--border-primary)] text-[var(--text-muted)] hover:border-[var(--border-secondary)]"
+              }`}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+            ))}
+          </div>
+        </div>
+
+        {frequency === "weekly" && (
+          <div className="mb-5">
+            <label className="text-[var(--text-secondary)] text-xs font-medium block mb-2.5">Day of Week</label>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEK_DAYS.map((d) => (
+                <button key={d.value} onClick={() => onChangeDay(d.value)} className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                  refreshDay === d.value ? "bg-[#027b8e] text-white" : "bg-[var(--bg-card-inner)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}>{d.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-5">
+          <label className="text-[var(--text-secondary)] text-xs font-medium block mb-2.5">Time</label>
+          <div className="flex items-center gap-2">
+            <select value={refreshHour} onChange={(e) => onChangeHour(e.target.value)}
+              className="w-[72px] px-2.5 py-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#027b8e] transition-colors appearance-none text-center cursor-pointer"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%239CA3AF' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}>
+              {SCHEDULE_HOURS.map((h) => (<option key={h} value={h}>{h}</option>))}
+            </select>
+            <span className="text-[var(--text-muted)] text-lg font-light">:</span>
+            <select value={refreshMinute} onChange={(e) => onChangeMinute(e.target.value)}
+              className="w-[72px] px-2.5 py-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-card-inner)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#027b8e] transition-colors appearance-none text-center cursor-pointer"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%239CA3AF' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}>
+              {SCHEDULE_MINS.map((m) => (<option key={m} value={m}>{m}</option>))}
+            </select>
+            <div className="flex rounded-lg border border-[var(--border-secondary)] overflow-hidden">
+              <button onClick={() => onChangeAmPm("AM")} className={`px-3 py-2 text-xs font-medium transition-colors ${refreshAmPm === "AM" ? "bg-[#027b8e] text-white" : "bg-[var(--bg-card-inner)] text-[var(--text-muted)]"}`}>AM</button>
+              <button onClick={() => onChangeAmPm("PM")} className={`px-3 py-2 text-xs font-medium transition-colors border-l border-[var(--border-secondary)] ${refreshAmPm === "PM" ? "bg-[#027b8e] text-white" : "bg-[var(--bg-card-inner)] text-[var(--text-muted)]"}`}>PM</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 mt-3">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+              <circle cx="6" cy="6" r="4.5" stroke="var(--text-dim)" strokeWidth="0.8" />
+              <path d="M6 3.5v2.8l1.8 1" stroke="var(--text-dim)" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="text-[var(--text-dim)] text-xs">
+              All times in <span className="text-[var(--text-muted)] font-medium">{tz.name.replace(/_/g, " ")}</span> ({tz.abbr})
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[#027b8e]/5 border border-[#027b8e]/15">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#027b8e" strokeWidth="1" />
+            <path d="M8 5v3.5l2.5 1.5" stroke="#027b8e" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-[#027b8e] text-xs font-medium">{scheduleLabel} ({tz.abbr})</span>
+        </div>
+      </div>
+
+      <button onClick={onNext} className="w-full px-4 py-3 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors">
+        Continue
+      </button>
+    </div>
+  );
+}
+
 // ─── Review Step ───────────────────────────────────────────────────────────
 
 function StepReview({
   integration,
   channelName,
   selectedTables,
-  mappings,
+  selectedKeys,
+  dedupStrategy,
+  frequency,
+  refreshDay,
+  refreshHour,
+  refreshMinute,
+  refreshAmPm,
   onComplete,
 }: {
   integration: CatalogIntegration;
   channelName: string;
   selectedTables: Set<string>;
-  mappings: ColumnMapping[];
+  selectedKeys: Record<string, Set<string>>;
+  dedupStrategy: DedupStrategy;
+  frequency: string;
+  refreshDay: string;
+  refreshHour: string;
+  refreshMinute: string;
+  refreshAmPm: string;
   onComplete: () => void;
 }) {
+  const isGoogleSheets = integration.name === "Google Sheets";
+  const tableLabel = isGoogleSheets ? "Sheets" : "Tables";
+
+  const scheduleLabel = useMemo(() => {
+    const time = `${refreshHour}:${refreshMinute} ${refreshAmPm}`;
+    if (frequency === "daily") return `Every day at ${time}`;
+    if (frequency === "weekly") return `Every ${refreshDay.charAt(0).toUpperCase() + refreshDay.slice(1)} at ${time}`;
+    return `Monthly at ${time}`;
+  }, [frequency, refreshDay, refreshHour, refreshMinute, refreshAmPm]);
+
+  const tz = useMemo(() => {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(new Date());
+    return parts.find((p) => p.type === "timeZoneName")?.value || "";
+  }, []);
+
+  const dedupLabels: Record<DedupStrategy, string> = { upsert: "Upsert", replace: "Full Replace", append: "Append Only" };
+
   return (
     <div className="max-w-2xl mx-auto">
-      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Review & Complete</h2>
-      <p className="text-[var(--text-muted)] text-sm mb-6">Review your configuration before connecting.</p>
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Review &amp; Schedule</h2>
+      <p className="text-[var(--text-muted)] text-sm mb-6">Review your configuration and set a sync schedule.</p>
 
-      <div className="flex flex-col gap-4 mb-8">
+      <div className="flex flex-col gap-4 mb-6">
         {/* Integration */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-4">
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
           <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Integration</span>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-[6px] flex items-center justify-center" style={{ backgroundColor: integration.color }}>
-              <IntegrationIcon integration={integration} />
+            <IntegrationIcon integration={integration} />
+            <div>
+              <span className="text-[var(--text-primary)] text-sm font-medium block">{channelName}</span>
+              <span className="text-[var(--text-dim)] text-xs">via {integration.name}</span>
             </div>
-            <span className="text-[var(--text-primary)] text-sm font-medium">{integration.name}</span>
           </div>
         </div>
 
-        {/* Channel Name */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-4">
-          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Channel Name</span>
-          <span className="text-[var(--text-primary)] text-sm font-medium">{channelName}</span>
-        </div>
-
-        {/* Tables/Sheets */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-4">
-          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">
-            {integration.name === "BigQuery" ? "Selected Tables" : "Selected Sheets"}
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {Array.from(selectedTables).map((id) => (
-              <span
-                key={id}
-                className="px-2.5 py-1 rounded-[4px] bg-[var(--bg-badge)] text-[var(--text-secondary)] text-xs font-medium"
-              >
-                {id}
-              </span>
-            ))}
+        {/* Data Source Details */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-card-inner)]">
+            <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider">Data Source</span>
+          </div>
+          <div className="px-4 py-3">
+            {/* Group selected tables by their dataset */}
+            {(() => {
+              // Build dataset → tables mapping from the tree
+              const tree = getWarehouseTree(integration.name);
+              const groups: { project?: string; dataset: string; tables: { id: string; label: string; keys: string[] }[] }[] = [];
+              for (const node of tree) {
+                if (node.children) {
+                  for (const child of node.children) {
+                    if (child.children) {
+                      const selectedInDs = child.children.filter((t) => selectedTables.has(t.id));
+                      if (selectedInDs.length > 0) {
+                        groups.push({
+                          project: node.label,
+                          dataset: child.label,
+                          tables: selectedInDs.map((t) => ({ id: t.id, label: t.label, keys: Array.from(selectedKeys[t.id] || []) })),
+                        });
+                      }
+                    } else if (selectedTables.has(child.id)) {
+                      const existing = groups.find((g) => g.dataset === node.label);
+                      if (existing) {
+                        existing.tables.push({ id: child.id, label: child.label, keys: Array.from(selectedKeys[child.id] || []) });
+                      } else {
+                        groups.push({
+                          dataset: node.label,
+                          tables: [{ id: child.id, label: child.label, keys: Array.from(selectedKeys[child.id] || []) }],
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+              return groups.map((g, gi) => (
+                <div key={gi} className={gi > 0 ? "mt-3 pt-3 border-t border-[var(--border-subtle)]" : ""}>
+                  {/* Project / Dataset path */}
+                  <div className="flex items-center gap-2 mb-3">
+                    {g.project && (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                          <path d="M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1V3.5z" stroke="var(--text-dim)" strokeWidth="1" fill="none" />
+                        </svg>
+                        <span className="text-[var(--text-muted)] text-sm">{g.project}</span>
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)]"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </>
+                    )}
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                      <path d="M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1V3.5z" stroke="#027b8e" strokeWidth="1" fill="none" />
+                    </svg>
+                    <span className="text-[var(--text-primary)] text-sm font-semibold">{g.dataset}</span>
+                  </div>
+                  {/* Tables */}
+                  <div className="flex flex-col gap-2 ml-4">
+                    {g.tables.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-[var(--bg-card-inner)]">
+                        <div className="flex items-center gap-2.5">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+                            <rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="#027b8e" strokeWidth="1" fill="none" />
+                            <path d="M4.5 4.5h5M4.5 7h5M4.5 9.5h3" stroke="#027b8e" strokeWidth="0.7" strokeLinecap="round" />
+                          </svg>
+                          <span className="text-[var(--text-primary)] text-sm font-mono">{t.label}</span>
+                        </div>
+                        {t.keys.length > 0 && (
+                          <span className="flex items-center gap-1.5 text-xs text-[#fe9a00] font-medium">
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M8 1.5a3.5 3.5 0 00-3.08 5.16L1.5 10.08V12.5h2.42l.58-.58v-1.34h1.34l1.24-1.24A3.5 3.5 0 108 1.5z" stroke="currentColor" strokeWidth="1.2" fill="none" /></svg>
+                            {t.keys.join(" + ")}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         </div>
 
-        {/* Column Mappings */}
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] p-4">
-          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-3">
-            Column Mappings ({mappings.length})
-          </span>
-          <div className="flex flex-col gap-2">
-            {mappings.map((m) => (
-              <div key={m.sourceColumn} className="flex items-center gap-3 text-sm">
-                <code className="text-[var(--text-muted)] bg-[var(--bg-card-inner)] px-1.5 py-0.5 rounded font-mono text-xs">
-                  {m.sourceColumn}
-                </code>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 6h8M7 3l3 3-3 3" stroke="var(--text-dim)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {m.category && (
-                  <span
-                    className="px-2 py-[3px] rounded-[4px] text-[10px] font-semibold"
-                    style={{
-                      backgroundColor: `${METRIC_CATEGORIES[m.category].color}15`,
-                      color: METRIC_CATEGORIES[m.category].color,
-                      border: `1px solid ${METRIC_CATEGORIES[m.category].color}30`,
-                    }}
-                  >
-                    {METRIC_CATEGORIES[m.category].label}
-                  </span>
-                )}
-                <span className="text-[var(--text-primary)] font-medium">{m.displayName}</span>
-                {m.isNewKey && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#027b8e]/10 text-[#027b8e] font-medium">New</span>
-                )}
-              </div>
-            ))}
-          </div>
+        {/* Dedup strategy */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
+          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Deduplication Strategy</span>
+          <span className="text-[var(--text-primary)] text-sm font-medium">{dedupLabels[dedupStrategy]}</span>
+        </div>
+
+        {/* Schedule */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-4">
+          <span className="text-[var(--text-dim)] text-xs font-semibold uppercase tracking-wider block mb-2">Sync Schedule</span>
+          <span className="text-[var(--text-primary)] text-sm font-medium">{scheduleLabel} ({tz})</span>
         </div>
       </div>
 
       <button
         onClick={onComplete}
-        className="w-full px-4 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors"
+        className="w-full px-4 py-3 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors"
       >
         Connect {channelName}
       </button>
@@ -1557,8 +2271,110 @@ function StepReview({
 
 // ─── Wizard Steps ──────────────────────────────────────────────────────────
 
-const DATA_SOURCE_STEPS = ["Authenticate", "Select Data", "Classify Data", "Column Mapping", "Review"];
-const STANDARD_STEPS = ["Authenticate", "Select Accounts", "Mapping", "Review"];
+const DATA_SOURCE_STEPS = ["Name & Connect", "Select Tables", "Data Type", "Review", "Schedule & Sync", "Confirm"];
+
+// ─── Data Type Step ───────────────────────────────────────────────────────
+// Asks the user to declare what kind of data they're bringing in.
+// Routing downstream depends on this choice rather than auto-detection.
+
+function StepDataType({
+  value,
+  onChange,
+  onBack,
+  onNext,
+}: {
+  value: MetricCategory | null;
+  onChange: (v: MetricCategory) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">What kind of data is this?</h2>
+      <p className="text-[var(--text-muted)] text-sm mb-6">
+        This helps us route your data to the right place so you can build models and dashboards on top of it.
+      </p>
+
+      <DataCategoryPicker value={value} onChange={onChange} />
+
+      <div className="flex items-center justify-between mt-8">
+        <button
+          onClick={onBack}
+          className="px-4 py-2.5 rounded-xl border border-[var(--border-primary)] hover:border-[var(--border-secondary)] text-[var(--text-secondary)] text-sm font-medium transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!value}
+          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Review Preview Step ──────────────────────────────────────────────────
+// Shows a sample preview of the source data. For KPI/Paid Marketing, also
+// asks the user to pick the layout (Long/Wide) using marketer-friendly wording.
+
+function StepReviewPreview({
+  category,
+  format,
+  onFormatChange,
+  onBack,
+  onNext,
+}: {
+  category: MetricCategory | null;
+  format: DataLayout | null;
+  onFormatChange: (v: DataLayout) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const needsFormat = category === "kpi" || category === "paid_marketing";
+  const canContinue = !needsFormat || format !== null;
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Review your data</h2>
+      <p className="text-[var(--text-muted)] text-sm mb-6">
+        Here&apos;s a sample of what we found in your source. Make sure this looks right before continuing.
+      </p>
+
+      <DataPreviewTable />
+
+      {needsFormat && (
+        <>
+          <div className="h-px bg-[var(--border-primary)] my-8" />
+          <h3 className="text-[var(--text-primary)] text-base font-semibold mb-2">How is your data laid out?</h3>
+          <p className="text-[var(--text-muted)] text-sm mb-5">
+            Pick the layout that matches your file. This helps us understand your column structure so metrics land in the right place.
+          </p>
+          <DataFormatPicker value={format} onChange={onFormatChange} />
+        </>
+      )}
+
+      <div className="flex items-center justify-between mt-8">
+        <button
+          onClick={onBack}
+          className="px-4 py-2.5 rounded-xl border border-[var(--border-primary)] hover:border-[var(--border-secondary)] text-[var(--text-secondary)] text-sm font-medium transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!canContinue}
+          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+const STANDARD_STEPS = ["Authenticate", "Select Accounts"];
 
 // ─── Main Wizard Component ─────────────────────────────────────────────────
 
@@ -1569,6 +2385,9 @@ export default function DataSourceWizard({
   onComplete,
   initialAlias = "",
   onInviteUser,
+  savedCredentials,
+  onSaveCredentials,
+  onChangeIntegrationType,
 }: {
   integration: CatalogIntegration;
   onBack: () => void;
@@ -1576,6 +2395,10 @@ export default function DataSourceWizard({
   onComplete: (name: string, dataCategories?: DataCategory[]) => void;
   initialAlias?: string;
   onInviteUser?: (name: string) => void;
+  savedCredentials?: Record<string, string>;
+  onSaveCredentials?: (values: Record<string, string>) => void;
+  /** Optional — when passed, Step 1 shows a "Change integration type" link */
+  onChangeIntegrationType?: () => void;
 }) {
   const isDataSource = DATA_SOURCE_INTEGRATIONS.has(integration.name);
   const steps = isDataSource ? DATA_SOURCE_STEPS : STANDARD_STEPS;
@@ -1583,8 +2406,20 @@ export default function DataSourceWizard({
   const [step, setStep] = useState(1);
   const [highestStepReached, setHighestStepReached] = useState(1);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Record<string, Set<string>>>({});
   const [channelName, setChannelName] = useState(initialAlias);
+  const [dsConnected, setDsConnected] = useState(false);
+  const [stdConnected, setStdConnected] = useState(false);
+  const [dsAuthValues, setDsAuthValues] = useState<Record<string, string>>(savedCredentials || {});
+  const [dataCategory, setDataCategory] = useState<MetricCategory | null>(null);
+  const [dataFormat, setDataFormat] = useState<DataLayout | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<DataCategory[]>([]);
+  const [dedupStrategy, setDedupStrategy] = useState<DedupStrategy>("upsert");
+  const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [refreshDay, setRefreshDay] = useState("monday");
+  const [refreshHour, setRefreshHour] = useState("6");
+  const [refreshMinute, setRefreshMinute] = useState("00");
+  const [refreshAmPm, setRefreshAmPm] = useState<"AM" | "PM">("AM");
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [mappings, setMappings] = useState<ColumnMapping[]>(() => {
     if (!isDataSource) return [];
@@ -1597,14 +2432,8 @@ export default function DataSourceWizard({
       isNewKey: false,
     }));
   });
-  const [templateFields, setTemplateFields] = useState<MappingTemplateField[]>(() => getMappingTemplate(integration.name));
-
   const updateMapping = (index: number, update: Partial<ColumnMapping>) => {
     setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, ...update } : m)));
-  };
-
-  const updateTemplateField = (index: number, update: Partial<MappingTemplateField>) => {
-    setTemplateFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...update } : f)));
   };
 
   const toggleAccount = (account: string) => {
@@ -1613,14 +2442,45 @@ export default function DataSourceWizard({
     );
   };
 
+  const toggleKey = (tableId: string, colName: string) => {
+    setSelectedKeys((prev) => {
+      const current = prev[tableId] || new Set<string>();
+      const next = new Set(current);
+      if (next.has(colName)) next.delete(colName);
+      else next.add(colName);
+      return { ...prev, [tableId]: next };
+    });
+  };
+
+  // Auto-set keys from TABLE_COLUMNS when a table is selected
+  useEffect(() => {
+    for (const tableId of Array.from(selectedTables)) {
+      if (!selectedKeys[tableId]) {
+        const cols = TABLE_COLUMNS[tableId];
+        if (cols) {
+          const autoKeys = new Set(cols.filter((c) => c.isAutoKey).map((c) => c.name));
+          if (autoKeys.size > 0) {
+            setSelectedKeys((prev) => ({ ...prev, [tableId]: autoKeys }));
+          }
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTables]);
+
   const advanceStep = (next: number) => {
     setStep(next);
     setHighestStepReached((prev) => Math.max(prev, next));
   };
 
   const handleComplete = () => {
-    onComplete(integration.name, selectedCategories.length > 0 ? selectedCategories : undefined);
+    const name = isDataSource && channelName.trim() ? channelName.trim() : integration.name;
+    if (isDataSource && onSaveCredentials && Object.keys(dsAuthValues).length > 0) {
+      onSaveCredentials(dsAuthValues);
+    }
+    onComplete(name, selectedCategories.length > 0 ? selectedCategories : undefined);
   };
+
 
   const toggleCategory = (cat: DataCategory) => {
     setSelectedCategories((prev) =>
@@ -1646,7 +2506,7 @@ export default function DataSourceWizard({
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
             <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-[var(--text-primary)] font-medium">{integration.name} Setup</span>
+          <span className="text-[var(--text-primary)] font-medium">{isDataSource && channelName ? channelName : integration.name} Setup</span>
         </div>
 
         {/* Center: Step tabs */}
@@ -1655,7 +2515,7 @@ export default function DataSourceWizard({
             const stepNum = i + 1;
             const isActive = stepNum === step;
             const isComplete = stepNum < step;
-            const canNavigate = stepNum > 1 && stepNum <= highestStepReached && stepNum !== step;
+            const canNavigate = stepNum <= highestStepReached && stepNum !== step;
             return (
               <button
                 key={label}
@@ -1704,40 +2564,67 @@ export default function DataSourceWizard({
         {isDataSource ? (
           <>
             {step === 1 && (
-              <StepAuthorize integration={integration} onNext={() => advanceStep(2)} onInviteUser={onInviteUser} isDataSource />
+              <StepAuthorize integration={integration} onNext={() => advanceStep(2)} onInviteUser={onInviteUser} isDataSource channelName={channelName} onChangeChannelName={setChannelName} connected={dsConnected} onChangeConnected={setDsConnected} authValues={dsAuthValues} onChangeAuthValues={setDsAuthValues} onChangeIntegrationType={onChangeIntegrationType} />
             )}
             {step === 2 && (
               <StepSelectTables
                 integration={integration}
                 selectedTables={selectedTables}
                 onSelectTables={setSelectedTables}
+                selectedKeys={selectedKeys}
+                onToggleKey={toggleKey}
                 onNext={() => advanceStep(3)}
               />
             )}
             {step === 3 && (
-              <StepChannelName
-                channelName={channelName}
-                onChangeChannelName={setChannelName}
+              <StepDataType
+                value={dataCategory}
+                onChange={setDataCategory}
+                onBack={() => setStep(2)}
                 onNext={() => advanceStep(4)}
-                isJspPreFilled={!!initialAlias}
-                selectedCategories={selectedCategories}
-                onToggleCategory={toggleCategory}
               />
             )}
             {step === 4 && (
-              <StepColumnMapping
-                integration={integration}
-                mappings={mappings}
-                onUpdateMapping={updateMapping}
+              <StepReviewPreview
+                category={dataCategory}
+                format={dataFormat}
+                onFormatChange={setDataFormat}
+                onBack={() => setStep(3)}
                 onNext={() => advanceStep(5)}
               />
             )}
             {step === 5 && (
+              <StepScheduleAndSync
+                integration={integration}
+                dedupStrategy={dedupStrategy}
+                onChangeDedupStrategy={setDedupStrategy}
+                frequency={frequency}
+                onChangeFrequency={setFrequency}
+                refreshDay={refreshDay}
+                onChangeDay={setRefreshDay}
+                refreshHour={refreshHour}
+                onChangeHour={setRefreshHour}
+                refreshMinute={refreshMinute}
+                onChangeMinute={setRefreshMinute}
+                refreshAmPm={refreshAmPm}
+                onChangeAmPm={setRefreshAmPm}
+                selectedKeys={selectedKeys}
+                selectedTables={selectedTables}
+                onNext={() => advanceStep(6)}
+              />
+            )}
+            {step === 6 && (
               <StepReview
                 integration={integration}
                 channelName={channelName}
                 selectedTables={selectedTables}
-                mappings={mappings}
+                selectedKeys={selectedKeys}
+                dedupStrategy={dedupStrategy}
+                frequency={frequency}
+                refreshDay={refreshDay}
+                refreshHour={refreshHour}
+                refreshMinute={refreshMinute}
+                refreshAmPm={refreshAmPm}
                 onComplete={handleComplete}
               />
             )}
@@ -1745,30 +2632,14 @@ export default function DataSourceWizard({
         ) : (
           <>
             {step === 1 && (
-              <StepAuthorize integration={integration} onNext={() => advanceStep(2)} onInviteUser={onInviteUser} />
+              <StepAuthorize integration={integration} onNext={() => advanceStep(2)} onInviteUser={onInviteUser} connected={stdConnected} onChangeConnected={setStdConnected} />
             )}
             {step === 2 && (
               <StepSelectAccounts
                 integration={integration}
                 selectedAccounts={selectedAccounts}
                 onToggleAccount={toggleAccount}
-                onNext={() => advanceStep(3)}
-              />
-            )}
-            {step === 3 && (
-              <StepStandardMapping
-                integration={integration}
-                templateFields={templateFields}
-                onUpdateField={updateTemplateField}
-                onNext={() => advanceStep(4)}
-              />
-            )}
-            {step === 4 && (
-              <StepStandardReview
-                integration={integration}
-                selectedAccounts={selectedAccounts}
-                templateFields={templateFields}
-                onComplete={handleComplete}
+                onNext={handleComplete}
               />
             )}
           </>

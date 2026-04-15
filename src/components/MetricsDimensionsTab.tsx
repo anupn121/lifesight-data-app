@@ -12,11 +12,11 @@ import { SearchIcon } from "./metrics-dimensions/badges";
 import { NewFieldRow, FieldTableHeader } from "./metrics-dimensions/FieldTable";
 import type { ViewMode, DetailKindFilter, StatusFilter } from "./metrics-dimensions/types";
 import ActionRequiredSection from "./metrics-dimensions/ActionRequiredSection";
-import CategorySection from "./metrics-dimensions/CategorySection";
+import CategoryHierarchySection from "./metrics-dimensions/CategoryHierarchySection";
 import PlatformDetailView from "./metrics-dimensions/PlatformDetailView";
 import {
   useMandatoryMetrics,
-  useCategoryPlatformData,
+  useHierarchicalFieldData,
 } from "./metrics-dimensions/useFieldData";
 
 interface MetricsDimensionsTabProps {
@@ -44,7 +44,7 @@ export default function MetricsDimensionsTab({
   const [flowKind, setFlowKind] = useState<"metric" | "dimension">("metric");
 
   const { actionItems, totalActionItems } = useMandatoryMetrics(fields);
-  const categoryData = useCategoryPlatformData(fields);
+  const hierarchyData = useHierarchicalFieldData(fields);
 
   // Detail view: filtered fields for selected category
   const detailFields = useMemo(() => {
@@ -291,13 +291,6 @@ export default function MetricsDimensionsTab({
         </div>
         <div className="flex-1" />
         <button
-          onClick={() => setView("flow")}
-          className="border border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] rounded-[6px] flex items-center gap-1.5 px-3 h-[28px] text-[12px] font-medium transition-colors"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 3.5h2.5l1.5 2.5-1.5 2.5H1.5M7.5 3.5h3M7.5 8.5h3M6 6h4.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          Data Flow
-        </button>
-        <button
           onClick={() => { setEditField(null); setIsModalOpen(true); }}
           className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-1.5 px-3 h-[28px] text-[12px] font-medium transition-colors"
         >
@@ -310,18 +303,35 @@ export default function MetricsDimensionsTab({
       <div id="action-required-section">
         <ActionRequiredSection
           items={actionItems}
-          onMapNow={(platform) => openPlatformDetail(platform)}
+          onMapNow={(integration) => openPlatformDetail(integration)}
+          onMapColumnAsDate={(integration, dataSource, columnName) => {
+            // Mark the chosen column as a date dimension in the fields list
+            onFieldsChange(
+              fields.map((f) => {
+                if (f.columnName !== columnName && f.name !== columnName) return f;
+                // Only update if this field belongs to the target data source
+                // (matched by parent integration via source)
+                return {
+                  ...f,
+                  kind: "dimension",
+                  status: "Mapped",
+                  dataType: f.dataType === "DATE" ? f.dataType : "DATE",
+                };
+              }),
+            );
+          }}
         />
       </div>
 
-      {/* Category sections */}
-      {categoryData.map((cat, idx) => (
-        <CategorySection
+      {/* Category hierarchy sections */}
+      {hierarchyData.map((cat, idx) => (
+        <CategoryHierarchySection
           key={cat.category}
           data={cat}
           defaultExpanded={idx === 0}
-          onViewAll={(platformName) => openPlatformDetail(platformName)}
+          onViewDataSource={(integrationName) => openPlatformDetail(integrationName)}
           onViewCategory={() => openDetail(cat.category)}
+          onConnectSource={onNavigateToIntegrations}
         />
       ))}
 

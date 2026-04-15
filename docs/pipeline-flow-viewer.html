@@ -1,0 +1,3021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lifesight Data Pipeline Flow Viewer</title>
+<!--
+═══════════════════════════════════════════════════════════════════════════
+  LIFESIGHT DATA PIPELINE FLOW VIEWER (v2)
+═══════════════════════════════════════════════════════════════════════════
+  Engineering documentation tool. Multi-select scenario picker drives a
+  5-stage pipeline visualization:
+
+    Source → Raw Dump → M&D + Staged → Storage → Data Model
+                                          ├─ Long format → adspends_mat_view
+                                          └─ Wide format → standalone (NOT joined)
+
+  Sources fall into 3 groups:
+    1. Native Integrations (Facebook Ads, Google Ads, TikTok Ads)
+       - Fixed schema, lands in ad_insights, supports tactics
+    2. Long Format Custom (PM1, PM4-6, K1, K3-4, OC1-2)
+       - Flexible schema, lands in standalone staged table, JOINS into
+         adspends_mat_view alongside ad_insights + ga4_insights
+    3. Wide Format Custom (PM2, PM3, K2)
+       - Channel-prefixed columns, stays standalone (NOT joined)
+
+  Each source has 25 rows of mock data with edge cases (NULLs, holiday
+  spikes, missing source, mixed types) inline-expandable.
+
+  Open: open docs/pipeline-flow-viewer.html
+═══════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #13131a;
+    --bg-card-inner: #1a1a24;
+    --bg-elevated: #1e1e2a;
+    --bg-hover: #22222e;
+    --border: #2a2a38;
+    --border-focus: #3a3a50;
+    --t-primary: #e8e8f0;
+    --t-secondary: #a0a0b8;
+    --t-muted: #6a6a80;
+    --t-dim: #44445a;
+    --t-label: #7a7a90;
+
+    --c-paid: #2b7fff;
+    --c-paid-bg: rgba(43,127,255,0.10);
+    --c-paid-b: rgba(43,127,255,0.25);
+    --c-kpi: #00bc7d;
+    --c-kpi-bg: rgba(0,188,125,0.10);
+    --c-kpi-b: rgba(0,188,125,0.25);
+    --c-organic: #fe9a00;
+    --c-organic-bg: rgba(254,154,0,0.10);
+    --c-organic-b: rgba(254,154,0,0.25);
+    --c-contextual: #a855f7;
+    --c-contextual-bg: rgba(168,85,247,0.10);
+    --c-contextual-b: rgba(168,85,247,0.25);
+    --c-neutral: #6b7280;
+
+    --c-native: #027b8e;
+    --c-long: #fe9a00;
+    --c-wide: #a855f7;
+
+    --accent: #027b8e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-page);
+    color: var(--t-primary);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ═══════════════════ HEADER ═══════════════════ */
+  .hdr {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .hdr h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--t-primary);
+    letter-spacing: 0.3px;
+  }
+  .hdr .subtitle {
+    font-size: 12px;
+    color: var(--t-muted);
+  }
+  .hdr .spacer { flex: 1; }
+  .hdr button {
+    background: transparent;
+    color: var(--t-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hdr button:hover {
+    color: var(--t-primary);
+    border-color: var(--border-focus);
+    background: var(--bg-hover);
+  }
+  .hdr .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .hdr .btn-primary:hover {
+    filter: brightness(1.15);
+    background: var(--accent);
+  }
+
+  /* ═══════════════════ PICKER PANEL ═══════════════════ */
+  .picker {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+  }
+  .picker-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .picker-header.has-groups { margin-bottom: 14px; }
+  .picker-header .chevron {
+    color: var(--t-muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .picker.collapsed .picker-header .chevron { transform: rotate(-90deg); }
+  .picker-header .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    font-weight: 600;
+  }
+  .picker-header .count {
+    background: var(--bg-elevated);
+    color: var(--t-primary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .picker-header .summary-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .summary-chip {
+    font-size: 10.5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .summary-chip.native { background: rgba(2,123,142,0.1); color: #03a0b8; border-color: rgba(2,123,142,0.3); }
+  .summary-chip.long { background: rgba(254,154,0,0.1); color: var(--c-organic); border-color: rgba(254,154,0,0.3); }
+  .summary-chip.wide { background: rgba(168,85,247,0.1); color: #c084fc; border-color: rgba(168,85,247,0.3); }
+  .picker-header .hint {
+    font-size: 11px;
+    color: var(--t-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .picker.collapsed .picker-groups { display: none; }
+  .picker:not(.collapsed) .picker-header .summary-chips,
+  .picker:not(.collapsed) .picker-header .hint { display: none; }
+
+  .picker-groups {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: 16px;
+  }
+  .picker-group {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    position: relative;
+  }
+  .picker-group::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 8px 0 0 8px;
+  }
+  .picker-group.native::before { background: var(--c-native); }
+  .picker-group.long::before { background: var(--c-long); }
+  .picker-group.wide::before { background: var(--c-wide); }
+
+  .pg-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .pg-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--t-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .pg-count {
+    font-size: 11px;
+    color: var(--t-muted);
+  }
+  .pg-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+  }
+  .pg-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--t-muted);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .pg-actions button:hover {
+    color: var(--t-primary);
+    border-color: var(--border-focus);
+  }
+
+  .pg-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .pg-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .pg-option:hover { background: var(--bg-hover); }
+  .pg-option input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .pg-option .label-text {
+    font-size: 12px;
+    color: var(--t-secondary);
+    flex: 1;
+  }
+  .pg-option.checked .label-text {
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+
+  /* ═══════════════════ SUMMARY ═══════════════════ */
+  .summary {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    font-size: 12px;
+    color: var(--t-secondary);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .summary .label {
+    color: var(--t-muted);
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+  }
+  .summary .val {
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+  .summary .divider { width: 1px; height: 14px; background: var(--border); }
+  .summary .note {
+    color: var(--t-secondary);
+    font-style: italic;
+    flex: 1;
+  }
+
+  /* ═══════════════════ MAIN VIEWER ═══════════════════ */
+  /* Horizontal scroll wrapper so the 5-stage layout never gets cramped.
+     The inner .viewer has min-width that forces a horizontal scrollbar
+     when the viewport is narrower. SVG edges sit inside .viewer and use
+     its full rendered width so they stay aligned with cards under scroll. */
+  .viewer-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 16px;
+    /* Custom scrollbar styling so it doesn't feel like a hack */
+  }
+  .viewer-wrap::-webkit-scrollbar {
+    height: 12px;
+  }
+  .viewer-wrap::-webkit-scrollbar-track {
+    background: var(--bg-card);
+  }
+  .viewer-wrap::-webkit-scrollbar-thumb {
+    background: var(--border-focus);
+    border-radius: 6px;
+    border: 2px solid var(--bg-card);
+  }
+  .viewer-wrap::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+
+  .viewer {
+    position: relative;
+    padding: 40px 40px 100px;
+    min-width: 2640px;
+  }
+
+  .stages {
+    display: grid;
+    /* Sparse fixed widths so the flow can breathe.
+       Stage 3 is widest because it carries M&D transforms + staged table + sample. */
+    grid-template-columns: 400px 400px 520px 420px 400px;
+    gap: 140px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Add more vertical breathing room between source rows in each stage */
+  .src-card,
+  .raw-card,
+  .stage3-card,
+  .storage-card {
+    margin-bottom: 22px !important;
+  }
+  .src-card:last-child,
+  .raw-card:last-child,
+  .stage3-card:last-child,
+  .storage-card:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .stage-header {
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .stage-header .num {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 22px;
+    margin-right: 8px;
+  }
+  .stage-header .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .stage-header .desc {
+    font-size: 11px;
+    color: var(--t-muted);
+    margin-top: 4px;
+    margin-left: 30px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .empty-state {
+    padding: 40px 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--t-muted);
+    font-style: italic;
+    background: var(--bg-card-inner);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+  }
+
+  /* ═══════════════════ STAGE CARDS ═══════════════════ */
+  .src-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .src-card:last-child { margin-bottom: 0; }
+  .src-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 10px 0 0 10px;
+  }
+  .src-card.native::before { background: var(--c-native); }
+  .src-card.long::before { background: var(--c-long); }
+  .src-card.wide::before { background: var(--c-wide); }
+
+  .src-card-hd {
+    padding: 11px 14px 11px 17px;
+    background: var(--bg-card-inner);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .src-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .src-card-hd .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t-primary);
+    flex: 1;
+    min-width: 0;
+  }
+  .src-card-hd .name .sub {
+    display: block;
+    font-size: 10px;
+    color: var(--t-muted);
+    font-weight: 400;
+    margin-top: 1px;
+    font-family: 'SF Mono', monospace;
+  }
+  .src-type-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    flex-shrink: 0;
+    border: 1px solid;
+  }
+  .src-type-badge.native { background: rgba(2,123,142,0.15); color: #03a0b8; border-color: rgba(2,123,142,0.3); }
+  .src-type-badge.long { background: rgba(254,154,0,0.12); color: #fe9a00; border-color: rgba(254,154,0,0.3); }
+  .src-type-badge.wide { background: rgba(168,85,247,0.12); color: #c084fc; border-color: rgba(168,85,247,0.3); }
+
+  .col-list {
+    list-style: none;
+    padding: 6px 6px 4px 6px;
+  }
+  .col-row {
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .col-row:hover { background: var(--bg-hover); }
+  .col-name {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+  .col-tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .col-tag.paid { background: var(--c-paid-bg); color: var(--c-paid); }
+  .col-tag.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); }
+  .col-tag.organic { background: var(--c-organic-bg); color: var(--c-organic); }
+  .col-tag.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); }
+  .col-tag.dim { background: rgba(107,114,128,0.12); color: var(--t-muted); }
+
+  /* Sample data button */
+  .sample-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border);
+    padding: 8px 14px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+  }
+  .sample-btn:hover { background: var(--bg-hover); }
+  .sample-btn .chevron { transition: transform 0.2s; }
+  .sample-btn.expanded .chevron { transform: rotate(90deg); }
+
+  /* Mock data table */
+  .mock-table-wrap {
+    border-top: 1px solid var(--border);
+    background: var(--bg-page);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .mock-table-wrap.open { max-height: 600px; overflow-y: auto; }
+  .mock-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10.5px;
+    font-family: 'SF Mono', monospace;
+  }
+  .mock-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card-inner);
+    color: var(--t-label);
+    text-transform: uppercase;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .mock-table thead th:last-child { border-right: none; }
+  .mock-table tbody td {
+    padding: 5px 8px;
+    color: var(--t-secondary);
+    border-bottom: 1px solid rgba(42,42,56,0.4);
+    border-right: 1px solid rgba(42,42,56,0.4);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .mock-table tbody td:last-child { border-right: none; }
+  .mock-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .mock-table .null-val {
+    color: var(--t-dim);
+    font-style: italic;
+  }
+  .mock-table .edge-row td {
+    background: rgba(254,154,0,0.06);
+    border-left: 2px solid var(--c-organic);
+  }
+  .mock-table .edge-row td:first-child {
+    position: relative;
+  }
+  .mock-table .edge-row td:first-child::before {
+    content: '⚠';
+    color: var(--c-organic);
+    margin-right: 4px;
+    font-size: 10px;
+  }
+  .show-more {
+    width: 100%;
+    background: var(--bg-card-inner);
+    border: none;
+    border-top: 1px solid var(--border);
+    padding: 8px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .show-more:hover { background: var(--bg-hover); }
+
+  /* ═══════════════════ STAGE 2: Raw Dump ═══════════════════ */
+  .raw-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .raw-card .label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .raw-card .table-name {
+    font-size: 12px;
+    font-family: 'SF Mono', monospace;
+    color: var(--t-primary);
+    font-weight: 500;
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .raw-card .desc {
+    font-size: 11px;
+    color: var(--t-muted);
+    line-height: 1.4;
+  }
+  .raw-card .row-count {
+    font-size: 10px;
+    color: var(--t-dim);
+    margin-top: 6px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  /* ═══════════════════ STAGE 3: M&D + Staged ═══════════════════ */
+  .stage3-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .stage3-card .label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .stage3-card .transform-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 10px;
+  }
+  .stage3-card .transform-list li {
+    font-size: 11px;
+    color: var(--t-secondary);
+    font-family: 'SF Mono', monospace;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 4px;
+  }
+  .stage3-card .transform-list .arrow {
+    color: var(--t-dim);
+  }
+  .stage3-card .new-name {
+    color: var(--t-primary);
+  }
+
+  /* Native sources have a locked schema — render existing transforms with
+     a lock icon, subtle tinted background, and an explicit "Add custom
+     field" CTA that shows extension is still possible. */
+  .stage3-card .transform-list li.locked {
+    background: rgba(2,123,142,0.06);
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
+  }
+  .stage3-card .transform-list li.locked::before {
+    content: '🔒';
+    font-size: 9px;
+    opacity: 0.75;
+    margin-right: 2px;
+  }
+
+  .native-locked-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    padding: 2px 7px;
+    background: rgba(2,123,142,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(2,123,142,0.3);
+    border-radius: 3px;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+  .native-locked-badge svg {
+    flex-shrink: 0;
+  }
+
+  .add-field-cta {
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 5px;
+    font-size: 11px;
+    color: var(--t-muted);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .add-field-cta:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(2,123,142,0.04);
+  }
+  .add-field-cta svg {
+    flex-shrink: 0;
+  }
+  .staged-table {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 10px;
+  }
+  .staged-table .table-name {
+    font-size: 11px;
+    font-family: 'SF Mono', monospace;
+    color: var(--t-primary);
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .staged-table .columns-pill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 5px;
+  }
+  .col-pill {
+    font-family: 'SF Mono', monospace;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  .col-pill.paid { color: var(--c-paid); border-color: var(--c-paid-b); background: var(--c-paid-bg); }
+  .col-pill.kpi { color: var(--c-kpi); border-color: var(--c-kpi-b); background: var(--c-kpi-bg); }
+  .col-pill.organic { color: var(--c-organic); border-color: var(--c-organic-b); background: var(--c-organic-bg); }
+  .col-pill.contextual { color: var(--c-contextual); border-color: var(--c-contextual-b); background: var(--c-contextual-bg); }
+  .col-pill.dim { color: var(--t-secondary); border-color: rgba(107,114,128,0.25); background: rgba(107,114,128,0.1); }
+  .tactic-note {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(2,123,142,0.08);
+    border: 1px solid rgba(2,123,142,0.2);
+    border-radius: 5px;
+    font-size: 10.5px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tactic-note svg { flex-shrink: 0; }
+
+  /* ═══════════════════ STAGE 4: Storage ═══════════════════ */
+  .storage-section {
+    margin-bottom: 16px;
+  }
+  .storage-section .label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    margin-bottom: 8px;
+  }
+  .storage-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .storage-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+  }
+  .storage-card.matview {
+    background: linear-gradient(180deg, rgba(0,188,125,0.05) 0%, var(--bg-card) 100%);
+    border-color: rgba(0,188,125,0.25);
+  }
+  .storage-card.matview::before { background: var(--c-kpi); }
+  .storage-card.standalone {
+    background: linear-gradient(180deg, rgba(168,85,247,0.05) 0%, var(--bg-card) 100%);
+    border-color: rgba(168,85,247,0.25);
+  }
+  .storage-card.standalone::before { background: var(--c-wide); }
+  .storage-card .table-name {
+    font-size: 13px;
+    font-family: 'SF Mono', monospace;
+    color: var(--t-primary);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .storage-card .description {
+    font-size: 11px;
+    color: var(--t-muted);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .storage-card .feeds-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .feed-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    color: var(--t-secondary);
+  }
+
+  /* ═══════════════════ STAGE 5: Data Model ═══════════════════ */
+  .dm-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .dm-section {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dm-section:last-child { border-bottom: none; }
+  .dm-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    margin-bottom: 8px;
+  }
+  .dm-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .dm-var {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+  }
+  .dm-var.paid { background: var(--c-paid-bg); color: var(--c-paid); border-color: var(--c-paid-b); }
+  .dm-var.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); border-color: var(--c-kpi-b); }
+  .dm-var.organic { background: var(--c-organic-bg); color: var(--c-organic); border-color: var(--c-organic-b); }
+  .dm-var.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); border-color: var(--c-contextual-b); }
+  .dm-var.dim { background: rgba(107,114,128,0.1); color: var(--t-secondary); border-color: rgba(107,114,128,0.25); }
+  .dm-var:hover { filter: brightness(1.2); }
+  .dm-empty {
+    color: var(--t-muted);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  /* ═══════════════════ EDGES ═══════════════════ */
+  .edges-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .edge {
+    fill: none;
+    stroke-width: 1.5;
+    opacity: 0.32;
+    transition: opacity 0.3s, stroke-width 0.3s;
+  }
+  .edge.paid { stroke: var(--c-paid); }
+  .edge.kpi { stroke: var(--c-kpi); }
+  .edge.organic { stroke: var(--c-organic); }
+  .edge.contextual { stroke: var(--c-contextual); }
+  .edge.dim { stroke: var(--c-neutral); }
+
+  /* ═══════════════════ FILTER MODE (dependency view) ═══════════════════
+     Clicking a card or node greys out unrelated content but KEEPS it
+     visible (so the user retains spatial context of the full pipeline).
+     Affected cards stay full opacity, the clicked card gets a focus glow. */
+  .viewer.has-filter .src-card,
+  .viewer.has-filter .raw-card,
+  .viewer.has-filter .stage3-card,
+  .viewer.has-filter .storage-card,
+  .viewer.has-filter .dm-section,
+  .viewer.has-filter .dm-var {
+    transition: opacity 0.3s, filter 0.3s;
+  }
+  .viewer.has-filter .filter-fade {
+    opacity: 0.18;
+    filter: grayscale(0.7);
+    pointer-events: none;
+  }
+  .viewer.has-filter .filter-fade.dm-var {
+    opacity: 0.12;
+  }
+  /* The clicked card / node gets a glowing focus ring */
+  .filter-focus {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(2,123,142,0.45) !important;
+    border-color: var(--accent) !important;
+  }
+  /* Edges in filter mode: heavy fade for non-highlighted */
+  .viewer.has-filter .edge {
+    opacity: 0.05;
+    stroke-width: 1;
+  }
+  .viewer.has-filter .edge.highlight {
+    opacity: 1;
+    stroke-width: 2.5;
+  }
+  /* "Filter active" indicator strip at the top of the viewer */
+  .viewer.has-filter::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    z-index: 10;
+  }
+  /* Make Stage 1/2/3 cards visibly clickable so users know to try them */
+  .src-card,
+  .raw-card,
+  .stage3-card {
+    cursor: pointer;
+  }
+  .src-card:hover,
+  .raw-card:hover,
+  .stage3-card:hover {
+    border-color: var(--border-focus);
+  }
+
+  /* ═══════════════════ TOOLTIP ═══════════════════ */
+  .tooltip {
+    position: absolute;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-focus);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--t-primary);
+    pointer-events: none;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    max-width: 280px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .tt-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .tooltip .tt-desc { color: var(--t-secondary); }
+
+  /* ═══════════════════ LEGEND ═══════════════════ */
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 24px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--t-muted);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <h1>Data Pipeline Flow Viewer · v2</h1>
+    <div class="subtitle">Multi-source pipeline lineage with mock data preview</div>
+  </div>
+  <div class="spacer"></div>
+  <button id="reset-btn">Reset highlight</button>
+  <button id="select-all-btn" class="btn-primary">Select all</button>
+  <button id="clear-all-btn">Clear all</button>
+</div>
+
+<div class="picker" id="picker">
+  <div class="picker-header has-groups" id="picker-header">
+    <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="label">Pick sources to combine</span>
+    <span class="count" id="picker-count">0 selected</span>
+    <div class="summary-chips" id="picker-summary-chips"></div>
+    <span class="hint">Click to expand</span>
+  </div>
+  <div class="picker-groups" id="picker-groups">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-paid)"></div>Paid Marketing</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-kpi)"></div>KPI</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-organic)"></div>Organic</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-contextual)"></div>Contextual</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-neutral)"></div>Dimension</div>
+  <div style="width:1px;height:14px;background:var(--border);margin:0 4px"></div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-native)"></div>Native source</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-long)"></div>Long format</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-wide)"></div>Wide format</div>
+  <div style="flex:1"></div>
+  <div style="font-style:italic">Click any node to highlight its flow path</div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="viewer-wrap">
+<div class="viewer" id="viewer">
+  <div class="stages">
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">1</span>
+        <span class="title">Source</span>
+        <div class="desc">Picked input source with original schema and sample data</div>
+      </div>
+      <div id="stage-1"></div>
+    </div>
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">2</span>
+        <span class="title">Raw Dump</span>
+        <div class="desc">Landing table immediately after sync — no transformations</div>
+      </div>
+      <div id="stage-2"></div>
+    </div>
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">3</span>
+        <span class="title">M&amp;D + Staged</span>
+        <div class="desc">Column transformation, classification, then staged table. Tactics added here.</div>
+      </div>
+      <div id="stage-3"></div>
+    </div>
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">4</span>
+        <span class="title">Storage</span>
+        <div class="desc">Long format → adspends_mat_view (joined). Wide format → standalone.</div>
+      </div>
+      <div id="stage-4"></div>
+    </div>
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">5</span>
+        <span class="title">Data Model</span>
+        <div class="desc">User picks variables from mat_view AND standalone tables</div>
+      </div>
+      <div id="stage-5"></div>
+    </div>
+  </div>
+  <svg class="edges-svg" id="edges-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+</div><!-- /viewer-wrap -->
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ═════════════════════════════════════════════════════════════════════════
+   SOURCE DEFINITIONS
+   3 native + 12 file/sheet/DWH scenarios = 15 selectable sources
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const INTEGRATIONS = {
+  'Facebook Ads':  { color: '#1877F2', letter: 'f' },
+  'Google Ads':    { color: '#34A853', letter: 'G' },
+  'TikTok Ads':    { color: '#EE1D52', letter: 'T' },
+  'Google Sheets': { color: '#0F9D58', letter: 'GS' },
+  'BigQuery':      { color: '#4285F4', letter: 'BQ' },
+  'Snowflake':     { color: '#29B5E8', letter: 'SF' },
+  'CSV Upload':    { color: '#6B7280', letter: 'C' },
+};
+
+/* Source catalog. Each source defines its category, format type, columns,
+   raw landing table, M&D transformations, staged table, storage destination,
+   tactics (if applicable), data model contributions, and 25 mock data rows. */
+const SOURCES = {
+
+  /* ─── NATIVE INTEGRATIONS (fixed schema → ad_insights) ─── */
+  facebook: {
+    id: 'facebook',
+    type: 'native',
+    name: 'Facebook Ads',
+    integration: 'Facebook Ads',
+    label: 'via API',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',         tag: 'dim' },
+      { name: 'campaign_name',tag: 'dim' },
+      { name: 'adset_name',   tag: 'dim' },
+      { name: 'spend',        tag: 'paid' },
+      { name: 'impressions',  tag: 'paid' },
+      { name: 'clicks',       tag: 'paid' },
+      { name: 'conversions',  tag: 'paid' },
+    ],
+    rawTable: 'raw_native_facebook',
+    rawDescription: 'Direct sync from the Facebook Ads API. Schema matches the platform exactly.',
+    mdTransforms: [
+      { from: 'campaign_name', to: 'campaign', cat: 'dim' },
+      { from: 'adset_name',    to: 'adset',    cat: 'dim' },
+      { from: 'spend',         to: 'spend',    cat: 'paid' },
+      { from: 'impressions',   to: 'imps',     cat: 'paid' },
+    ],
+    stagedTable: 'ad_insights (Facebook partition)',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source = Facebook Ads', cat: 'dim' },
+      { name: 'campaign', cat: 'dim' },
+      { name: 'adset', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'imps', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'conversions', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Lands in ad_insights with fixed schema. Auto-joined into adspends_mat_view.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Facebook Brand', 'Facebook Retargeting', 'Facebook Video'] },
+      { label: 'Modeling Dimensions', tag: 'dim', vars: ['Date', 'Campaign', 'Tactic'] },
+    ],
+    /* 25 rows of mock data with edge cases at fixed indices */
+    mockData: [
+      ['2024-01-01','Brand Awareness Q1','BAU - Lookalike',5240.50,248300,3120,142],
+      ['2024-01-01','Retargeting Jan','Cart Abandoners',2100.00,89400,1845,97],
+      ['2024-01-01','Video Awareness','Interest Targeting',1820.75,156200,2100,68],
+      ['2024-01-02','Brand Awareness Q1','BAU - Lookalike',4980.25,239100,2980,138],
+      ['2024-01-02','Retargeting Jan','Cart Abandoners',2050.00,85200,1720,91],
+      ['2024-01-02','Video Awareness','Interest Targeting',1750.00,148000,2010,62],
+      ['2024-01-03','Brand Awareness Q1','BAU - Lookalike',5320.10,251000,3200,148],
+      ['2024-01-03','Retargeting Jan','Cart Abandoners',2180.00,92100,1890,103],
+      ['2024-01-03','Video Awareness','Interest Targeting',null,162400,null,72],
+      ['2024-01-04','Brand Awareness Q1','BAU - Lookalike',5100.00,242800,3050,140],
+      ['2024-01-04','Retargeting Jan','Cart Abandoners',2090.50,88300,1810,95],
+      ['2024-01-04','Video Awareness','Interest Targeting',1880.25,159000,2150,70],
+      ['2024-01-05','Brand Awareness Q1','BAU - Lookalike',4850.75,232500,2890,131],
+      ['2024-01-05','Retargeting Jan','Cart Abandoners',1950.00,82100,1680,86],
+      ['2024-01-06','Brand Awareness Q1','BAU - Lookalike',9420.50,418200,5210,245],
+      ['2024-01-06','Retargeting Jan','Cart Abandoners',3850.00,158400,3100,168],
+      ['2024-01-07','Brand Awareness Q1','BAU - Lookalike',5280.00,249800,3150,145],
+      ['2024-01-07','Retargeting Jan','Cart Abandoners',2110.25,90100,1850,98],
+      ['2024-01-08','Brand Awareness Q1','BAU - Lookalike',5410.00,254300,3220,150],
+      ['2024-01-08','Video Awareness','Interest Targeting',1920.00,165200,2200,74],
+      ['2024-01-09','Brand Awareness Q1','BAU - Lookalike',5180.50,243900,3080,141],
+      ['2024-01-10','Brand Awareness Q1','BAU - Lookalike',5290.00,248700,3140,144],
+      ['2024-01-10','Retargeting Jan','Cart Abandoners',2080.00,87200,1780,93],
+      ['2024-01-11','Brand Awareness Q1','BAU - Lookalike',5160.00,242100,3020,138],
+      ['2024-01-12','Brand Awareness Q1','BAU - Lookalike',5340.25,250800,3180,147],
+    ],
+    /* Indices of edge case rows (0-indexed) */
+    edgeCaseRows: [8, 14, 15],
+  },
+
+  google: {
+    id: 'google',
+    type: 'native',
+    name: 'Google Ads',
+    integration: 'Google Ads',
+    label: 'via API',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',          tag: 'dim' },
+      { name: 'account_name',  tag: 'dim' },
+      { name: 'campaign_name', tag: 'dim' },
+      { name: 'cost',          tag: 'paid' },
+      { name: 'impressions',   tag: 'paid' },
+      { name: 'clicks',        tag: 'paid' },
+      { name: 'conversions',   tag: 'paid' },
+    ],
+    rawTable: 'raw_native_google_ads',
+    rawDescription: 'Direct sync from the Google Ads API. Native fixed schema.',
+    mdTransforms: [
+      { from: 'cost',          to: 'spend',  cat: 'paid' },
+      { from: 'campaign_name', to: 'campaign', cat: 'dim' },
+    ],
+    stagedTable: 'ad_insights (Google partition)',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source = Google Ads', cat: 'dim' },
+      { name: 'account', cat: 'dim' },
+      { name: 'campaign', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'conversions', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Lands in ad_insights. Auto-joined into adspends_mat_view.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Google SEM', 'Google Shopping', 'Google Display'] },
+      { label: 'Modeling Dimensions', tag: 'dim', vars: ['Date', 'Campaign'] },
+    ],
+    mockData: [
+      ['2024-01-01','Performance','Search - Brand',3120.00,145200,2450,98],
+      ['2024-01-01','Performance','Search - Generic',2890.50,138400,2310,76],
+      ['2024-01-01','Shopping','Shopping - Apparel',4250.00,178000,2980,142],
+      ['2024-01-02','Performance','Search - Brand',3080.25,142800,2410,96],
+      ['2024-01-02','Performance','Search - Generic',2810.00,135200,2240,73],
+      ['2024-01-02','Shopping','Shopping - Apparel',4180.50,174500,2920,139],
+      ['2024-01-03','Performance','Search - Brand',3210.00,148900,2520,102],
+      ['2024-01-03','Performance','Search - Generic',2950.75,141800,2380,79],
+      ['2024-01-03','Shopping','Shopping - Apparel',4310.25,180100,3020,145],
+      ['2024-01-04','Performance','Search - Brand',3150.50,146300,2480,100],
+      ['2024-01-04','Performance','Search - Generic',2880.00,137900,2300,75],
+      ['2024-01-04','Shopping','Shopping - Apparel',4220.00,176700,2950,141],
+      ['2024-01-05','Performance','Search - Brand',2980.25,140100,2350,92],
+      ['2024-01-05','Performance','Search - Generic',2750.00,132600,2180,69],
+      ['2024-01-06','Performance','Search - Brand',5420.00,251000,4100,178],
+      ['2024-01-06','Shopping','Shopping - Apparel',7820.00,310200,5180,265],
+      ['2024-01-07','Performance','Search - Brand',3180.50,147200,2490,101],
+      ['2024-01-07','Performance','Search - Generic',2920.00,140100,2360,77],
+      ['2024-01-08','Performance','Search - Brand',3240.00,149800,2540,104],
+      ['2024-01-08','Shopping','Shopping - Apparel',4380.50,182400,3070,148],
+      ['2024-01-09','Performance','Search - Brand',3090.00,143400,2430,97],
+      ['2024-01-10','Performance','Search - Brand',3160.25,146700,2470,99],
+      ['2024-01-10','Shopping','Shopping - Apparel',4290.00,179200,3010,144],
+      ['2024-01-11','Performance','Search - Brand',3120.50,144800,2450,98],
+      ['2024-01-12','Performance','Search - Brand',3200.00,148100,2510,103],
+    ],
+    edgeCaseRows: [14, 15],
+  },
+
+  tiktok: {
+    id: 'tiktok',
+    type: 'native',
+    name: 'TikTok Ads',
+    integration: 'TikTok Ads',
+    label: 'via API',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',          tag: 'dim' },
+      { name: 'campaign_name', tag: 'dim' },
+      { name: 'spend',         tag: 'paid' },
+      { name: 'impressions',   tag: 'paid' },
+      { name: 'clicks',        tag: 'paid' },
+      { name: 'video_views',   tag: 'paid' },
+    ],
+    rawTable: 'raw_native_tiktok',
+    rawDescription: 'Direct sync from the TikTok Ads API.',
+    mdTransforms: [
+      { from: 'campaign_name', to: 'campaign', cat: 'dim' },
+      { from: 'video_views',   to: 'video_views', cat: 'paid' },
+    ],
+    stagedTable: 'ad_insights (TikTok partition)',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source = TikTok Ads', cat: 'dim' },
+      { name: 'campaign', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'video_views', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Lands in ad_insights. Auto-joined into adspends_mat_view.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['TikTok Awareness', 'TikTok Conversion'] },
+    ],
+    mockData: [
+      ['2024-01-01','Awareness Q1',1820.00,98400,1620,42100],
+      ['2024-01-01','Conversion Q1',2150.50,86200,1880,38400],
+      ['2024-01-02','Awareness Q1',1790.25,96100,1580,41200],
+      ['2024-01-02','Conversion Q1',2100.00,84500,1820,37200],
+      ['2024-01-03','Awareness Q1',1850.00,99800,1650,42800],
+      ['2024-01-03','Conversion Q1',2180.50,87100,1910,38900],
+      ['2024-01-04','Awareness Q1',1810.75,97500,1610,41800],
+      ['2024-01-04','Conversion Q1',2120.00,85400,1850,37800],
+      ['2024-01-05','Awareness Q1',1780.00,95900,1580,41100],
+      ['2024-01-05','Conversion Q1',2090.50,84100,1810,37000],
+      ['2024-01-06','Awareness Q1',3210.00,158200,2680,72400],
+      ['2024-01-06','Conversion Q1',3850.00,148000,3120,64200],
+      ['2024-01-07','Awareness Q1',1820.25,98300,1620,42000],
+      ['2024-01-07','Conversion Q1',2140.00,85900,1860,38100],
+      ['2024-01-08','Awareness Q1',1860.00,100100,1660,43000],
+      ['2024-01-08','Conversion Q1',2170.50,86700,1890,38500],
+      ['2024-01-09','Awareness Q1',1830.00,98700,1630,42300],
+      ['2024-01-10','Awareness Q1',1840.50,99100,1640,42600],
+      ['2024-01-10','Conversion Q1',2160.00,86300,1880,38400],
+      ['2024-01-11','Awareness Q1',1815.00,97800,1620,41900],
+      ['2024-01-12','Awareness Q1',1855.00,99500,1650,42800],
+      ['2024-01-12','Conversion Q1',2150.50,86100,1870,38200],
+      ['2024-01-13','Awareness Q1',1825.00,98200,1625,42150],
+      ['2024-01-14','Awareness Q1',1845.00,99000,1645,42500],
+      ['2024-01-15','Awareness Q1',1830.50,98500,1630,42250],
+    ],
+    edgeCaseRows: [10, 11],
+  },
+
+  /* ─── LONG FORMAT CUSTOM (Files / Sheets / DWH) ─── */
+  /* Each long-format scenario lands in a standalone staged table that
+     joins into adspends_mat_view alongside ad_insights and ga4_insights. */
+
+  PM1: {
+    id: 'PM1',
+    type: 'long',
+    name: 'PM1 — Multi-source paid (long)',
+    integration: 'Google Sheets',
+    label: 'q4_paid_data.gsheet',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',          tag: 'dim' },
+      { name: 'source',        tag: 'dim' },
+      { name: 'campaign_name', tag: 'dim' },
+      { name: 'spend',         tag: 'paid' },
+      { name: 'impressions',   tag: 'paid' },
+      { name: 'clicks',        tag: 'paid' },
+    ],
+    rawTable: 'raw_sheet_q4_paid_data',
+    rawDescription: 'Long format with explicit source column. Covers 3 channels not connected via native.',
+    mdTransforms: [
+      { from: 'source',        to: 'source',   cat: 'dim' },
+      { from: 'campaign_name', to: 'campaign', cat: 'dim' },
+    ],
+    stagedTable: 'staged_pm1_q4_paid_data',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source', cat: 'dim' },
+      { name: 'campaign', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Long format — joins into adspends_mat_view via tactic_name.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Reddit Brand', 'Quora Q&A', 'OOH Billboard'] },
+    ],
+    mockData: [
+      ['2024-01-01','Reddit','r/marketing brand',420.00,32100,180],
+      ['2024-01-01','Quora','Q&A native ads',310.50,28400,165],
+      ['2024-01-01','OOH','Times Sq billboard',850.00,null,null],
+      ['2024-01-02','Reddit','r/marketing brand',410.25,31800,178],
+      ['2024-01-02','Quora','Q&A native ads',305.00,28100,162],
+      ['2024-01-02','OOH','Times Sq billboard',850.00,null,null],
+      ['2024-01-03','Reddit','r/marketing brand',430.00,32600,184],
+      ['2024-01-03','Quora','Q&A native ads',315.50,28800,168],
+      ['2024-01-03','OOH','Times Sq billboard',850.00,null,null],
+      ['2024-01-04','Reddit','r/marketing brand',415.00,31900,179],
+      ['2024-01-04','Quora','Q&A native ads',308.00,28300,164],
+      ['2024-01-05','Reddit','r/marketing brand',null,null,null],
+      ['2024-01-05','Quora','Q&A native ads',300.00,27900,160],
+      ['2024-01-06','Reddit','r/marketing brand',780.00,52100,310],
+      ['2024-01-06','Quora','Q&A native ads',580.50,48200,290],
+      ['2024-01-06','OOH','Holiday season takeover',1700.00,null,null],
+      ['2024-01-07','Reddit','r/marketing brand',422.00,32200,181],
+      ['2024-01-07','Quora','Q&A native ads',312.00,28500,166],
+      ['2024-01-08','Reddit','r/marketing brand',428.50,32500,183],
+      ['2024-01-08','Quora','Q&A native ads',314.00,28700,167],
+      ['2024-01-09','Reddit','r/marketing brand',418.00,32000,180],
+      ['2024-01-10','Reddit','r/marketing brand',425.00,32300,182],
+      ['2024-01-10','Quora','Q&A native ads',311.50,28400,165],
+      ['2024-01-11','Quora','Q&A native ads',309.00,28200,163],
+      ['2024-01-12','Reddit','r/marketing brand',421.00,32150,180],
+    ],
+    edgeCaseRows: [2, 11, 13, 14, 15],
+  },
+
+  PM2: {
+    id: 'PM2',
+    type: 'wide',
+    name: 'PM2 — Wide format (channel-prefixed)',
+    integration: 'Google Sheets',
+    label: 'channel_summary.gsheet',
+    format: 'wide',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',         tag: 'dim' },
+      { name: 'fb_spend',     tag: 'paid' },
+      { name: 'fb_imps',      tag: 'paid' },
+      { name: 'google_spend', tag: 'paid' },
+      { name: 'google_imps',  tag: 'paid' },
+      { name: 'tt_spend',     tag: 'paid' },
+      { name: 'tt_imps',      tag: 'paid' },
+    ],
+    rawTable: 'raw_sheet_channel_summary',
+    rawDescription: 'Wide format with channel-prefixed columns. Stays standalone (NOT unpivoted).',
+    mdTransforms: [
+      { from: 'fb_spend',     to: 'fb_spend',     cat: 'paid' },
+      { from: 'google_spend', to: 'google_spend', cat: 'paid' },
+      { from: 'tt_spend',     to: 'tt_spend',     cat: 'paid' },
+    ],
+    stagedTable: 'staged_pm2_channel_summary',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'fb_spend', cat: 'paid' },
+      { name: 'fb_imps', cat: 'paid' },
+      { name: 'google_spend', cat: 'paid' },
+      { name: 'google_imps', cat: 'paid' },
+      { name: 'tt_spend', cat: 'paid' },
+      { name: 'tt_imps', cat: 'paid' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'standalone',
+    storageNote: 'Wide format — stays standalone, NOT joined into mat_view. Available directly to Data Model.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['fb_spend (channel)', 'google_spend (channel)', 'tt_spend (channel)'] },
+    ],
+    mockData: [
+      ['2024-01-01',5240.50,248300,3120.00,145200,1820.00,98400],
+      ['2024-01-02',4980.25,239100,3080.00,142800,1790.25,96100],
+      ['2024-01-03',5320.10,251000,3210.00,148900,1850.00,99800],
+      ['2024-01-04',5100.00,242800,3150.50,146300,1810.75,97500],
+      ['2024-01-05',4850.75,232500,2980.25,140100,1780.00,95900],
+      ['2024-01-06',9420.50,418200,5420.00,251000,3210.00,158200],
+      ['2024-01-07',5280.00,249800,3180.50,147200,1820.25,98300],
+      ['2024-01-08',5410.00,254300,3240.00,149800,1860.00,100100],
+      ['2024-01-09',5180.50,243900,3090.00,143400,1830.00,98700],
+      ['2024-01-10',5290.00,248700,3160.25,146700,1840.50,99100],
+      ['2024-01-11',5160.00,242100,3120.50,144800,1815.00,97800],
+      ['2024-01-12',5340.25,250800,3200.00,148100,1855.00,99500],
+      ['2024-01-13',5220.00,246100,3140.00,145600,1825.00,98200],
+      ['2024-01-14',5380.50,253200,3220.75,148900,1845.00,99000],
+      ['2024-01-15',null,null,3150.00,146100,1830.50,98500],
+      ['2024-01-16',5260.00,247400,3170.00,147000,1832.00,98400],
+      ['2024-01-17',5310.25,249800,3185.50,147500,1840.50,98700],
+      ['2024-01-18',5190.00,243800,3105.00,144200,1820.00,98100],
+      ['2024-01-19',5275.50,248200,3155.00,146400,1835.00,98500],
+      ['2024-01-20',5345.00,251100,3215.00,148000,1855.50,99100],
+      ['2024-01-21',5180.00,243500,3110.25,144600,1822.00,98000],
+      ['2024-01-22',5295.00,248900,3165.00,146800,1838.00,98600],
+      ['2024-01-23',5235.00,246400,3140.50,145900,1828.00,98300],
+      ['2024-01-24',5320.00,249800,3190.00,147500,1848.00,98800],
+      ['2024-01-25',5260.50,247100,3155.00,146100,1832.50,98400],
+    ],
+    edgeCaseRows: [5, 14],
+  },
+
+  PM3: {
+    id: 'PM3',
+    type: 'wide',
+    name: 'PM3 — Wide mixed (paid+kpi+organic+ctx)',
+    integration: 'Google Sheets',
+    label: 'mmm_master.gsheet',
+    format: 'wide',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',           tag: 'dim' },
+      { name: 'fb_spend',       tag: 'paid' },
+      { name: 'google_spend',   tag: 'paid' },
+      { name: 'tv_spend',       tag: 'paid' },
+      { name: 'revenue',        tag: 'kpi' },
+      { name: 'orders',         tag: 'kpi' },
+      { name: 'email_opens',    tag: 'organic' },
+      { name: 'temperature',    tag: 'contextual' },
+      { name: 'product_launch', tag: 'contextual' },
+    ],
+    rawTable: 'raw_sheet_mmm_master',
+    rawDescription: 'Wide format mixing paid (channel-prefixed) + KPI + organic + contextual variables.',
+    mdTransforms: [
+      { from: 'revenue',        to: 'revenue',        cat: 'kpi' },
+      { from: 'orders',         to: 'orders',         cat: 'kpi' },
+      { from: 'product_launch', to: 'product_launch', cat: 'contextual' },
+    ],
+    stagedTable: 'staged_pm3_mmm_master',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'fb_spend', cat: 'paid' },
+      { name: 'google_spend', cat: 'paid' },
+      { name: 'tv_spend', cat: 'paid' },
+      { name: 'revenue', cat: 'kpi' },
+      { name: 'orders', cat: 'kpi' },
+      { name: 'email_opens', cat: 'organic' },
+      { name: 'temperature', cat: 'contextual' },
+      { name: 'product_launch', cat: 'contextual' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'standalone',
+    storageNote: 'Wide format with mixed categories — stays standalone, available to Data Model directly.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['fb_spend', 'google_spend', 'tv_spend'] },
+      { label: 'KPIs', tag: 'kpi', vars: ['Revenue', 'Orders'] },
+      { label: 'Organic Variables', tag: 'organic', vars: ['Email Opens'] },
+      { label: 'Control Variables', tag: 'contextual', vars: ['Temperature', 'Product Launch'] },
+    ],
+    mockData: [
+      ['2024-01-01',5240.50,3120.00,15000,48200,312,4500,72,0],
+      ['2024-01-02',4980.25,3080.00,15000,45100,289,4320,68,0],
+      ['2024-01-03',5320.10,3210.00,15000,52300,342,4680,70,0],
+      ['2024-01-04',5100.00,3150.50,15000,49800,318,4410,69,0],
+      ['2024-01-05',4850.75,2980.25,15000,46200,295,4180,71,0],
+      ['2024-01-06',9420.50,5420.00,30000,89400,612,8200,73,0],
+      ['2024-01-07',5280.00,3180.50,15000,49100,315,4380,72,0],
+      ['2024-01-08',5410.00,3240.00,15000,51200,328,4490,68,0],
+      ['2024-01-09',5180.50,3090.00,15000,48400,310,4320,69,0],
+      ['2024-01-10',5290.00,3160.25,15000,49900,319,4400,71,0],
+      ['2024-01-11',5160.00,3120.50,15000,48100,308,4290,72,0],
+      ['2024-01-12',5340.25,3200.00,15000,50300,322,4450,73,0],
+      ['2024-01-13',5220.00,3140.00,15000,48800,313,4350,70,0],
+      ['2024-01-14',5380.50,3220.75,15000,50800,325,4470,68,0],
+      ['2024-01-15',12500.00,7800.00,45000,124000,892,9100,69,1],
+      ['2024-01-16',8200.00,5100.00,30000,82400,548,7200,71,1],
+      ['2024-01-17',7100.00,4400.00,25000,71200,478,6500,72,1],
+      ['2024-01-18',5190.00,3105.00,15000,48200,311,4310,73,0],
+      ['2024-01-19',5275.50,3155.00,15000,49500,317,4380,71,0],
+      ['2024-01-20',5345.00,3215.00,15000,50600,324,4460,69,0],
+      ['2024-01-21',5180.00,3110.25,15000,48100,308,4300,68,0],
+      ['2024-01-22',5295.00,3165.00,15000,49800,319,4390,70,0],
+      ['2024-01-23',5235.00,3140.50,15000,48700,312,4340,72,0],
+      ['2024-01-24',5320.00,3190.00,15000,49900,320,4420,73,0],
+      ['2024-01-25',5260.50,3155.00,15000,49000,315,4360,71,0],
+    ],
+    edgeCaseRows: [5, 14, 15, 16],
+  },
+
+  PM4: {
+    id: 'PM4',
+    type: 'long',
+    name: 'PM4 — Single source (no source col)',
+    integration: 'CSV Upload',
+    label: 'facebook_q4.csv',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',        tag: 'dim' },
+      { name: 'campaign',    tag: 'dim' },
+      { name: 'spend',       tag: 'paid' },
+      { name: 'impressions', tag: 'paid' },
+      { name: 'clicks',      tag: 'paid' },
+    ],
+    rawTable: 'raw_csv_facebook_q4',
+    rawDescription: 'No source column — user picked Facebook Ads as the source during import.',
+    mdTransforms: [
+      { from: '(implicit)',  to: 'source = Facebook Ads', cat: 'dim' },
+      { from: 'campaign',    to: 'campaign', cat: 'dim' },
+    ],
+    stagedTable: 'staged_pm4_facebook_q4',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source = Facebook Ads', cat: 'dim' },
+      { name: 'campaign', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Long format → joins into adspends_mat_view. Source comes from filename or user pick.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Facebook Brand (CSV)', 'Facebook Holiday (CSV)'] },
+    ],
+    mockData: [
+      ['2024-10-01','Brand Awareness Q4',5240.00,248300,3120],
+      ['2024-10-01','Holiday Retargeting',2100.00,89400,1845],
+      ['2024-10-02','Brand Awareness Q4',4980.00,239100,2980],
+      ['2024-10-02','Holiday Retargeting',2050.00,85200,1720],
+      ['2024-10-03','Brand Awareness Q4',5320.00,251000,3200],
+      ['2024-10-03','Holiday Retargeting',2180.00,92100,1890],
+      ['2024-10-04','Brand Awareness Q4',5100.00,242800,3050],
+      ['2024-10-04','Holiday Retargeting',2090.00,88300,1810],
+      ['2024-10-05','Brand Awareness Q4',4850.00,232500,2890],
+      ['2024-10-05','Holiday Retargeting',1950.00,82100,1680],
+      ['2024-10-06','Brand Awareness Q4',9420.00,418200,5210],
+      ['2024-10-06','Holiday Retargeting',3850.00,158400,3100],
+      ['2024-10-07','Brand Awareness Q4',5280.00,249800,3150],
+      ['2024-10-07','Holiday Retargeting',2110.00,90100,1850],
+      ['2024-10-08','Brand Awareness Q4',5410.00,254300,3220],
+      ['2024-10-09','Brand Awareness Q4',null,null,null],
+      ['2024-10-10','Brand Awareness Q4',5290.00,248700,3140],
+      ['2024-10-10','Holiday Retargeting',2080.00,87200,1780],
+      ['2024-10-11','Brand Awareness Q4',5160.00,242100,3020],
+      ['2024-10-12','Brand Awareness Q4',5340.00,250800,3180],
+      ['2024-10-13','Brand Awareness Q4',5220.00,246100,3100],
+      ['2024-10-14','Brand Awareness Q4',5380.00,253200,3210],
+      ['2024-10-15','Brand Awareness Q4',5260.00,247400,3120],
+      ['2024-10-16','Brand Awareness Q4',5310.00,249800,3170],
+      ['2024-10-17','Brand Awareness Q4',5190.00,243800,3080],
+    ],
+    edgeCaseRows: [10, 11, 15],
+  },
+
+  PM5: {
+    id: 'PM5',
+    type: 'long',
+    name: 'PM5 — Granular ad hierarchy',
+    integration: 'BigQuery',
+    label: 'marketing.google_ads_daily',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',         tag: 'dim' },
+      { name: 'account_id',   tag: 'dim' },
+      { name: 'campaign_id',  tag: 'dim' },
+      { name: 'ad_group_id',  tag: 'dim' },
+      { name: 'ad_id',        tag: 'dim' },
+      { name: 'spend',        tag: 'paid' },
+      { name: 'impressions',  tag: 'paid' },
+      { name: 'clicks',       tag: 'paid' },
+    ],
+    rawTable: 'raw_bq_marketing_google_ads_daily',
+    rawDescription: 'BigQuery table with full Google Ads hierarchy (account → campaign → adgroup → ad).',
+    mdTransforms: [
+      { from: '(implicit)',   to: 'source = Google Ads', cat: 'dim' },
+      { from: 'campaign_id',  to: 'campaign_id', cat: 'dim' },
+      { from: 'ad_group_id',  to: 'adgroup_id', cat: 'dim' },
+    ],
+    stagedTable: 'staged_pm5_google_ads_daily',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source = Google Ads', cat: 'dim' },
+      { name: 'account_id', cat: 'dim' },
+      { name: 'campaign_id', cat: 'dim' },
+      { name: 'adgroup_id', cat: 'dim' },
+      { name: 'ad_id', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Long format with full hierarchy — joins into adspends_mat_view at ad-level granularity.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Google SEM (BQ)', 'Google Shopping (BQ)'] },
+      { label: 'Modeling Dimensions', tag: 'dim', vars: ['Date', 'Campaign', 'Ad Group', 'Ad'] },
+    ],
+    mockData: [
+      ['2024-01-01','acc-001','camp-1001','ag-5001','ad-9001',125.50,8400,145],
+      ['2024-01-01','acc-001','camp-1001','ag-5001','ad-9002',98.20,6200,98],
+      ['2024-01-01','acc-001','camp-1002','ag-5002','ad-9003',156.80,9100,172],
+      ['2024-01-01','acc-001','camp-1002','ag-5002','ad-9004',142.30,8700,168],
+      ['2024-01-02','acc-001','camp-1001','ag-5001','ad-9001',128.40,8520,148],
+      ['2024-01-02','acc-001','camp-1001','ag-5001','ad-9002',101.10,6310,102],
+      ['2024-01-02','acc-001','camp-1002','ag-5002','ad-9003',158.20,9180,175],
+      ['2024-01-03','acc-001','camp-1001','ag-5001','ad-9001',122.80,8290,142],
+      ['2024-01-03','acc-001','camp-1002','ag-5002','ad-9003',null,null,null],
+      ['2024-01-03','acc-001','camp-1002','ag-5002','ad-9004',144.50,8810,170],
+      ['2024-01-04','acc-001','camp-1001','ag-5001','ad-9001',131.20,8650,151],
+      ['2024-01-04','acc-001','camp-1001','ag-5003','ad-9005',88.40,5800,86],
+      ['2024-01-05','acc-001','camp-1001','ag-5001','ad-9001',127.00,8480,147],
+      ['2024-01-05','acc-001','camp-1002','ag-5002','ad-9003',155.90,9050,171],
+      ['2024-01-06','acc-001','camp-1001','ag-5001','ad-9001',242.50,16200,283],
+      ['2024-01-06','acc-001','camp-1002','ag-5002','ad-9003',310.10,18100,342],
+      ['2024-01-07','acc-001','camp-1001','ag-5001','ad-9001',124.80,8350,143],
+      ['2024-01-08','acc-001','camp-1001','ag-5001','ad-9001',129.50,8580,149],
+      ['2024-01-09','acc-001','camp-1002','ag-5002','ad-9003',157.00,9120,173],
+      ['2024-01-10','acc-001','camp-1001','ag-5001','ad-9001',126.20,8420,146],
+      ['2024-01-11','acc-001','camp-1001','ag-5001','ad-9001',130.80,8610,150],
+      ['2024-01-12','acc-001','camp-1002','ag-5002','ad-9003',156.40,9090,172],
+      ['2024-01-13','acc-001','camp-1001','ag-5001','ad-9001',125.90,8400,145],
+      ['2024-01-14','acc-001','camp-1001','ag-5001','ad-9001',128.10,8500,147],
+      ['2024-01-15','acc-001','camp-1001','ag-5001','ad-9001',127.40,8460,146],
+    ],
+    edgeCaseRows: [8, 14, 15],
+  },
+
+  PM6: {
+    id: 'PM6',
+    type: 'long',
+    name: 'PM6 — Granular multi-source',
+    integration: 'BigQuery',
+    label: 'marketing.unified_paid_daily',
+    format: 'long',
+    primaryCategory: 'paid',
+    columns: [
+      { name: 'date',         tag: 'dim' },
+      { name: 'source',       tag: 'dim' },
+      { name: 'account_id',   tag: 'dim' },
+      { name: 'campaign_id',  tag: 'dim' },
+      { name: 'ad_group_id',  tag: 'dim' },
+      { name: 'spend',        tag: 'paid' },
+      { name: 'impressions',  tag: 'paid' },
+      { name: 'clicks',       tag: 'paid' },
+    ],
+    rawTable: 'raw_bq_unified_paid_daily',
+    rawDescription: 'Multi-source BigQuery table with hierarchy. One row per (date, source, ad-group).',
+    mdTransforms: [
+      { from: 'source', to: 'source', cat: 'dim' },
+    ],
+    stagedTable: 'staged_pm6_unified_paid_daily',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source', cat: 'dim' },
+      { name: 'account_id', cat: 'dim' },
+      { name: 'campaign_id', cat: 'dim' },
+      { name: 'adgroup_id', cat: 'dim' },
+      { name: 'spend', cat: 'paid' },
+      { name: 'impressions', cat: 'paid' },
+      { name: 'clicks', cat: 'paid' },
+      { name: 'tactic_name', cat: 'dim' },
+    ],
+    hasTacticMapper: true,
+    storageTarget: 'matview',
+    storageNote: 'Long format multi-source with hierarchy → joins into adspends_mat_view.',
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: ['Facebook Brand (BQ)', 'Google SEM (BQ)', 'TikTok Awareness (BQ)'] },
+    ],
+    mockData: [
+      ['2024-01-01','Facebook','fb-1','camp-1001','ag-5001',125.50,8400,145],
+      ['2024-01-01','Google',  'g-1', 'camp-2001','ag-6001',98.20,6200,98],
+      ['2024-01-01','TikTok',  'tt-1','camp-3001','ag-7001',156.80,9100,172],
+      ['2024-01-02','Facebook','fb-1','camp-1001','ag-5001',128.40,8520,148],
+      ['2024-01-02','Google',  'g-1', 'camp-2001','ag-6001',101.10,6310,102],
+      ['2024-01-02','TikTok',  'tt-1','camp-3001','ag-7001',158.20,9180,175],
+      ['2024-01-03','Facebook','fb-1','camp-1001','ag-5001',122.80,8290,142],
+      ['2024-01-03','Google',  'g-1', 'camp-2001','ag-6001',104.50,6450,105],
+      ['2024-01-03','TikTok',  'tt-1','camp-3001','ag-7001',155.90,9050,171],
+      ['2024-01-04','Facebook','fb-1','camp-1001','ag-5001',131.20,8650,151],
+      ['2024-01-04','Google',  'g-1', 'camp-2001','ag-6001',99.80,6280,100],
+      ['2024-01-05','Facebook','fb-1','camp-1001','ag-5001',null,null,null],
+      ['2024-01-05','Google',  'g-1', 'camp-2001','ag-6001',102.40,6360,103],
+      ['2024-01-06','Facebook','fb-1','camp-1001','ag-5001',242.50,16200,283],
+      ['2024-01-06','Google',  'g-1', 'camp-2001','ag-6001',195.00,12300,198],
+      ['2024-01-06','TikTok',  'tt-1','camp-3001','ag-7001',310.10,18100,342],
+      ['2024-01-07','Facebook','fb-1','camp-1001','ag-5001',124.80,8350,143],
+      ['2024-01-07','Google',  'g-1', 'camp-2001','ag-6001',100.20,6320,101],
+      ['2024-01-08','Facebook','fb-1','camp-1001','ag-5001',129.50,8580,149],
+      ['2024-01-09','Google',  'g-1', 'camp-2001','ag-6001',103.10,6400,104],
+      ['2024-01-10','Facebook','fb-1','camp-1001','ag-5001',126.20,8420,146],
+      ['2024-01-10','TikTok',  'tt-1','camp-3001','ag-7001',157.00,9120,173],
+      ['2024-01-11','Facebook','fb-1','camp-1001','ag-5001',130.80,8610,150],
+      ['2024-01-12','Google',  'g-1', 'camp-2001','ag-6001',101.50,6340,102],
+      ['2024-01-13','Facebook','fb-1','camp-1001','ag-5001',125.90,8400,145],
+    ],
+    edgeCaseRows: [11, 13, 14, 15],
+  },
+
+  K1: {
+    id: 'K1',
+    type: 'long',
+    name: 'K1 — Event format KPI',
+    integration: 'Google Sheets',
+    label: 'kpi_events.gsheet',
+    format: 'long',
+    primaryCategory: 'kpi',
+    columns: [
+      { name: 'date',       tag: 'dim' },
+      { name: 'event_name', tag: 'kpi' },
+      { name: 'value',      tag: 'kpi' },
+    ],
+    rawTable: 'raw_sheet_kpi_events',
+    rawDescription: 'Long event format. Each row is one event type per day.',
+    mdTransforms: [
+      { from: 'event_name', to: 'event_name', cat: 'kpi' },
+    ],
+    stagedTable: 'staged_k1_kpi_events',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'event_name', cat: 'kpi' },
+      { name: 'value', cat: 'kpi' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'matview',
+    storageNote: 'KPI events join into kpi_data which is part of the mat_view family.',
+    dataModel: [
+      { label: 'KPIs', tag: 'kpi', vars: ['Revenue (purchase)', 'Conversions (add_to_cart)', 'Registrations (signup)'] },
+    ],
+    mockData: [
+      ['2024-01-01','purchase',48200],
+      ['2024-01-01','add_to_cart',312],
+      ['2024-01-01','signup',87],
+      ['2024-01-02','purchase',45100],
+      ['2024-01-02','add_to_cart',289],
+      ['2024-01-02','signup',82],
+      ['2024-01-03','purchase',52300],
+      ['2024-01-03','add_to_cart',342],
+      ['2024-01-03','signup',95],
+      ['2024-01-04','purchase',49800],
+      ['2024-01-04','add_to_cart',318],
+      ['2024-01-04','signup',88],
+      ['2024-01-05','purchase',46200],
+      ['2024-01-05','add_to_cart',null],
+      ['2024-01-06','purchase',89400],
+      ['2024-01-06','add_to_cart',612],
+      ['2024-01-06','signup',172],
+      ['2024-01-07','purchase',49100],
+      ['2024-01-07','add_to_cart',315],
+      ['2024-01-08','purchase',51200],
+      ['2024-01-08','add_to_cart',328],
+      ['2024-01-09','purchase',48400],
+      ['2024-01-10','purchase',49900],
+      ['2024-01-10','add_to_cart',319],
+      ['2024-01-11','purchase',48100],
+    ],
+    edgeCaseRows: [13, 14, 15, 16],
+  },
+
+  K2: {
+    id: 'K2',
+    type: 'wide',
+    name: 'K2 — Event + per-source values',
+    integration: 'Google Sheets',
+    label: 'kpi_by_channel.gsheet',
+    format: 'wide',
+    primaryCategory: 'kpi',
+    columns: [
+      { name: 'date',         tag: 'dim' },
+      { name: 'event_name',   tag: 'kpi' },
+      { name: 'value_amazon', tag: 'kpi' },
+      { name: 'value_dtc',    tag: 'kpi' },
+    ],
+    rawTable: 'raw_sheet_kpi_by_channel',
+    rawDescription: 'Hybrid format — event column plus per-source value columns. Wide due to value_* prefix.',
+    mdTransforms: [
+      { from: 'value_amazon', to: 'amazon_value', cat: 'kpi' },
+      { from: 'value_dtc',    to: 'dtc_value',    cat: 'kpi' },
+    ],
+    stagedTable: 'staged_k2_kpi_by_channel',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'event_name', cat: 'kpi' },
+      { name: 'amazon_value', cat: 'kpi' },
+      { name: 'dtc_value', cat: 'kpi' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'standalone',
+    storageNote: 'Wide multi-value KPI — stays standalone, available directly to Data Model.',
+    dataModel: [
+      { label: 'KPIs', tag: 'kpi', vars: ['Amazon Revenue', 'DTC Revenue', 'Amazon Signups', 'DTC Signups'] },
+    ],
+    mockData: [
+      ['2024-01-01','purchase',12400,35800],
+      ['2024-01-01','signup',48,128],
+      ['2024-01-02','purchase',11800,33300],
+      ['2024-01-02','signup',45,121],
+      ['2024-01-03','purchase',13200,38900],
+      ['2024-01-03','signup',52,135],
+      ['2024-01-04','purchase',12600,36400],
+      ['2024-01-04','signup',49,130],
+      ['2024-01-05','purchase',11900,33800],
+      ['2024-01-05','signup',46,122],
+      ['2024-01-06','purchase',24800,72100],
+      ['2024-01-06','signup',96,258],
+      ['2024-01-07','purchase',12500,36100],
+      ['2024-01-07','signup',48,128],
+      ['2024-01-08','purchase',13100,38200],
+      ['2024-01-08','signup',51,132],
+      ['2024-01-09','purchase',null,35900],
+      ['2024-01-09','signup',null,127],
+      ['2024-01-10','purchase',12700,36800],
+      ['2024-01-10','signup',49,131],
+      ['2024-01-11','purchase',12200,34900],
+      ['2024-01-12','purchase',12900,37200],
+      ['2024-01-13','purchase',12400,35800],
+      ['2024-01-14','purchase',12600,36300],
+      ['2024-01-15','purchase',12500,36000],
+    ],
+    edgeCaseRows: [10, 11, 16, 17],
+  },
+
+  K3: {
+    id: 'K3',
+    type: 'long',
+    name: 'K3 — Wide aggregated KPI',
+    integration: 'CSV Upload',
+    label: 'daily_kpis.csv',
+    format: 'long',
+    primaryCategory: 'kpi',
+    columns: [
+      { name: 'date',    tag: 'dim' },
+      { name: 'revenue', tag: 'kpi' },
+      { name: 'orders',  tag: 'kpi' },
+    ],
+    rawTable: 'raw_csv_daily_kpis',
+    rawDescription: 'Daily aggregated KPIs. Each metric is its own column. Long format (no channel prefixes).',
+    mdTransforms: [
+      { from: 'revenue', to: 'revenue', cat: 'kpi' },
+      { from: 'orders',  to: 'orders',  cat: 'kpi' },
+    ],
+    stagedTable: 'staged_k3_daily_kpis',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'revenue', cat: 'kpi' },
+      { name: 'orders', cat: 'kpi' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'matview',
+    storageNote: 'Long aggregated KPI → joins into kpi_data alongside mat_view.',
+    dataModel: [
+      { label: 'KPIs', tag: 'kpi', vars: ['Revenue', 'Orders'] },
+    ],
+    mockData: [
+      ['2024-01-01',48200,312],['2024-01-02',45100,289],['2024-01-03',52300,342],
+      ['2024-01-04',49800,318],['2024-01-05',46200,295],['2024-01-06',89400,612],
+      ['2024-01-07',49100,315],['2024-01-08',51200,328],['2024-01-09',48400,310],
+      ['2024-01-10',49900,319],['2024-01-11',48100,308],['2024-01-12',50300,322],
+      ['2024-01-13',48800,313],['2024-01-14',50800,325],['2024-01-15',49500,317],
+      ['2024-01-16',null,null],['2024-01-17',49200,316],['2024-01-18',50100,320],
+      ['2024-01-19',48700,312],['2024-01-20',50400,322],['2024-01-21',49000,314],
+      ['2024-01-22',49800,319],['2024-01-23',48900,313],['2024-01-24',50200,321],
+      ['2024-01-25',49400,316],
+    ],
+    edgeCaseRows: [5, 15],
+  },
+
+  K4: {
+    id: 'K4',
+    type: 'long',
+    name: 'K4 — Wide KPI + source col',
+    integration: 'BigQuery',
+    label: 'analytics.daily_kpi_by_source',
+    format: 'long',
+    primaryCategory: 'kpi',
+    columns: [
+      { name: 'date',    tag: 'dim' },
+      { name: 'source',  tag: 'dim' },
+      { name: 'revenue', tag: 'kpi' },
+      { name: 'orders',  tag: 'kpi' },
+    ],
+    rawTable: 'raw_bq_daily_kpi_by_source',
+    rawDescription: 'Daily KPIs split by source. Long format with explicit source column.',
+    mdTransforms: [
+      { from: 'source', to: 'source', cat: 'dim' },
+    ],
+    stagedTable: 'staged_k4_daily_kpi_by_source',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source', cat: 'dim' },
+      { name: 'revenue', cat: 'kpi' },
+      { name: 'orders', cat: 'kpi' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'matview',
+    storageNote: 'Long format KPI with source dimension → joins into kpi_data.',
+    dataModel: [
+      { label: 'KPIs', tag: 'kpi', vars: ['Amazon Revenue', 'DTC Revenue', 'Amazon Orders', 'DTC Orders'] },
+    ],
+    mockData: [
+      ['2024-01-01','Amazon',12400,48],['2024-01-01','DTC',35800,264],
+      ['2024-01-02','Amazon',11800,45],['2024-01-02','DTC',33300,244],
+      ['2024-01-03','Amazon',13200,52],['2024-01-03','DTC',38900,290],
+      ['2024-01-04','Amazon',12600,49],['2024-01-04','DTC',36400,269],
+      ['2024-01-05','Amazon',11900,46],['2024-01-05','DTC',33800,247],
+      ['2024-01-06','Amazon',24800,96],['2024-01-06','DTC',72100,538],
+      ['2024-01-07','Amazon',12500,48],['2024-01-07','DTC',36100,266],
+      ['2024-01-08','Amazon',13100,51],['2024-01-08','DTC',38200,283],
+      ['2024-01-09','Amazon',12300,47],['2024-01-09','DTC',null,null],
+      ['2024-01-10','Amazon',12700,49],['2024-01-10','DTC',36800,272],
+      ['2024-01-11','Amazon',12200,47],['2024-01-12','Amazon',12900,50],
+      ['2024-01-13','Amazon',12400,48],['2024-01-14','Amazon',12600,49],
+      ['2024-01-15','Amazon',12500,48],
+    ],
+    edgeCaseRows: [10, 11, 17],
+  },
+
+  OC1: {
+    id: 'OC1',
+    type: 'long',
+    name: 'OC1 — Mixed organic + contextual',
+    integration: 'Google Sheets',
+    label: 'organic_and_external.gsheet',
+    format: 'long',
+    primaryCategory: 'organic',
+    columns: [
+      { name: 'date',        tag: 'dim' },
+      { name: 'source',      tag: 'dim' },
+      { name: 'impressions', tag: 'organic' },
+      { name: 'is_holiday',  tag: 'contextual' },
+      { name: 'temperature', tag: 'contextual' },
+    ],
+    rawTable: 'raw_sheet_organic_and_external',
+    rawDescription: 'Long format with organic impressions per channel + contextual variables.',
+    mdTransforms: [
+      { from: 'is_holiday',  to: 'is_holiday',  cat: 'contextual' },
+      { from: 'temperature', to: 'temperature', cat: 'contextual' },
+    ],
+    stagedTable: 'staged_oc1_organic_and_external',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'source', cat: 'dim' },
+      { name: 'impressions', cat: 'organic' },
+      { name: 'is_holiday', cat: 'contextual' },
+      { name: 'temperature', cat: 'contextual' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'matview',
+    storageNote: 'Long format → organic channel/day data joins into mat_view family.',
+    dataModel: [
+      { label: 'Organic Variables', tag: 'organic', vars: ['Instagram Impressions', 'TikTok Impressions', 'YouTube Impressions'] },
+      { label: 'Control Variables', tag: 'contextual', vars: ['Holiday (binary)', 'Temperature'] },
+    ],
+    mockData: [
+      ['2024-01-01','Instagram',125000,1,72],['2024-01-01','TikTok',89000,1,72],['2024-01-01','YouTube',62000,1,72],
+      ['2024-01-02','Instagram',118000,0,68],['2024-01-02','TikTok',84000,0,68],['2024-01-02','YouTube',58000,0,68],
+      ['2024-01-03','Instagram',128000,0,70],['2024-01-03','TikTok',91000,0,70],['2024-01-03','YouTube',64000,0,70],
+      ['2024-01-04','Instagram',122000,0,69],['2024-01-04','TikTok',86000,0,69],['2024-01-04','YouTube',60000,0,69],
+      ['2024-01-05','Instagram',null,0,71],['2024-01-05','TikTok',null,0,71],['2024-01-05','YouTube',null,0,71],
+      ['2024-01-06','Instagram',245000,1,73],['2024-01-06','TikTok',172000,1,73],['2024-01-06','YouTube',124000,1,73],
+      ['2024-01-07','Instagram',124000,0,72],['2024-01-07','TikTok',88000,0,72],['2024-01-07','YouTube',61000,0,72],
+      ['2024-01-08','Instagram',127000,0,68],['2024-01-08','TikTok',90000,0,68],['2024-01-08','YouTube',63000,0,68],
+    ],
+    edgeCaseRows: [12, 13, 14, 15, 16, 17],
+  },
+
+  OC2: {
+    id: 'OC2',
+    type: 'long',
+    name: 'OC2 — Single contextual variable',
+    integration: 'CSV Upload',
+    label: 'fuel_prices.csv',
+    format: 'long',
+    primaryCategory: 'contextual',
+    columns: [
+      { name: 'date',  tag: 'dim' },
+      { name: 'value', tag: 'contextual' },
+    ],
+    rawTable: 'raw_csv_fuel_prices',
+    rawDescription: 'Single daily contextual variable. Minimal long format (date + value).',
+    mdTransforms: [
+      { from: 'value', to: 'fuel_price', cat: 'contextual' },
+    ],
+    stagedTable: 'staged_oc2_fuel_prices',
+    stagedColumns: [
+      { name: 'date', cat: 'dim' },
+      { name: 'fuel_price', cat: 'contextual' },
+    ],
+    hasTacticMapper: false,
+    storageTarget: 'matview',
+    storageNote: 'Long contextual variable → joins into contextual_data which sits alongside mat_view.',
+    dataModel: [
+      { label: 'Control Variables', tag: 'contextual', vars: ['Fuel Price'] },
+    ],
+    mockData: [
+      ['2024-01-01',3.49],['2024-01-02',3.52],['2024-01-03',3.48],['2024-01-04',3.51],
+      ['2024-01-05',3.50],['2024-01-06',3.54],['2024-01-07',3.53],['2024-01-08',3.55],
+      ['2024-01-09',3.52],['2024-01-10',3.50],['2024-01-11',3.49],['2024-01-12',3.51],
+      ['2024-01-13',3.53],['2024-01-14',3.56],['2024-01-15',4.12],['2024-01-16',4.15],
+      ['2024-01-17',4.10],['2024-01-18',3.95],['2024-01-19',3.78],['2024-01-20',3.62],
+      ['2024-01-21',3.55],['2024-01-22',3.52],['2024-01-23',3.51],['2024-01-24',3.50],
+      ['2024-01-25',3.49],
+    ],
+    edgeCaseRows: [14, 15, 16],
+  },
+};
+
+/* Source ordering for the picker */
+const SOURCE_GROUPS = [
+  {
+    type: 'native',
+    label: 'Native Integrations',
+    desc: 'Fixed schema · lands in ad_insights',
+    sources: ['facebook', 'google', 'tiktok'],
+  },
+  {
+    type: 'long',
+    label: 'Long Format Custom',
+    desc: 'Files / Sheets / DWH · joins into adspends_mat_view',
+    sources: ['PM1', 'PM4', 'PM5', 'PM6', 'K1', 'K3', 'K4', 'OC1', 'OC2'],
+  },
+  {
+    type: 'wide',
+    label: 'Wide Format Custom',
+    desc: 'Channel-prefixed columns · standalone (NOT joined)',
+    sources: ['PM2', 'PM3', 'K2'],
+  },
+];
+
+/* ═════════════════════════════════════════════════════════════════════════
+   STATE
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const selectedSources = new Set(['facebook', 'PM1', 'PM3', 'K3', 'OC1']);
+const expandedSamples = new Set();  // sources with sample data table expanded
+const fullSamples = new Set();      // sources showing all 25 rows (vs 8)
+let currentFilter = null;           // node id currently in filter mode (null = no filter)
+let pickerCollapsed = false;
+
+/* ═════════════════════════════════════════════════════════════════════════
+   PICKER RENDERING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const $picker = document.getElementById('picker-groups');
+const $count = document.getElementById('picker-count');
+
+function renderPicker() {
+  $picker.innerHTML = SOURCE_GROUPS.map(group => `
+    <div class="picker-group ${group.type}">
+      <div class="pg-header">
+        <div>
+          <div class="pg-name">${group.label}</div>
+          <div class="pg-count">${group.desc}</div>
+        </div>
+        <div class="pg-actions">
+          <button data-action="select" data-group="${group.type}">All</button>
+          <button data-action="clear" data-group="${group.type}">None</button>
+        </div>
+      </div>
+      <div class="pg-options">
+        ${group.sources.map(srcId => {
+          const s = SOURCES[srcId];
+          const checked = selectedSources.has(srcId);
+          return `
+            <label class="pg-option ${checked ? 'checked' : ''}" data-src="${srcId}">
+              <input type="checkbox" ${checked ? 'checked' : ''} data-src-checkbox="${srcId}" />
+              <span class="label-text">${s.name}</span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+  updateCount();
+  updateSummaryChips();
+}
+
+function updateCount() {
+  $count.textContent = `${selectedSources.size} selected`;
+}
+
+/* When the picker is collapsed, show selected source chips inline */
+function updateSummaryChips() {
+  const $chips = document.getElementById('picker-summary-chips');
+  if (!$chips) return;
+  const selected = Array.from(selectedSources).map(id => SOURCES[id]);
+  $chips.innerHTML = selected.slice(0, 8).map(s => `
+    <span class="summary-chip ${s.type}">${s.name.split(' — ')[0]}</span>
+  `).join('') + (selected.length > 8 ? `<span class="summary-chip" style="background:var(--bg-elevated);color:var(--t-muted);border-color:var(--border)">+${selected.length - 8} more</span>` : '');
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   STAGE RENDERING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const $stage1 = document.getElementById('stage-1');
+const $stage2 = document.getElementById('stage-2');
+const $stage3 = document.getElementById('stage-3');
+const $stage4 = document.getElementById('stage-4');
+const $stage5 = document.getElementById('stage-5');
+const $summary = document.getElementById('summary');
+const $viewer = document.getElementById('viewer');
+const $svg = document.getElementById('edges-svg');
+const $tooltip = document.getElementById('tooltip');
+
+function render() {
+  clearHighlight();
+  const selected = Array.from(selectedSources).map(id => SOURCES[id]);
+
+  if (selected.length === 0) {
+    $stage1.innerHTML = '<div class="empty-state">Pick at least one source above to see the flow</div>';
+    $stage2.innerHTML = '';
+    $stage3.innerHTML = '';
+    $stage4.innerHTML = '';
+    $stage5.innerHTML = '';
+    $summary.innerHTML = `<span class="label">No sources selected</span><span class="note">Use the picker above to choose sources to visualize.</span>`;
+    $svg.innerHTML = '';
+    return;
+  }
+
+  /* Summary */
+  const typeCounts = selected.reduce((acc, s) => { acc[s.type] = (acc[s.type] || 0) + 1; return acc; }, {});
+  const formatNote =
+    `${typeCounts.native || 0} native + ${typeCounts.long || 0} long format + ${typeCounts.wide || 0} wide format`;
+  $summary.innerHTML = `
+    <span class="label">Selected</span><span class="val">${selected.length} sources</span>
+    <span class="divider"></span>
+    <span class="label">Mix</span><span class="val">${formatNote}</span>
+    <span class="divider"></span>
+    <span class="note">Click any node in any stage to highlight its full flow path. Click 'Show sample data' on a source to preview 25 rows.</span>
+  `;
+
+  /* Stage 1: Source cards with mock data */
+  $stage1.innerHTML = selected.map(s => renderSourceCard(s)).join('');
+
+  /* Stage 2: Raw dump tables */
+  $stage2.innerHTML = selected.map(s => renderRawDump(s)).join('');
+
+  /* Stage 3: M&D + Staged */
+  $stage3.innerHTML = selected.map(s => renderStage3(s)).join('');
+
+  /* Stage 4: Storage routing */
+  $stage4.innerHTML = renderStorage(selected);
+
+  /* Stage 5: Data Model */
+  $stage5.innerHTML = renderDataModel(selected);
+
+  /* Re-attach mock data table state across all sample tables */
+  expandedSamples.forEach(key => {
+    const wrap = document.getElementById(`mock-wrap-${key}`);
+    if (wrap) wrap.classList.add('open');
+    /* Find the matching button via data attribute */
+    const btn = document.querySelector(`[data-toggle-mock="${key}"]`);
+    if (btn) btn.classList.add('expanded');
+  });
+
+  /* Draw edges after DOM paint */
+  requestAnimationFrame(drawEdges);
+}
+
+function renderSourceCard(s) {
+  const int = INTEGRATIONS[s.integration] || { color: '#6b7280', letter: s.integration[0] };
+  return `
+    <div class="src-card ${s.type}">
+      <div class="src-card-hd">
+        <div class="src-icon" style="background:${int.color}">${int.letter}</div>
+        <div class="name">
+          ${s.name}
+          <span class="sub">${s.integration} · ${s.label}</span>
+        </div>
+        <span class="src-type-badge ${s.type}">${s.type === 'native' ? 'Native' : s.type === 'long' ? 'Long' : 'Wide'}</span>
+      </div>
+      <ul class="col-list">
+        ${s.columns.map(c => `
+          <li class="col-row" data-node-id="s1-${s.id}-${c.name}" data-tooltip="Column · ${c.tag}">
+            <span class="col-name">${c.name}</span>
+            <span class="col-tag ${c.tag}">${c.tag === 'dim' ? 'dim' : c.tag}</span>
+          </li>
+        `).join('')}
+      </ul>
+      <button class="sample-btn" data-toggle-mock="${s.id}">
+        <svg class="chevron" width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Show sample data (${s.mockData.length} rows)
+      </button>
+      <div class="mock-table-wrap" id="mock-wrap-${s.id}">
+        ${renderMockTable(s)}
+      </div>
+    </div>
+  `;
+}
+
+function renderMockTable(s) {
+  const showAll = fullSamples.has(s.id);
+  const visibleRows = showAll ? s.mockData : s.mockData.slice(0, 8);
+  const moreCount = s.mockData.length - visibleRows.length;
+  return `
+    <table class="mock-table">
+      <thead>
+        <tr>${s.columns.map(c => `<th>${c.name}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${visibleRows.map((row, i) => {
+          const actualIdx = i;
+          const isEdge = s.edgeCaseRows && s.edgeCaseRows.includes(actualIdx);
+          return `
+            <tr class="${isEdge ? 'edge-row' : ''}">
+              ${row.map(v => v === null
+                ? `<td class="null-val">NULL</td>`
+                : `<td>${typeof v === 'number' ? v.toLocaleString() : v}</td>`
+              ).join('')}
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+    ${moreCount > 0 ? `<button class="show-more" data-show-all="${s.id}">View all ${s.mockData.length} rows ▾</button>` : ''}
+  `;
+}
+
+/* ─── Sample data computation ───────────────────────────────────────── */
+/* The intermediate stages (Raw, Staged, Storage) all derive their sample
+   rows from the source's mockData. We compute on the fly:
+     - Raw dump: same as source mockData (data immediately after sync)
+     - Staged: source rows with column renames + injected synthetic columns
+     - Storage (matview): UNION sample across all matview-targeting selected sources
+     - Storage (standalone): the staged data of the wide-format source
+*/
+
+function getStagedRows(s, limit) {
+  /* Map: source col name → staged col name (via mdTransforms) */
+  const transformMap = {};
+  s.mdTransforms.forEach(t => { transformMap[t.from] = t.to; });
+  /* Index source columns by name for lookup */
+  const sourceIdx = {};
+  s.columns.forEach((c, i) => { sourceIdx[c.name] = i; });
+
+  const rows = limit ? s.mockData.slice(0, limit) : s.mockData;
+  return rows.map(rawRow => {
+    return s.stagedColumns.map(col => {
+      /* 1. Direct match: staged col name = source col name */
+      if (sourceIdx[col.name] !== undefined) return rawRow[sourceIdx[col.name]];
+      /* 2. Reverse transform: find the source col that maps TO this staged col */
+      const transform = s.mdTransforms.find(t => t.to === col.name);
+      if (transform && sourceIdx[transform.from] !== undefined) {
+        return rawRow[sourceIdx[transform.from]];
+      }
+      /* 3. Synthetic injected columns */
+      if (col.name.startsWith('source = ')) return col.name.replace('source = ', '');
+      if (col.name === 'source') return s.integration;
+      if (col.name === 'tactic_name') return guessTactic(s, rawRow);
+      /* 4. Unknown */
+      return null;
+    });
+  });
+}
+
+/* Lightweight tactic guesser based on campaign name keywords (mirrors
+   the real Tactic Mapper rule logic) */
+function guessTactic(s, rawRow) {
+  const sourceIdx = {};
+  s.columns.forEach((c, i) => { sourceIdx[c.name] = i; });
+  const campIdx = sourceIdx['campaign_name'] ?? sourceIdx['campaign'] ?? sourceIdx['campaign_id'];
+  if (campIdx === undefined) return '—';
+  const camp = String(rawRow[campIdx] || '').toLowerCase();
+  if (camp.includes('brand')) return s.integration.split(' ')[0] + ' Brand';
+  if (camp.includes('retarg') || camp.includes('cart')) return s.integration.split(' ')[0] + ' Retargeting';
+  if (camp.includes('video') || camp.includes('awareness')) return s.integration.split(' ')[0] + ' Video';
+  if (camp.includes('search') || camp.includes('sem')) return 'Google SEM';
+  if (camp.includes('shop')) return 'Shopping';
+  if (camp.includes('holiday')) return 'Holiday';
+  if (camp.includes('conversion')) return s.integration.split(' ')[0] + ' Conversion';
+  return '—';
+}
+
+/* Build a UNION sample of mat_view rows from all matview-targeting selected sources */
+function getMatviewRows(selected) {
+  const matviewSources = selected.filter(s => s.storageTarget === 'matview');
+  /* Common mat_view schema (subset that all sources can populate) */
+  const commonCols = ['date', 'source', 'campaign', 'spend', 'impressions', 'tactic_name'];
+  const rows = [];
+  matviewSources.forEach(s => {
+    const stagedRows = getStagedRows(s, 3);
+    const stagedColNames = s.stagedColumns.map(c => c.name);
+    stagedRows.forEach(row => {
+      rows.push(commonCols.map(col => {
+        /* Find index of this col in stagedColumns */
+        let idx = stagedColNames.findIndex(c => c === col || c === `source = ${s.integration}`);
+        if (idx === -1) {
+          /* Try common aliases */
+          if (col === 'source') idx = stagedColNames.findIndex(c => c === 'source' || c.startsWith('source ='));
+          if (col === 'campaign' && idx === -1) idx = stagedColNames.findIndex(c => c.startsWith('campaign'));
+        }
+        if (idx === -1) return null;
+        let val = row[idx];
+        if (col === 'source' && (val === null || val === undefined)) val = s.integration;
+        return val;
+      }));
+    });
+  });
+  return { columns: commonCols.map(name => ({ name })), rows };
+}
+
+function renderRawDump(s) {
+  /* Raw dump = source data as-stored after sync. Same shape as source mockData. */
+  return `
+    <div class="raw-card">
+      <div class="label">Raw Dump Table</div>
+      <div class="table-name" data-node-id="s2-${s.id}-raw" data-tooltip="${s.rawDescription}">${s.rawTable}</div>
+      <div class="desc">${s.rawDescription}</div>
+      <div class="row-count">${s.mockData.length}+ rows · ${s.columns.length} columns</div>
+      <button class="sample-btn" data-toggle-mock="raw-${s.id}">
+        <svg class="chevron" width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Show raw sample
+      </button>
+      <div class="mock-table-wrap" id="mock-wrap-raw-${s.id}">
+        ${renderRawSampleTable(s)}
+      </div>
+    </div>
+  `;
+}
+
+function renderRawSampleTable(s) {
+  const showAll = fullSamples.has('raw-' + s.id);
+  const visibleRows = showAll ? s.mockData : s.mockData.slice(0, 8);
+  const moreCount = s.mockData.length - visibleRows.length;
+  return `
+    <table class="mock-table">
+      <thead>
+        <tr>${s.columns.map(c => `<th>${c.name}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${visibleRows.map((row, i) => {
+          const isEdge = s.edgeCaseRows && s.edgeCaseRows.includes(i);
+          return `<tr class="${isEdge ? 'edge-row' : ''}">${row.map(v => v === null ? `<td class="null-val">NULL</td>` : `<td>${typeof v === 'number' ? v.toLocaleString() : v}</td>`).join('')}</tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${moreCount > 0 ? `<button class="show-more" data-show-all="raw-${s.id}">View all ${s.mockData.length} rows ▾</button>` : ''}
+  `;
+}
+
+function renderStagedSampleTable(s) {
+  const showAll = fullSamples.has('staged-' + s.id);
+  const allRows = getStagedRows(s);
+  const visibleRows = showAll ? allRows : allRows.slice(0, 8);
+  const moreCount = allRows.length - visibleRows.length;
+  return `
+    <table class="mock-table">
+      <thead>
+        <tr>${s.stagedColumns.map(c => `<th>${c.name}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${visibleRows.map((row, i) => {
+          const isEdge = s.edgeCaseRows && s.edgeCaseRows.includes(i);
+          return `<tr class="${isEdge ? 'edge-row' : ''}">${row.map(v => v === null ? `<td class="null-val">NULL</td>` : `<td>${typeof v === 'number' ? v.toLocaleString() : v}</td>`).join('')}</tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${moreCount > 0 ? `<button class="show-more" data-show-all="staged-${s.id}">View all ${allRows.length} rows ▾</button>` : ''}
+  `;
+}
+
+function renderMatviewSampleTable(selected) {
+  const { columns, rows } = getMatviewRows(selected);
+  if (rows.length === 0) return '<div style="padding:14px;color:var(--t-muted);font-size:11px;font-style:italic">No matview data — no long-format sources selected</div>';
+  return `
+    <table class="mock-table">
+      <thead><tr>${columns.map(c => `<th>${c.name}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${rows.map(row => `<tr>${row.map(v => v === null || v === undefined ? `<td class="null-val">—</td>` : `<td>${typeof v === 'number' ? v.toLocaleString() : v}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderStandaloneSampleTable(s) {
+  /* Standalone storage sample = wide-format staged data (no transformations needed) */
+  return renderStagedSampleTable(s);
+}
+
+function renderStage3(s) {
+  const isNative = s.type === 'native';
+  /* Native sources have a fixed schema — existing transforms are locked,
+     but users can still ADD custom fields. Non-native sources render
+     transforms normally (user-editable). */
+  const transformsHtml = s.mdTransforms.map(t => `
+    <li class="${isNative ? 'locked' : ''}">
+      <span style="color:var(--t-muted)">${t.from}</span>
+      <span class="arrow">→</span>
+      <span class="new-name">${t.to}</span>
+      <span class="col-tag ${t.cat}" style="margin-left:auto">${t.cat === 'dim' ? 'dim' : t.cat}</span>
+    </li>
+  `).join('');
+  const stagedColsHtml = s.stagedColumns.map(c => `
+    <span class="col-pill ${c.cat}" data-node-id="s3-${s.id}-${c.name.replace(/[^a-z0-9]/gi,'_')}" data-tooltip="${s.stagedTable}">${c.name}</span>
+  `).join('');
+  return `
+    <div class="stage3-card">
+      <div class="label">
+        Metrics &amp; Dimensions transforms
+        ${isNative ? `
+          <span class="native-locked-badge">
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+              <rect x="3.5" y="7" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.4" fill="none"/>
+            </svg>
+            Schema fixed
+          </span>
+        ` : ''}
+      </div>
+      ${isNative ? `
+        <div style="font-size:10.5px;color:var(--t-muted);margin-bottom:8px;line-height:1.4">
+          ${s.integration} schema is set by the platform API. Existing fields can't be edited — but you can still add custom calculated fields.
+        </div>
+      ` : ''}
+      <ul class="transform-list">${transformsHtml}</ul>
+      ${isNative ? `
+        <div class="add-field-cta">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" stroke-linecap="round"/>
+          </svg>
+          Add custom field (allowed)
+        </div>
+      ` : ''}
+      <div class="staged-table">
+        <div class="label">Staged Table</div>
+        <div class="table-name" data-node-id="s3-${s.id}-staged" data-tooltip="Staged table after M&D transforms">${s.stagedTable}</div>
+        <div class="columns-pill-list">${stagedColsHtml}</div>
+        <button class="sample-btn" data-toggle-mock="staged-${s.id}" style="margin-top:8px;border-top:none;padding:6px 4px">
+          <svg class="chevron" width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Show staged sample
+        </button>
+        <div class="mock-table-wrap" id="mock-wrap-staged-${s.id}">
+          ${renderStagedSampleTable(s)}
+        </div>
+      </div>
+      ${s.hasTacticMapper ? `
+        <div class="tactic-note">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+            <path d="M2 8L6 12L14 4" stroke="currentColor" strokeWidth="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Tactic Mapper adds <code>tactic_name</code> column (campaigns from this source)
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderStorage(selected) {
+  /* Group: matview targets vs standalone targets */
+  const matviewSources = selected.filter(s => s.storageTarget === 'matview');
+  const standaloneSources = selected.filter(s => s.storageTarget === 'standalone');
+
+  let html = '';
+
+  if (matviewSources.length > 0) {
+    html += `
+      <div class="storage-section">
+        <div class="label">Joined into mat_view</div>
+        <div class="storage-card matview" data-node-id="s4-matview" data-tooltip="adspends_mat_view = JOIN of ad_insights + ga4_insights + long-format staged tables">
+          <div class="table-name">adspends_mat_view</div>
+          <div class="description">Unified view joining ad_insights (native), ga4_insights, and all long-format staged tables. tactic_name is a column.</div>
+          <div class="feeds-list">
+            ${matviewSources.map(s => `<span class="feed-pill">${s.name.split(' — ')[0]}</span>`).join('')}
+          </div>
+          <button class="sample-btn" data-toggle-mock="matview" style="margin-top:10px">
+            <svg class="chevron" width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Show mat_view sample
+          </button>
+          <div class="mock-table-wrap" id="mock-wrap-matview">
+            ${renderMatviewSampleTable(selected)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (standaloneSources.length > 0) {
+    html += `
+      <div class="storage-section">
+        <div class="label">Standalone (NOT joined)</div>
+        ${standaloneSources.map(s => `
+          <div class="storage-card standalone" data-node-id="s4-${s.id}-standalone" data-tooltip="${s.storageNote}">
+            <div class="table-name">${s.stagedTable}</div>
+            <div class="description">${s.storageNote}</div>
+            <button class="sample-btn" data-toggle-mock="standalone-${s.id}" style="margin-top:10px">
+              <svg class="chevron" width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Show standalone sample
+            </button>
+            <div class="mock-table-wrap" id="mock-wrap-standalone-${s.id}">
+              ${renderStandaloneSampleTable(s)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  return html || '<div class="empty-state">No sources selected</div>';
+}
+
+function renderDataModel(selected) {
+  /* Aggregate variables across all selected sources, grouped by section */
+  const sections = {};
+  selected.forEach(s => {
+    s.dataModel.forEach(sec => {
+      if (!sections[sec.label]) {
+        sections[sec.label] = { tag: sec.tag, vars: new Set() };
+      }
+      sec.vars.forEach(v => sections[sec.label].vars.add(`${v}::${s.id}`));
+    });
+  });
+
+  /* Always include modeling dimensions if any source has dims */
+  if (!sections['Modeling Dimensions']) {
+    sections['Modeling Dimensions'] = { tag: 'dim', vars: new Set(['Date::all']) };
+  }
+
+  const html = Object.entries(sections).map(([label, sec]) => `
+    <div class="dm-section">
+      <div class="dm-section-label">${label}</div>
+      <div class="dm-vars">
+        ${Array.from(sec.vars).map(v => {
+          const [varName, srcId] = v.split('::');
+          return `<span class="dm-var ${sec.tag}" data-node-id="s5-${srcId}-${varName.replace(/[^a-z0-9]/gi,'_')}" data-tooltip="From ${srcId === 'all' ? 'multiple sources' : SOURCES[srcId]?.name || srcId}">${varName}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  return `<div class="dm-card">${html}</div>`;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   EDGE DRAWING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+function drawEdges() {
+  const viewerRect = $viewer.getBoundingClientRect();
+  $svg.setAttribute('width', viewerRect.width);
+  $svg.setAttribute('height', viewerRect.height);
+  $svg.setAttribute('viewBox', `0 0 ${viewerRect.width} ${viewerRect.height}`);
+  $svg.innerHTML = '';
+
+  const selected = Array.from(selectedSources).map(id => SOURCES[id]);
+
+  /* Build edges from each selected source through the pipeline */
+  const edges = [];
+  selected.forEach(s => {
+    /* Stage 1 → Stage 2: each column to raw table */
+    s.columns.forEach(c => {
+      edges.push([`s1-${s.id}-${c.name}`, `s2-${s.id}-raw`, c.tag]);
+    });
+    /* Stage 2 → Stage 3: raw table to staged table */
+    edges.push([`s2-${s.id}-raw`, `s3-${s.id}-staged`, s.primaryCategory]);
+    /* Stage 3 → Stage 4: staged to storage destination */
+    if (s.storageTarget === 'matview') {
+      edges.push([`s3-${s.id}-staged`, `s4-matview`, s.primaryCategory]);
+    } else {
+      edges.push([`s3-${s.id}-staged`, `s4-${s.id}-standalone`, s.primaryCategory]);
+    }
+    /* Stage 4 → Stage 5: storage to data model variables */
+    s.dataModel.forEach(sec => {
+      sec.vars.forEach(v => {
+        const fromId = s.storageTarget === 'matview' ? `s4-matview` : `s4-${s.id}-standalone`;
+        edges.push([fromId, `s5-${s.id}-${v.replace(/[^a-z0-9]/gi,'_')}`, sec.tag]);
+      });
+    });
+  });
+
+  /* Draw each edge as a Bézier */
+  edges.forEach(([fromId, toId, cat]) => {
+    const fromEl = $viewer.querySelector(`[data-node-id="${fromId}"]`);
+    const toEl   = $viewer.querySelector(`[data-node-id="${toId}"]`);
+    if (!fromEl || !toEl) return;
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect   = toEl.getBoundingClientRect();
+
+    const x1 = fromRect.right - viewerRect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - viewerRect.top;
+    const x2 = toRect.left - viewerRect.left;
+    const y2 = toRect.top + toRect.height / 2 - viewerRect.top;
+
+    const dx = Math.max(40, (x2 - x1) * 0.5);
+    const d = `M ${x1} ${y1} C ${x1+dx} ${y1}, ${x2-dx} ${y2}, ${x2} ${y2}`;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', `edge ${cat}`);
+    path.setAttribute('d', d);
+    path.setAttribute('data-from', fromId);
+    path.setAttribute('data-to', toId);
+    $svg.appendChild(path);
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   DEPENDENCY FILTER MODE
+   Click a node → show ONLY its upstream + downstream lineage. Hide every
+   unrelated card so the user can focus on a single data dependency chain.
+   BFS is DIRECTIONAL — forward through outgoing edges, backward through
+   incoming edges. This avoids fanning out through convergence points
+   (e.g., clicking 'Facebook spend' should NOT reveal PM1, K3, OC1 that
+   also feed adspends_mat_view).
+   ═════════════════════════════════════════════════════════════════════════ */
+
+function getDependencies(nodeId) {
+  /* Build directed adjacency from current edges */
+  const fwd = new Map();
+  const bwd = new Map();
+  $svg.querySelectorAll('.edge').forEach(p => {
+    const f = p.getAttribute('data-from');
+    const t = p.getAttribute('data-to');
+    if (!fwd.has(f)) fwd.set(f, []);
+    if (!bwd.has(t)) bwd.set(t, []);
+    fwd.get(f).push(t);
+    bwd.get(t).push(f);
+  });
+
+  const visited = new Set([nodeId]);
+
+  /* Forward BFS — downstream dependencies (what this node feeds INTO) */
+  const fq = [nodeId];
+  while (fq.length > 0) {
+    const node = fq.shift();
+    (fwd.get(node) || []).forEach(next => {
+      if (!visited.has(next)) { visited.add(next); fq.push(next); }
+    });
+  }
+
+  /* Backward BFS — upstream dependencies (what feeds INTO this node) */
+  const bq = [nodeId];
+  while (bq.length > 0) {
+    const node = bq.shift();
+    (bwd.get(node) || []).forEach(prev => {
+      if (!visited.has(prev)) { visited.add(prev); bq.push(prev); }
+    });
+  }
+
+  return visited;
+}
+
+/* Card-level selectors that get the grey-out treatment in filter mode.
+   NOTE: Stage 3 (.stage3-card) is intentionally EXCLUDED. The M&D + Staged
+   representation is the most informative part of the pipeline and should
+   remain at full color regardless of which source is focused, so engineers
+   can compare transformations across sources in parallel. Stage 3 cards
+   are still clickable for filtering — they just don't fade themselves. */
+const FILTERABLE_CARDS = ['.src-card', '.raw-card', '.storage-card'];
+
+/* Compute the union of dependencies across all nodes inside a card.
+   Used when the user clicks a card body (not a specific node) — the
+   entire card becomes the "anchor" and we walk dependencies from every
+   node inside it. */
+function getCardConnectedSet(cardEl) {
+  const nodeIds = Array.from(cardEl.querySelectorAll('[data-node-id]'))
+    .map(el => el.getAttribute('data-node-id'));
+  const allConnected = new Set();
+  nodeIds.forEach(id => {
+    const deps = getDependencies(id);
+    deps.forEach(d => allConnected.add(d));
+  });
+  return allConnected;
+}
+
+/* Apply filter mode: grey out unrelated cards, highlight related ones,
+   and put a glow ring on the focused card. */
+function applyFilterFromSet(connected, focusEl, filterId) {
+  currentFilter = filterId;
+  $viewer.classList.add('has-filter');
+
+  /* For each filterable card, check if it contains any node in connected.
+     If yes → keep visible (filter-active). If no → grey out (filter-fade). */
+  FILTERABLE_CARDS.forEach(sel => {
+    document.querySelectorAll(sel).forEach(card => {
+      const nodes = card.querySelectorAll('[data-node-id]');
+      const hasConnected = Array.from(nodes).some(el =>
+        connected.has(el.getAttribute('data-node-id'))
+      );
+      card.classList.toggle('filter-fade', !hasConnected);
+      card.classList.toggle('filter-focus', card === focusEl);
+    });
+  });
+
+  /* Stage 5: grey out individual data model variables not in the set */
+  document.querySelectorAll('.dm-var').forEach(v => {
+    const isConnected = connected.has(v.getAttribute('data-node-id'));
+    v.classList.toggle('filter-fade', !isConnected);
+  });
+  /* Grey out entire sections if every variable inside is faded */
+  document.querySelectorAll('.dm-section').forEach(sec => {
+    const allFaded = Array.from(sec.querySelectorAll('.dm-var'))
+      .every(v => v.classList.contains('filter-fade'));
+    sec.classList.toggle('filter-fade', allFaded);
+  });
+
+  /* Mark edges that connect two nodes both in the set as highlighted */
+  $svg.querySelectorAll('.edge').forEach(p => {
+    const f = p.getAttribute('data-from');
+    const t = p.getAttribute('data-to');
+    p.classList.toggle('highlight', connected.has(f) && connected.has(t));
+  });
+}
+
+/* Filter from a single clicked node */
+function applyFilter(nodeId, anchorEl) {
+  const connected = getDependencies(nodeId);
+  /* Find the card containing this node so we can put the focus ring on it */
+  const cardEl = anchorEl ? anchorEl.closest('.src-card, .raw-card, .stage3-card, .storage-card') : null;
+  applyFilterFromSet(connected, cardEl, nodeId);
+}
+
+/* Filter from a clicked card (gather union of all node deps inside it) */
+function applyCardFilter(cardEl) {
+  const connected = getCardConnectedSet(cardEl);
+  /* Use the first node in the card as the filter ID for toggle detection */
+  const firstNode = cardEl.querySelector('[data-node-id]');
+  const filterId = firstNode ? 'card:' + firstNode.getAttribute('data-node-id') : 'card';
+  applyFilterFromSet(connected, cardEl, filterId);
+}
+
+function clearFilter() {
+  currentFilter = null;
+  $viewer.classList.remove('has-filter');
+  document.querySelectorAll('.filter-fade').forEach(el => el.classList.remove('filter-fade'));
+  document.querySelectorAll('.filter-focus').forEach(el => el.classList.remove('filter-focus'));
+  $svg.querySelectorAll('.edge.highlight').forEach(p => p.classList.remove('highlight'));
+}
+
+/* Backwards-compat aliases */
+function clearHighlight() { clearFilter(); }
+let currentHighlight = null;
+function highlightNode(id) { applyFilter(id); }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   EVENT WIRING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-src-checkbox]')) {
+    const id = e.target.getAttribute('data-src-checkbox');
+    if (e.target.checked) selectedSources.add(id);
+    else selectedSources.delete(id);
+    e.target.closest('.pg-option').classList.toggle('checked', e.target.checked);
+    updateCount();
+    render();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  /* Group select all / clear */
+  if (e.target.matches('[data-action]')) {
+    const action = e.target.getAttribute('data-action');
+    const groupType = e.target.getAttribute('data-group');
+    const group = SOURCE_GROUPS.find(g => g.type === groupType);
+    if (action === 'select') {
+      group.sources.forEach(id => selectedSources.add(id));
+    } else {
+      group.sources.forEach(id => selectedSources.delete(id));
+    }
+    renderPicker();
+    render();
+    return;
+  }
+
+  /* Sample data toggle (works for source / raw-X / staged-X / matview / standalone-X) */
+  if (e.target.closest('[data-toggle-mock]')) {
+    const btn = e.target.closest('[data-toggle-mock]');
+    const key = btn.getAttribute('data-toggle-mock');
+    const wrap = document.getElementById(`mock-wrap-${key}`);
+    if (!wrap) return;
+    if (wrap.classList.contains('open')) {
+      wrap.classList.remove('open');
+      btn.classList.remove('expanded');
+      expandedSamples.delete(key);
+    } else {
+      wrap.classList.add('open');
+      btn.classList.add('expanded');
+      expandedSamples.add(key);
+    }
+    requestAnimationFrame(drawEdges);
+    return;
+  }
+
+  /* Show all rows — different rendering depending on which sample type */
+  if (e.target.matches('[data-show-all]')) {
+    const key = e.target.getAttribute('data-show-all');
+    fullSamples.add(key);
+    const wrap = document.getElementById(`mock-wrap-${key}`);
+    if (!wrap) return;
+    if (key.startsWith('raw-')) {
+      wrap.innerHTML = renderRawSampleTable(SOURCES[key.slice(4)]);
+    } else if (key.startsWith('staged-')) {
+      wrap.innerHTML = renderStagedSampleTable(SOURCES[key.slice(7)]);
+    } else if (key.startsWith('standalone-')) {
+      wrap.innerHTML = renderStandaloneSampleTable(SOURCES[key.slice(11)]);
+    } else if (SOURCES[key]) {
+      /* Stage 1 source mock data */
+      wrap.innerHTML = renderMockTable(SOURCES[key]);
+    }
+    requestAnimationFrame(drawEdges);
+    return;
+  }
+
+  /* Picker collapse toggle */
+  if (e.target.closest('#picker-header')) {
+    pickerCollapsed = !pickerCollapsed;
+    document.getElementById('picker').classList.toggle('collapsed', pickerCollapsed);
+    /* Re-draw edges in case the layout shifted */
+    requestAnimationFrame(drawEdges);
+    return;
+  }
+
+  /* Click-to-filter (dependency mode):
+     1. If clicked element has a data-node-id → filter by that single node
+     2. Else if click is inside a Stage 1-4 card → filter by the entire card
+        (union of all node deps inside)
+     3. Otherwise → clear filter */
+  const nodeEl = e.target.closest('[data-node-id]');
+  if (nodeEl) {
+    const id = nodeEl.getAttribute('data-node-id');
+    if (currentFilter === id) {
+      clearFilter();
+    } else {
+      applyFilter(id, nodeEl);
+    }
+    e.stopPropagation();
+    return;
+  }
+
+  /* No specific node clicked — check if the click is inside a filterable card.
+     Skip clicks on interactive sub-elements (sample button, mock data table)
+     so they don't trigger card filter on top of their own behavior. */
+  const isInteractiveSub = e.target.closest('.sample-btn, .mock-table-wrap, .show-more');
+  if (!isInteractiveSub) {
+    const cardEl = e.target.closest('.src-card, .raw-card, .stage3-card, .storage-card');
+    if (cardEl) {
+      const firstNode = cardEl.querySelector('[data-node-id]');
+      const cardFilterId = firstNode ? 'card:' + firstNode.getAttribute('data-node-id') : null;
+      if (currentFilter === cardFilterId) {
+        clearFilter();
+      } else {
+        applyCardFilter(cardEl);
+      }
+      e.stopPropagation();
+      return;
+    }
+  }
+
+  /* Click outside any card clears the filter */
+  if (!e.target.closest('.hdr') && !e.target.closest('.picker') && !e.target.closest('.summary') && !e.target.closest('.legend')) {
+    clearFilter();
+  }
+});
+
+/* Tooltip */
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('[data-tooltip]');
+  if (!el) return;
+  const text = el.getAttribute('data-tooltip');
+  const name = el.querySelector('.col-name')?.textContent
+    || el.textContent.trim().split('\n')[0].trim().slice(0, 60);
+  $tooltip.innerHTML = `<div class="tt-title">${name}</div><div class="tt-desc">${text}</div>`;
+  $tooltip.classList.add('show');
+});
+document.addEventListener('mousemove', (e) => {
+  if (!$tooltip.classList.contains('show')) return;
+  $tooltip.style.left = (e.pageX + 14) + 'px';
+  $tooltip.style.top  = (e.pageY + 14) + 'px';
+});
+document.addEventListener('mouseout', (e) => {
+  if (!e.target.closest('[data-tooltip]')) {
+    $tooltip.classList.remove('show');
+  }
+});
+
+/* Header buttons */
+document.getElementById('reset-btn').addEventListener('click', clearHighlight);
+document.getElementById('select-all-btn').addEventListener('click', () => {
+  Object.keys(SOURCES).forEach(id => selectedSources.add(id));
+  renderPicker();
+  render();
+});
+document.getElementById('clear-all-btn').addEventListener('click', () => {
+  selectedSources.clear();
+  renderPicker();
+  render();
+});
+
+/* Resize */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawEdges, 100);
+});
+
+/* Init */
+renderPicker();
+render();
+</script>
+</body>
+</html>

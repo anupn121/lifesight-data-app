@@ -57,6 +57,11 @@ Dark/light mode via `ThemeContext.tsx` with localStorage persistence. Theming us
 - Status colors: green `#00bc7d` (connected), red `#ff2056` (error), orange `#fe9a00` (warning), purple `#a855f7` (syncing).
 - Category colors: KPI `#00bc7d`, Paid Marketing `#2b7fff`, Organic `#fe9a00`, Contextual `#6941c6`, Halo `#EE1D52`.
 
+### Don'ts
+
+- **Never use tiny font sizes** (`text-[10px]`, `text-[11px]`) for user-facing content like table names, column names, key labels, or any data the user needs to read. These sizes are only acceptable for uppercase tracking-wider labels (e.g., section headers like "DATA SOURCE"). Body text, code, and data values should be `text-xs` (12px) minimum, preferably `text-sm` (14px).
+- **Keep font sizes consistent within a card/section.** Don't mix `text-[10px]` data with `text-sm` headings in the same visual block — it looks unbalanced.
+
 ### Large Files
 
 Several tab components are very large (MetricsDimensionsTab ~84KB, MonitoringTab ~43KB, DataModelsTab ~21KB). These contain complex table UIs with inline editing, sorting, filtering, and pagination. Read specific line ranges when working with these files.

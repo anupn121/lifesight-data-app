@@ -76,9 +76,9 @@ export default function MapperTab({ fields, tactics, onTacticsChange, hasConnect
             <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No tactics to map yet</h3>
+        <h3 className="text-[var(--text-primary)] text-sm font-semibold mb-1">No taxonomy to build yet</h3>
         <p className="text-[var(--text-muted)] text-xs text-center max-w-sm mb-4">
-          Connect your ad platforms and data sources first. Once your metrics are flowing, you can map campaigns to marketing tactics here.
+          Connect your ad platforms and data sources first. Once your metrics are flowing, you can organize campaigns into a marketing taxonomy here.
         </p>
         {onNavigateToIntegrations && (
           <button
@@ -100,8 +100,8 @@ export default function MapperTab({ fields, tactics, onTacticsChange, hasConnect
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Tactic Mapper</h2>
-          <p className="text-[var(--text-muted)] text-sm">Assign campaigns to high-level marketing tactics using mapped metrics & dimensions</p>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Taxonomy</h2>
+          <p className="text-[var(--text-muted)] text-sm">Organize campaigns into a marketing taxonomy using mapped metrics & dimensions</p>
         </div>
         <div className="flex items-center gap-2">
           <button

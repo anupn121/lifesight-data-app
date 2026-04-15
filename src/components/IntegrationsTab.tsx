@@ -106,7 +106,7 @@ const integrations: CatalogIntegrationWithCategory[] = [
 
   // Contextual
   { name: "Google Sheets", description: "Sync data from Google Sheets into your platform.", category: "Data", dataCategory: "contextual", status: "CONNECTED", color: "#0F9D58", accounts: 2, icon: "gs", footerLabel: "8 Connected Sheets" },
-  { name: "Import CSV", description: "Import data through CSV files", category: "Data", dataCategory: "contextual", status: "CONNECTED", color: "#71717a", accounts: 0, icon: "csv" },
+  { name: "CSV", description: "Import data through CSV files", category: "Data", dataCategory: "contextual", status: "CONNECTED", color: "#71717a", accounts: 0, icon: "csv" },
   { name: "Snowflake", description: "Connect your Snowflake data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#29B5E8", accounts: 0, icon: "sf\u2744", footerLabel: "0 Tables" },
   { name: "BigQuery", description: "Connect your BigQuery data warehouse to sync tables.", category: "Data", dataCategory: "contextual", status: "NOT_CONNECTED", color: "#4285F4", accounts: 0, icon: "bq", footerLabel: "0 Tables" },
 
@@ -218,7 +218,7 @@ function IntegrationIcon({ integration }: { integration: CatalogIntegration }) {
         <path d="M2 19l10-14 10 14H2z" fill="none" stroke="white" strokeWidth="1.8" strokeLinejoin="round" />
       </svg>
     ),
-    "Import CSV": (
+    "CSV": (
       <svg viewBox="0 0 24 24" fill="white" className="w-3.5 h-3.5">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" fill="none" stroke="white" strokeWidth="1.5" />
         <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />

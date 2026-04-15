@@ -93,7 +93,7 @@ const MOCK_JSP_PLAN: JspPlan = {
       id: "jsp-7",
       integrationName: "Instagram Organic Data",
       type: "file",
-      source: "Import CSV",
+      source: "CSV",
       dataCategory: "organic",
       priority: "medium",
       notes: "Monthly export from Instagram Insights",
@@ -156,6 +156,9 @@ const DEMO_JSP_PLAN: JspPlan = {
     { id: "demo-jsp-3", integrationName: "Shopify", type: "native", dataCategory: "kpi", priority: "high", notes: "Main e-commerce storefront", status: "pending" },
     { id: "demo-jsp-4", integrationName: "Blogs", type: "file", source: "Google Sheets", alias: "Blogs", dataCategory: "contextual", priority: "medium", notes: "Blog performance data via Google Sheets", status: "pending" },
     { id: "demo-jsp-5", integrationName: "Events", type: "file", source: "Google Sheets", alias: "Events", dataCategory: "organic", priority: "medium", notes: "Event performance data via Google Sheets", status: "pending" },
+    { id: "demo-jsp-6", integrationName: "Influencer Costs", type: "file", source: "CSV", alias: "Influencer Costs", dataCategory: "paid_marketing", priority: "medium", notes: "Monthly influencer campaign spend data", status: "pending" },
+    { id: "demo-jsp-7", integrationName: "Revenue & Orders", type: "warehouse", source: "BigQuery", alias: "Revenue & Orders", dataCategory: "kpi", priority: "high", notes: "Production data warehouse — revenue and orders tables", status: "pending" },
+    { id: "demo-jsp-8", integrationName: "Attribution Data", type: "warehouse", source: "Snowflake", alias: "Attribution Data", dataCategory: "paid_marketing", priority: "medium", notes: "Multi-touch attribution model outputs", status: "pending" },
   ],
 };
 

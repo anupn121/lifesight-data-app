@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lifesight Data Pipeline Flow Viewer</title>
+<!--
+═══════════════════════════════════════════════════════════════════════════
+  LIFESIGHT DATA PIPELINE FLOW VIEWER
+═══════════════════════════════════════════════════════════════════════════
+  Engineering documentation tool. Traces how each of 12 input scenarios
+  flows through the downstream pipeline:
+    Input Scenario → Metrics & Dimensions → Tactic Mapper → Data Model
+
+  Standalone HTML file. Zero dependencies. Zero build step.
+  Open in any browser:
+    open docs/pipeline-flow-viewer.html
+
+  Scenarios are hardcoded from src/components/integrations-monitoring/
+  smartDetection.ts. Downstream mappings are pre-computed per scenario.
+
+  Interaction model:
+    - Scenario dropdown changes all 4 stage columns
+    - Click any node → highlight full forward+backward path through edges
+    - Hover → tooltip with node details
+    - Reset button clears highlight
+═══════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #13131a;
+    --bg-card-inner: #1a1a24;
+    --bg-elevated: #1e1e2a;
+    --bg-hover: #22222e;
+    --border: #2a2a38;
+    --border-focus: #3a3a50;
+    --t-primary: #e8e8f0;
+    --t-secondary: #a0a0b8;
+    --t-muted: #6a6a80;
+    --t-dim: #44445a;
+    --t-label: #7a7a90;
+
+    /* Category colors */
+    --c-paid: #2b7fff;
+    --c-paid-bg: rgba(43,127,255,0.10);
+    --c-paid-b: rgba(43,127,255,0.25);
+    --c-kpi: #00bc7d;
+    --c-kpi-bg: rgba(0,188,125,0.10);
+    --c-kpi-b: rgba(0,188,125,0.25);
+    --c-organic: #fe9a00;
+    --c-organic-bg: rgba(254,154,0,0.10);
+    --c-organic-b: rgba(254,154,0,0.25);
+    --c-contextual: #a855f7;
+    --c-contextual-bg: rgba(168,85,247,0.10);
+    --c-contextual-b: rgba(168,85,247,0.25);
+    --c-neutral: #6b7280;
+
+    --accent: #027b8e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-page);
+    color: var(--t-primary);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ═════════════════ HEADER ═════════════════ */
+
+  .hdr {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .hdr h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--t-primary);
+    letter-spacing: 0.3px;
+  }
+  .hdr .subtitle {
+    font-size: 12px;
+    color: var(--t-muted);
+  }
+  .hdr .spacer { flex: 1; }
+  .hdr select {
+    background: var(--bg-input, var(--bg-elevated));
+    color: var(--t-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 28px 7px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5l3 3 3-3' stroke='%23a0a0b8' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    min-width: 320px;
+  }
+  .hdr select:hover { border-color: var(--border-focus); }
+  .hdr button {
+    background: transparent;
+    color: var(--t-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hdr button:hover {
+    color: var(--t-primary);
+    border-color: var(--border-focus);
+    background: var(--bg-hover);
+  }
+
+  /* ═════════════════ SCENARIO SUMMARY BANNER ═════════════════ */
+
+  .summary-bar {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--t-secondary);
+    flex-wrap: wrap;
+  }
+  .summary-bar .label {
+    color: var(--t-muted);
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+  }
+  .summary-bar .val { color: var(--t-primary); font-weight: 500; }
+  .summary-bar .divider { width: 1px; height: 14px; background: var(--border); }
+  .cat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .cat-pill.paid { background: var(--c-paid-bg); color: var(--c-paid); border: 1px solid var(--c-paid-b); }
+  .cat-pill.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); border: 1px solid var(--c-kpi-b); }
+  .cat-pill.organic { background: var(--c-organic-bg); color: var(--c-organic); border: 1px solid var(--c-organic-b); }
+  .cat-pill.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); border: 1px solid var(--c-contextual-b); }
+
+  /* ═════════════════ MAIN LAYOUT ═════════════════ */
+
+  .viewer {
+    position: relative;
+    padding: 28px 24px 80px;
+    max-width: 1680px;
+    margin: 0 auto;
+  }
+
+  .stages {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr 1fr;
+    gap: 56px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .stage-header {
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .stage-header .num {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 20px;
+    margin-right: 8px;
+  }
+  .stage-header .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .stage-header .desc {
+    font-size: 11px;
+    color: var(--t-muted);
+    margin-top: 4px;
+    margin-left: 28px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* ═════════════════ STAGE 1: INPUT SCENARIO ═════════════════ */
+
+  .input-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .input-card:last-child { margin-bottom: 0; }
+  /* Source type left-edge accent bar */
+  .input-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 10px 0 0 10px;
+  }
+  .input-card.src-native::before { background: #027b8e; }
+  .input-card.src-file::before   { background: #fe9a00; }
+  .input-card.src-dwh::before    { background: #a855f7; }
+
+  .input-card-hd {
+    padding: 10px 14px 10px 17px;
+    background: var(--bg-card-inner);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .input-card-hd .int-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .input-card-hd .int-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t-primary);
+  }
+  .input-card-hd .src-type-badge {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    flex-shrink: 0;
+  }
+  .src-type-badge.src-native { background: rgba(2,123,142,0.15); color: #03a0b8; border: 1px solid rgba(2,123,142,0.3); }
+  .src-type-badge.src-file   { background: rgba(254,154,0,0.12); color: #fe9a00; border: 1px solid rgba(254,154,0,0.3); }
+  .src-type-badge.src-dwh    { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+  .input-card-hd .ds-label {
+    font-size: 10px;
+    color: var(--t-muted);
+    font-weight: 500;
+    font-family: 'SF Mono', monospace;
+  }
+  .col-list {
+    list-style: none;
+    padding: 6px;
+  }
+  .col-row {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .col-row:hover { background: var(--bg-hover); }
+  .col-name {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+  .col-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .col-tag.paid { background: var(--c-paid-bg); color: var(--c-paid); }
+  .col-tag.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); }
+  .col-tag.organic { background: var(--c-organic-bg); color: var(--c-organic); }
+  .col-tag.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); }
+  .col-tag.dim { background: rgba(107,114,128,0.12); color: var(--t-muted); }
+
+  /* ═════════════════ STAGE 2: METRICS & DIMENSIONS ═════════════════ */
+
+  .md-category {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .md-category-hd {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card-inner);
+    border-bottom: 1px solid var(--border);
+  }
+  .md-cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .md-cat-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t-primary);
+  }
+  .md-cat-count {
+    font-size: 11px;
+    color: var(--t-muted);
+    margin-left: auto;
+  }
+  .md-integration {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .md-integration:last-child { border-bottom: none; }
+  .md-int-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .md-int-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #fff;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .md-int-name {
+    font-size: 12px;
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+  .md-ds-label {
+    font-size: 10px;
+    color: var(--t-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+    margin-left: 30px;
+  }
+  .md-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 30px;
+  }
+  .md-field {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'SF Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+  }
+  .md-field.paid { background: var(--c-paid-bg); color: var(--c-paid); border-color: var(--c-paid-b); }
+  .md-field.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); border-color: var(--c-kpi-b); }
+  .md-field.organic { background: var(--c-organic-bg); color: var(--c-organic); border-color: var(--c-organic-b); }
+  .md-field.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); border-color: var(--c-contextual-b); }
+  .md-field.dim { background: rgba(107,114,128,0.1); color: var(--t-secondary); border-color: rgba(107,114,128,0.25); }
+  .md-field:hover { filter: brightness(1.2); }
+
+  /* ═════════════════ STAGE 3: TACTIC MAPPER ═════════════════ */
+
+  .tm-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .tm-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--t-muted);
+    font-size: 12px;
+    font-style: italic;
+  }
+  .tm-row {
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tm-row:hover { background: var(--bg-hover); }
+  .tm-campaign {
+    font-size: 12px;
+    color: var(--t-primary);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .tm-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--t-muted);
+  }
+  .tm-arrow { color: var(--t-dim); }
+  .tm-tactic {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--c-paid-bg);
+    color: var(--c-paid);
+    border: 1px solid var(--c-paid-b);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tm-source-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* ═════════════════ STAGE 4: DATA MODEL ═════════════════ */
+
+  .dm-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .dm-section {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dm-section:last-child { border-bottom: none; }
+  .dm-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--t-label);
+    margin-bottom: 8px;
+  }
+  .dm-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .dm-var {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+    font-family: 'SF Mono', monospace;
+  }
+  .dm-var.paid { background: var(--c-paid-bg); color: var(--c-paid); border-color: var(--c-paid-b); }
+  .dm-var.kpi { background: var(--c-kpi-bg); color: var(--c-kpi); border-color: var(--c-kpi-b); }
+  .dm-var.organic { background: var(--c-organic-bg); color: var(--c-organic); border-color: var(--c-organic-b); }
+  .dm-var.contextual { background: var(--c-contextual-bg); color: var(--c-contextual); border-color: var(--c-contextual-b); }
+  .dm-var.dim { background: rgba(107,114,128,0.1); color: var(--t-secondary); border-color: rgba(107,114,128,0.25); }
+  .dm-var:hover { filter: brightness(1.2); }
+  .dm-empty {
+    color: var(--t-muted);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  /* ═════════════════ SVG EDGE OVERLAY ═════════════════ */
+
+  .edges-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .edge {
+    fill: none;
+    stroke-width: 1.5;
+    opacity: 0.35;
+    transition: opacity 0.3s, stroke-width 0.3s;
+  }
+  .edge.paid { stroke: var(--c-paid); }
+  .edge.kpi { stroke: var(--c-kpi); }
+  .edge.organic { stroke: var(--c-organic); }
+  .edge.contextual { stroke: var(--c-contextual); }
+  .edge.dim { stroke: var(--c-neutral); }
+
+  /* Highlight mode: fade all then un-fade active path */
+  .viewer.has-highlight .edge {
+    opacity: 0.08;
+    stroke-width: 1;
+  }
+  .viewer.has-highlight .edge.highlight {
+    opacity: 1;
+    stroke-width: 2.5;
+  }
+  .viewer.has-highlight .col-row,
+  .viewer.has-highlight .md-field,
+  .viewer.has-highlight .tm-row,
+  .viewer.has-highlight .dm-var {
+    opacity: 0.35;
+    transition: opacity 0.3s;
+  }
+  .viewer.has-highlight .col-row.highlight,
+  .viewer.has-highlight .md-field.highlight,
+  .viewer.has-highlight .tm-row.highlight,
+  .viewer.has-highlight .dm-var.highlight {
+    opacity: 1;
+  }
+  .col-row.highlight {
+    background: rgba(2,123,142,0.12) !important;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .md-field.highlight,
+  .dm-var.highlight {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
+  }
+  .tm-row.highlight {
+    background: rgba(2,123,142,0.08);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  /* ═════════════════ TOOLTIP ═════════════════ */
+
+  .tooltip {
+    position: absolute;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-focus);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--t-primary);
+    pointer-events: none;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    max-width: 260px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .tt-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+    font-family: 'SF Mono', monospace;
+  }
+  .tooltip .tt-desc { color: var(--t-secondary); }
+
+  /* ═════════════════ LEGEND ═════════════════ */
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--t-muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <h1>Data Pipeline Flow Viewer</h1>
+    <div class="subtitle">Trace how input scenarios become Data Model inputs</div>
+  </div>
+  <div class="spacer"></div>
+  <select id="scenario-picker">
+    <optgroup label="⭐ Combined Sources">
+      <option value="COMBO">COMBO — Native + Files + DWH all together (realistic production)</option>
+    </optgroup>
+    <optgroup label="Paid Marketing">
+      <option value="PM1">PM1 — Long format, multi-source, campaign-level</option>
+      <option value="PM2">PM2 — Wide format (channel-prefixed columns)</option>
+      <option value="PM3">PM3 — Mixed wide (paid + kpi + organic + contextual)</option>
+      <option value="PM4">PM4 — Single source, no source column</option>
+      <option value="PM5">PM5 — Granular single source (account→campaign→adgroup→ad)</option>
+      <option value="PM6">PM6 — Granular multi-source with hierarchy</option>
+    </optgroup>
+    <optgroup label="KPI">
+      <option value="K1">K1 — Event format (date, event_name, value)</option>
+      <option value="K2">K2 — Event + per-source values (Amazon vs DTC)</option>
+      <option value="K3">K3 — Wide aggregated (date, revenue, orders)</option>
+      <option value="K4">K4 — Wide KPI + source column</option>
+    </optgroup>
+    <optgroup label="Organic / Contextual">
+      <option value="OC1">OC1 — Mixed organic + contextual multi-source</option>
+      <option value="OC2">OC2 — Single contextual variable (date, value)</option>
+    </optgroup>
+  </select>
+  <button id="reset-btn">Reset highlight</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-paid)"></div>Paid Marketing</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-kpi)"></div>KPI</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-organic)"></div>Organic</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-contextual)"></div>Contextual</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--c-neutral)"></div>Dimension</div>
+  <div style="flex:1"></div>
+  <div style="font-style:italic">Click any node to highlight its flow path. Hover for details.</div>
+</div>
+
+<div class="summary-bar" id="summary-bar"></div>
+
+<div class="viewer" id="viewer">
+  <div class="stages">
+    <!-- Stage 1: Input Scenario -->
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">1</span>
+        <span class="title">Input Scenario</span>
+        <div class="desc">Original column schema as received from the user</div>
+      </div>
+      <div id="stage-1"></div>
+    </div>
+    <!-- Stage 2: Metrics & Dimensions -->
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">2</span>
+        <span class="title">Metrics &amp; Dimensions</span>
+        <div class="desc">Auto-registered fields grouped by category → integration → data source</div>
+      </div>
+      <div id="stage-2"></div>
+    </div>
+    <!-- Stage 3: Tactic Mapper -->
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">3</span>
+        <span class="title">Tactic Mapper</span>
+        <div class="desc">Campaigns from granular data with suggested tactic mappings</div>
+      </div>
+      <div id="stage-3"></div>
+    </div>
+    <!-- Stage 4: Data Model -->
+    <div class="stage">
+      <div class="stage-header">
+        <span class="num">4</span>
+        <span class="title">Data Model</span>
+        <div class="desc">MMM / Experiment model variables built from upstream data</div>
+      </div>
+      <div id="stage-4"></div>
+    </div>
+  </div>
+  <svg class="edges-svg" id="edges-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ═════════════════════════════════════════════════════════════════════════
+   SCENARIO DATA
+   Mirrors src/components/integrations-monitoring/smartDetection.ts
+   with pre-computed downstream mappings for Metrics & Dimensions,
+   Tactic Mapper, and Data Model.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Helper: category metadata */
+const CATEGORY_META = {
+  paid:       { label: 'Paid Marketing', color: '#2b7fff', icon: '💰' },
+  kpi:        { label: 'KPI',            color: '#00bc7d', icon: '💵' },
+  organic:    { label: 'Organic',        color: '#fe9a00', icon: '🌱' },
+  contextual: { label: 'Contextual',     color: '#a855f7', icon: '🌡' },
+};
+
+/* Integration brand colors and letter icons */
+const INTEGRATIONS = {
+  'Facebook Ads':   { color: '#1877F2', letter: 'f' },
+  'Google Ads':     { color: '#34A853', letter: 'G' },
+  'TikTok Ads':     { color: '#EE1D52', letter: 'T' },
+  'TV':             { color: '#6B7280', letter: 'TV' },
+  'Shopify':        { color: '#96BF48', letter: 'S' },
+  'Google Sheets':  { color: '#0F9D58', letter: 'GS' },
+  'Amazon':         { color: '#FF9900', letter: 'a' },
+  'DTC Store':      { color: '#027b8e', letter: 'D' },
+  'Instagram':      { color: '#E4405F', letter: 'i' },
+  'YouTube':        { color: '#FF0000', letter: 'Y' },
+  'HubSpot':        { color: '#FF7A59', letter: 'H' },
+  'External':       { color: '#8B5CF6', letter: 'E' },
+};
+
+/* Scenario definitions.
+   Each scenario defines:
+     columns    — Stage 1: input columns with category tag
+     md         — Stage 2: category → integration → dataSource → fields
+     tactics    — Stage 3: campaigns + suggested tactic mappings (or empty)
+     dataModel  — Stage 4: sections (KPIs, Spend, Organic, Controls, Dims)
+     edges      — explicit node connections for highlight traversal
+*/
+const SCENARIOS = {
+
+  /* ════════════════════════════════════════════════════════════════════
+     COMBO: Native + Files + DWH all flowing through the pipeline at once
+     ════════════════════════════════════════════════════════════════════
+     Realistic production scenario: a customer has 4 active sources across
+     3 source types. Each source contributes different data categories,
+     and they all converge at Metrics & Dimensions → Data Model.
+  */
+  COMBO: {
+    summary: 'Realistic production setup: Native APIs + a Google Sheet + a BigQuery table. All three source types contribute to a unified Data Model.',
+    categories: ['paid','kpi','organic','contextual'],
+    rows: 18450,
+    days: 365,
+    /* Multiple source groups — rendered as separate cards in Stage 1 */
+    sourceGroups: [
+      {
+        id: 'fb',
+        type: 'Native',
+        integration: 'Facebook Ads',
+        label: 'via API',
+        columns: [
+          { id: 's1-fb-date',   name: 'date',          tag: 'dim' },
+          { id: 's1-fb-camp',   name: 'campaign_name', tag: 'dim' },
+          { id: 's1-fb-spend',  name: 'spend',         tag: 'paid' },
+          { id: 's1-fb-imps',   name: 'impressions',   tag: 'paid' },
+          { id: 's1-fb-clicks', name: 'clicks',        tag: 'paid' },
+        ],
+      },
+      {
+        id: 'shopify',
+        type: 'Native',
+        integration: 'Shopify',
+        label: 'via API',
+        columns: [
+          { id: 's1-sh-date', name: 'order_date', tag: 'dim' },
+          { id: 's1-sh-ord',  name: 'order_id',   tag: 'dim' },
+          { id: 's1-sh-rev',  name: 'total_price',tag: 'kpi' },
+          { id: 's1-sh-cust', name: 'customer_id',tag: 'dim' },
+        ],
+      },
+      {
+        id: 'sheet',
+        type: 'File',
+        integration: 'Google Sheets',
+        label: 'TV_and_external.gsheet',
+        columns: [
+          { id: 's1-sh2-date', name: 'date',           tag: 'dim' },
+          { id: 's1-sh2-tv',   name: 'tv_spend',       tag: 'paid' },
+          { id: 's1-sh2-temp', name: 'temperature',    tag: 'contextual' },
+          { id: 's1-sh2-lnch', name: 'product_launch', tag: 'contextual' },
+        ],
+      },
+      {
+        id: 'bq',
+        type: 'DWH',
+        integration: 'BigQuery',
+        label: 'marketing.email_engagement',
+        columns: [
+          { id: 's1-bq-date',   name: 'send_date',      tag: 'dim' },
+          { id: 's1-bq-camp',   name: 'email_campaign', tag: 'dim' },
+          { id: 's1-bq-opens',  name: 'opens',          tag: 'organic' },
+          { id: 's1-bq-clicks', name: 'link_clicks',    tag: 'organic' },
+        ],
+      },
+    ],
+    /* Stage 2: unified Metrics & Dimensions across all 4 source groups */
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-fb-sp',     name: 'spend',       tag: 'paid' },
+        { id: 's2-fb-imps',   name: 'impressions', tag: 'paid' },
+        { id: 's2-fb-clicks', name: 'clicks',      tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'TV', dataSource: 'Ad Insights', fields: [
+        { id: 's2-tv-sp', name: 'spend', tag: 'paid' },
+      ]},
+      { cat: 'kpi', integration: 'Shopify', dataSource: 'Orders', fields: [
+        { id: 's2-sh-rev', name: 'revenue', tag: 'kpi' },
+        { id: 's2-sh-ord', name: 'orders',  tag: 'kpi' },
+      ]},
+      { cat: 'organic', integration: 'External', dataSource: 'Email (BigQuery)', fields: [
+        { id: 's2-em-opens',  name: 'email_opens',  tag: 'organic' },
+        { id: 's2-em-clicks', name: 'email_clicks', tag: 'organic' },
+      ]},
+      { cat: 'contextual', integration: 'External', dataSource: 'Control Variables', fields: [
+        { id: 's2-temp',   name: 'temperature (cont.)',  tag: 'contextual' },
+        { id: 's2-launch', name: 'product_launch (bin.)',tag: 'contextual' },
+      ]},
+    ],
+    /* Stage 3: Facebook has campaigns → Tactic Mapper. TV/email/shopify skip. */
+    tactics: [
+      { id: 's3-brand',  campaign: 'Brand Q4',     source: 'Facebook Ads', tactic: 'Meta Brand',   rule: 'name contains "brand"' },
+      { id: 's3-video',  campaign: 'Video Ads Q4', source: 'Facebook Ads', tactic: 'Meta Video',   rule: 'name contains "video"' },
+      { id: 's3-retg',   campaign: 'Retargeting',  source: 'Facebook Ads', tactic: 'Meta Retargeting', rule: 'name contains "retarget"' },
+    ],
+    /* Stage 4: Unified Data Model combining ALL source contributions */
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-meta',  name: 'Meta Brand' },
+        { id: 's4-sp-video', name: 'Meta Video' },
+        { id: 's4-sp-retg',  name: 'Meta Retargeting' },
+        { id: 's4-sp-tv',    name: 'TV' },
+      ]},
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-rev', name: 'Revenue' },
+        { id: 's4-kpi-ord', name: 'Orders' },
+      ]},
+      { label: 'Organic Variables', tag: 'organic', vars: [
+        { id: 's4-org-opens',  name: 'Email Opens' },
+        { id: 's4-org-clicks', name: 'Email Clicks' },
+      ]},
+      { label: 'Control Variables', tag: 'contextual', vars: [
+        { id: 's4-ctx-temp',   name: 'Temperature' },
+        { id: 's4-ctx-launch', name: 'Product Launch' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+        { id: 's4-dim-camp', name: 'Campaign' },
+      ]},
+    ],
+    edges: [
+      /* Facebook Ads (Native) → paid Ad Insights → Tactic Mapper → Spend vars */
+      ['s1-fb-spend','s2-fb-sp'],
+      ['s1-fb-imps','s2-fb-imps'],
+      ['s1-fb-clicks','s2-fb-clicks'],
+      ['s2-fb-sp','s3-brand'], ['s2-fb-sp','s3-video'], ['s2-fb-sp','s3-retg'],
+      ['s3-brand','s4-sp-meta'],
+      ['s3-video','s4-sp-video'],
+      ['s3-retg','s4-sp-retg'],
+      ['s1-fb-camp','s4-dim-camp'],
+      ['s1-fb-date','s4-dim-date'],
+
+      /* Shopify (Native) → KPI Orders → outcome variables */
+      ['s1-sh-rev','s2-sh-rev'],
+      ['s1-sh-ord','s2-sh-ord'],
+      ['s2-sh-rev','s4-kpi-rev'],
+      ['s2-sh-ord','s4-kpi-ord'],
+      ['s1-sh-date','s4-dim-date'],
+
+      /* Google Sheet (File) → TV spend + contextual vars */
+      ['s1-sh2-tv','s2-tv-sp'],
+      ['s2-tv-sp','s4-sp-tv'],
+      ['s1-sh2-temp','s2-temp'],
+      ['s2-temp','s4-ctx-temp'],
+      ['s1-sh2-lnch','s2-launch'],
+      ['s2-launch','s4-ctx-launch'],
+      ['s1-sh2-date','s4-dim-date'],
+
+      /* BigQuery (DWH) → organic email metrics */
+      ['s1-bq-opens','s2-em-opens'],
+      ['s1-bq-clicks','s2-em-clicks'],
+      ['s2-em-opens','s4-org-opens'],
+      ['s2-em-clicks','s4-org-clicks'],
+      ['s1-bq-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── PM1: Long format, multi-source, campaign-level ─── */
+  PM1: {
+    summary: 'Long format paid marketing data with a source column. 3 channels, campaign-level, ready for Tactic Mapper.',
+    categories: ['paid'],
+    rows: 2847, days: 365,
+    columns: [
+      { id: 's1-date',    name: 'date',          tag: 'dim' },
+      { id: 's1-source',  name: 'source',        tag: 'dim' },
+      { id: 's1-camp',    name: 'campaign_name', tag: 'dim' },
+      { id: 's1-spend',   name: 'spend',         tag: 'paid' },
+      { id: 's1-imps',    name: 'impressions',   tag: 'paid' },
+      { id: 's1-clicks',  name: 'clicks',        tag: 'paid' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-fb-spend',  name: 'spend',       tag: 'paid' },
+        { id: 's2-fb-imps',   name: 'impressions', tag: 'paid' },
+        { id: 's2-fb-clicks', name: 'clicks',      tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'Google Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-g-spend',  name: 'spend',       tag: 'paid' },
+        { id: 's2-g-imps',   name: 'impressions', tag: 'paid' },
+        { id: 's2-g-clicks', name: 'clicks',      tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'TikTok Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-tt-spend',  name: 'spend',       tag: 'paid' },
+        { id: 's2-tt-imps',   name: 'impressions', tag: 'paid' },
+        { id: 's2-tt-clicks', name: 'clicks',      tag: 'paid' },
+      ]},
+    ],
+    tactics: [
+      { id: 's3-brand',  campaign: 'Brand Q1',        source: 'Facebook Ads', tactic: 'Meta Brand',   rule: 'name contains "brand"' },
+      { id: 's3-search', campaign: 'Search Q1',       source: 'Google Ads',   tactic: 'Google SEM',   rule: 'name contains "search"' },
+      { id: 's3-video',  campaign: 'Video Awareness', source: 'TikTok Ads',   tactic: 'TikTok Video', rule: 'name contains "video"' },
+    ],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-meta',   name: 'Meta Brand' },
+        { id: 's4-sp-gsem',   name: 'Google SEM' },
+        { id: 's4-sp-ttvid',  name: 'TikTok Video' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+        { id: 's4-dim-camp', name: 'Campaign' },
+      ]},
+    ],
+    edges: [
+      ['s1-spend','s2-fb-spend'], ['s1-spend','s2-g-spend'], ['s1-spend','s2-tt-spend'],
+      ['s1-imps','s2-fb-imps'],   ['s1-imps','s2-g-imps'],   ['s1-imps','s2-tt-imps'],
+      ['s1-clicks','s2-fb-clicks'], ['s1-clicks','s2-g-clicks'], ['s1-clicks','s2-tt-clicks'],
+      ['s2-fb-spend','s3-brand'],  ['s2-g-spend','s3-search'],  ['s2-tt-spend','s3-video'],
+      ['s3-brand','s4-sp-meta'],   ['s3-search','s4-sp-gsem'],  ['s3-video','s4-sp-ttvid'],
+      ['s1-date','s4-dim-date'],   ['s1-camp','s4-dim-camp'],
+    ],
+  },
+
+  /* ─── PM2: Wide format, channel-prefixed ─── */
+  PM2: {
+    summary: 'Wide format — channels encoded as column prefixes. Unpivoted to channel-level spend. No campaigns (aggregated).',
+    categories: ['paid'],
+    rows: 730, days: 730,
+    columns: [
+      { id: 's1-date',   name: 'date',        tag: 'dim' },
+      { id: 's1-fbsp',   name: 'fb_spend',    tag: 'paid' },
+      { id: 's1-fbimps', name: 'fb_imps',     tag: 'paid' },
+      { id: 's1-fbcpc',  name: 'fb_cpc',      tag: 'paid' },
+      { id: 's1-gsp',    name: 'google_spend',tag: 'paid' },
+      { id: 's1-gimps',  name: 'google_imps', tag: 'paid' },
+      { id: 's1-ttsp',   name: 'tt_spend',    tag: 'paid' },
+      { id: 's1-ttimps', name: 'tt_imps',     tag: 'paid' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-fb-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-fb-imps', name: 'impressions', tag: 'paid' },
+        { id: 's2-fb-cpc',  name: 'cpc',         tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'Google Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-g-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-g-imps', name: 'impressions', tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'TikTok Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-tt-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-tt-imps', name: 'impressions', tag: 'paid' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-fb',  name: 'Facebook' },
+        { id: 's4-sp-g',   name: 'Google' },
+        { id: 's4-sp-tt',  name: 'TikTok' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-fbsp','s2-fb-sp'], ['s1-fbimps','s2-fb-imps'], ['s1-fbcpc','s2-fb-cpc'],
+      ['s1-gsp','s2-g-sp'],   ['s1-gimps','s2-g-imps'],
+      ['s1-ttsp','s2-tt-sp'], ['s1-ttimps','s2-tt-imps'],
+      ['s2-fb-sp','s4-sp-fb'], ['s2-g-sp','s4-sp-g'], ['s2-tt-sp','s4-sp-tt'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── PM3: Mixed wide with all 4 categories ─── */
+  PM3: {
+    summary: 'Complete MMM dataset: ad spend by channel + KPIs + organic + contextual. Split into 4 pipelines at ingest.',
+    categories: ['paid','kpi','organic','contextual'],
+    rows: 730, days: 730,
+    columns: [
+      { id: 's1-date',     name: 'date',           tag: 'dim' },
+      { id: 's1-fbsp',     name: 'fb_spend',       tag: 'paid' },
+      { id: 's1-fbimps',   name: 'fb_imps',        tag: 'paid' },
+      { id: 's1-gsp',      name: 'google_spend',   tag: 'paid' },
+      { id: 's1-gimps',    name: 'google_imps',    tag: 'paid' },
+      { id: 's1-tvsp',     name: 'tv_spend',       tag: 'paid' },
+      { id: 's1-rev',      name: 'revenue',        tag: 'kpi' },
+      { id: 's1-ord',      name: 'orders',         tag: 'kpi' },
+      { id: 's1-email',    name: 'email_opens',    tag: 'organic' },
+      { id: 's1-orgimps',  name: 'organic_imps',   tag: 'organic' },
+      { id: 's1-temp',     name: 'temperature',    tag: 'contextual' },
+      { id: 's1-launch',   name: 'product_launch', tag: 'contextual' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-fb-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-fb-imps', name: 'impressions', tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'Google Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-g-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-g-imps', name: 'impressions', tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'TV', dataSource: 'Ad Insights', fields: [
+        { id: 's2-tv-sp', name: 'spend', tag: 'paid' },
+      ]},
+      { cat: 'kpi', integration: 'External', dataSource: 'Revenue & Orders', fields: [
+        { id: 's2-rev', name: 'revenue', tag: 'kpi' },
+        { id: 's2-ord', name: 'orders',  tag: 'kpi' },
+      ]},
+      { cat: 'organic', integration: 'External', dataSource: 'Engagement', fields: [
+        { id: 's2-email',   name: 'email_opens',  tag: 'organic' },
+        { id: 's2-orgimps', name: 'organic_imps', tag: 'organic' },
+      ]},
+      { cat: 'contextual', integration: 'External', dataSource: 'Control Variables', fields: [
+        { id: 's2-temp',   name: 'temperature (cont.)', tag: 'contextual' },
+        { id: 's2-launch', name: 'product_launch (bin.)', tag: 'contextual' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-fb', name: 'Facebook' },
+        { id: 's4-sp-g',  name: 'Google' },
+        { id: 's4-sp-tv', name: 'TV' },
+      ]},
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-rev', name: 'Revenue' },
+        { id: 's4-kpi-ord', name: 'Orders' },
+      ]},
+      { label: 'Organic Variables', tag: 'organic', vars: [
+        { id: 's4-org-email', name: 'Email Opens' },
+        { id: 's4-org-imps',  name: 'Organic Impressions' },
+      ]},
+      { label: 'Control Variables', tag: 'contextual', vars: [
+        { id: 's4-ctx-temp',   name: 'Temperature' },
+        { id: 's4-ctx-launch', name: 'Product Launch' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-fbsp','s2-fb-sp'], ['s1-fbimps','s2-fb-imps'],
+      ['s1-gsp','s2-g-sp'],   ['s1-gimps','s2-g-imps'],
+      ['s1-tvsp','s2-tv-sp'],
+      ['s1-rev','s2-rev'], ['s1-ord','s2-ord'],
+      ['s1-email','s2-email'], ['s1-orgimps','s2-orgimps'],
+      ['s1-temp','s2-temp'], ['s1-launch','s2-launch'],
+      ['s2-fb-sp','s4-sp-fb'], ['s2-g-sp','s4-sp-g'], ['s2-tv-sp','s4-sp-tv'],
+      ['s2-rev','s4-kpi-rev'], ['s2-ord','s4-kpi-ord'],
+      ['s2-email','s4-org-email'], ['s2-orgimps','s4-org-imps'],
+      ['s2-temp','s4-ctx-temp'], ['s2-launch','s4-ctx-launch'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── PM4: Single source, no source column ─── */
+  PM4: {
+    summary: 'Data without a source column. User picked "Facebook Ads" as the channel. Campaigns populate Tactic Mapper.',
+    categories: ['paid'],
+    rows: 1247, days: 92,
+    columns: [
+      { id: 's1-date',  name: 'date',        tag: 'dim' },
+      { id: 's1-camp',  name: 'campaign',    tag: 'dim' },
+      { id: 's1-sp',    name: 'spend',       tag: 'paid' },
+      { id: 's1-imps',  name: 'impressions', tag: 'paid' },
+      { id: 's1-clicks',name: 'clicks',      tag: 'paid' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-sp',    name: 'spend',       tag: 'paid' },
+        { id: 's2-imps',  name: 'impressions', tag: 'paid' },
+        { id: 's2-clicks',name: 'clicks',      tag: 'paid' },
+      ]},
+    ],
+    tactics: [
+      { id: 's3-brand',  campaign: 'Brand Awareness Q4', source: 'Facebook Ads', tactic: 'Meta Brand',       rule: 'name contains "brand"' },
+      { id: 's3-retarg', campaign: 'Holiday Retargeting',source: 'Facebook Ads', tactic: 'Meta Retargeting', rule: 'name contains "retargeting"' },
+    ],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-meta',  name: 'Meta Brand' },
+        { id: 's4-sp-retg',  name: 'Meta Retargeting' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+        { id: 's4-dim-camp', name: 'Campaign' },
+      ]},
+    ],
+    edges: [
+      ['s1-sp','s2-sp'], ['s1-imps','s2-imps'], ['s1-clicks','s2-clicks'],
+      ['s2-sp','s3-brand'], ['s2-sp','s3-retarg'],
+      ['s3-brand','s4-sp-meta'], ['s3-retarg','s4-sp-retg'],
+      ['s1-date','s4-dim-date'], ['s1-camp','s4-dim-camp'],
+    ],
+  },
+
+  /* ─── PM5: Granular single source with full ad hierarchy ─── */
+  PM5: {
+    summary: 'Ad-level data from a single source (Google Ads). Full account→campaign→adgroup→ad hierarchy.',
+    categories: ['paid'],
+    rows: 8420, days: 365,
+    columns: [
+      { id: 's1-date',  name: 'date',         tag: 'dim' },
+      { id: 's1-acc',   name: 'account_id',   tag: 'dim' },
+      { id: 's1-cmp',   name: 'campaign_id',  tag: 'dim' },
+      { id: 's1-ag',    name: 'ad_group_id',  tag: 'dim' },
+      { id: 's1-ad',    name: 'ad_id',        tag: 'dim' },
+      { id: 's1-sp',    name: 'spend',        tag: 'paid' },
+      { id: 's1-imps',  name: 'impressions',  tag: 'paid' },
+      { id: 's1-clicks',name: 'clicks',       tag: 'paid' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Google Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-sp',    name: 'spend',       tag: 'paid' },
+        { id: 's2-imps',  name: 'impressions', tag: 'paid' },
+        { id: 's2-clicks',name: 'clicks',      tag: 'paid' },
+      ]},
+    ],
+    tactics: [
+      { id: 's3-search', campaign: 'Search - Brand',       source: 'Google Ads', tactic: 'Google SEM',      rule: 'name contains "search"' },
+      { id: 's3-shop',   campaign: 'Shopping - Products',  source: 'Google Ads', tactic: 'Google Shopping', rule: 'name contains "shopping"' },
+    ],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-sem',  name: 'Google SEM' },
+        { id: 's4-sp-shop', name: 'Google Shopping' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+        { id: 's4-dim-camp', name: 'Campaign' },
+        { id: 's4-dim-ad',   name: 'Ad' },
+      ]},
+    ],
+    edges: [
+      ['s1-sp','s2-sp'], ['s1-imps','s2-imps'], ['s1-clicks','s2-clicks'],
+      ['s2-sp','s3-search'], ['s2-sp','s3-shop'],
+      ['s3-search','s4-sp-sem'], ['s3-shop','s4-sp-shop'],
+      ['s1-date','s4-dim-date'], ['s1-cmp','s4-dim-camp'], ['s1-ad','s4-dim-ad'],
+    ],
+  },
+
+  /* ─── PM6: Granular multi-source with hierarchy ─── */
+  PM6: {
+    summary: 'Ad-level multi-source (FB + Google). Source column + full ad hierarchy. Every campaign surfaces in Tactic Mapper.',
+    categories: ['paid'],
+    rows: 15200, days: 365,
+    columns: [
+      { id: 's1-date',  name: 'date',        tag: 'dim' },
+      { id: 's1-src',   name: 'source',      tag: 'dim' },
+      { id: 's1-acc',   name: 'account_id',  tag: 'dim' },
+      { id: 's1-cmp',   name: 'campaign_id', tag: 'dim' },
+      { id: 's1-ag',    name: 'ad_group_id', tag: 'dim' },
+      { id: 's1-ad',    name: 'ad_id',       tag: 'dim' },
+      { id: 's1-sp',    name: 'spend',       tag: 'paid' },
+      { id: 's1-imps',  name: 'impressions', tag: 'paid' },
+      { id: 's1-clicks',name: 'clicks',      tag: 'paid' },
+    ],
+    md: [
+      { cat: 'paid', integration: 'Facebook Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-fb-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-fb-imps', name: 'impressions', tag: 'paid' },
+      ]},
+      { cat: 'paid', integration: 'Google Ads', dataSource: 'Ad Insights', fields: [
+        { id: 's2-g-sp',   name: 'spend',       tag: 'paid' },
+        { id: 's2-g-imps', name: 'impressions', tag: 'paid' },
+      ]},
+    ],
+    tactics: [
+      { id: 's3-meta',  campaign: 'Brand Q4 (FB)', source: 'Facebook Ads', tactic: 'Meta Brand', rule: 'name contains "brand"' },
+      { id: 's3-gsem',  campaign: 'Search Q4',     source: 'Google Ads',   tactic: 'Google SEM', rule: 'name contains "search"' },
+    ],
+    dataModel: [
+      { label: 'Spend Variables', tag: 'paid', vars: [
+        { id: 's4-sp-meta',  name: 'Meta Brand' },
+        { id: 's4-sp-gsem',  name: 'Google SEM' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+        { id: 's4-dim-camp', name: 'Campaign' },
+      ]},
+    ],
+    edges: [
+      ['s1-sp','s2-fb-sp'], ['s1-sp','s2-g-sp'],
+      ['s1-imps','s2-fb-imps'], ['s1-imps','s2-g-imps'],
+      ['s2-fb-sp','s3-meta'], ['s2-g-sp','s3-gsem'],
+      ['s3-meta','s4-sp-meta'], ['s3-gsem','s4-sp-gsem'],
+      ['s1-date','s4-dim-date'], ['s1-cmp','s4-dim-camp'],
+    ],
+  },
+
+  /* ─── K1: Event format KPI ─── */
+  K1: {
+    summary: 'Event-format KPI data (date, event_name, value). 3 distinct events classified as outcome variables.',
+    categories: ['kpi'],
+    rows: 2190, days: 730,
+    columns: [
+      { id: 's1-date',  name: 'date',       tag: 'dim' },
+      { id: 's1-event', name: 'event_name', tag: 'kpi' },
+      { id: 's1-value', name: 'value',      tag: 'kpi' },
+    ],
+    md: [
+      { cat: 'kpi', integration: 'External', dataSource: 'Events', fields: [
+        { id: 's2-purchase', name: 'purchase (Revenue)',       tag: 'kpi' },
+        { id: 's2-atc',      name: 'add_to_cart (Conversions)', tag: 'kpi' },
+        { id: 's2-signup',   name: 'signup (Registrations)',   tag: 'kpi' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-rev',   name: 'Revenue' },
+        { id: 's4-kpi-conv',  name: 'Conversions' },
+        { id: 's4-kpi-reg',   name: 'Registrations' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-event','s2-purchase'], ['s1-event','s2-atc'], ['s1-event','s2-signup'],
+      ['s1-value','s2-purchase'], ['s1-value','s2-atc'], ['s1-value','s2-signup'],
+      ['s2-purchase','s4-kpi-rev'], ['s2-atc','s4-kpi-conv'], ['s2-signup','s4-kpi-reg'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── K2: Event format with per-source values ─── */
+  K2: {
+    summary: 'Event format with per-source value columns (Amazon vs DTC). KPIs split by source for independent outcome tracking.',
+    categories: ['kpi'],
+    rows: 1460, days: 365,
+    columns: [
+      { id: 's1-date',    name: 'date',        tag: 'dim' },
+      { id: 's1-src',     name: 'source',      tag: 'dim' },
+      { id: 's1-event',   name: 'event_name',  tag: 'kpi' },
+      { id: 's1-vamazon', name: 'value_amazon',tag: 'kpi' },
+      { id: 's1-vdtc',    name: 'value_dtc',   tag: 'kpi' },
+    ],
+    md: [
+      { cat: 'kpi', integration: 'Amazon', dataSource: 'Events', fields: [
+        { id: 's2-amz-purch', name: 'purchase', tag: 'kpi' },
+        { id: 's2-amz-sign',  name: 'signup',   tag: 'kpi' },
+      ]},
+      { cat: 'kpi', integration: 'DTC Store', dataSource: 'Events', fields: [
+        { id: 's2-dtc-purch', name: 'purchase', tag: 'kpi' },
+        { id: 's2-dtc-sign',  name: 'signup',   tag: 'kpi' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-amzrev', name: 'Amazon Revenue' },
+        { id: 's4-kpi-dtcrev', name: 'DTC Revenue' },
+        { id: 's4-kpi-amzsig', name: 'Amazon Signups' },
+        { id: 's4-kpi-dtcsig', name: 'DTC Signups' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-vamazon','s2-amz-purch'], ['s1-vamazon','s2-amz-sign'],
+      ['s1-vdtc','s2-dtc-purch'],    ['s1-vdtc','s2-dtc-sign'],
+      ['s2-amz-purch','s4-kpi-amzrev'], ['s2-dtc-purch','s4-kpi-dtcrev'],
+      ['s2-amz-sign','s4-kpi-amzsig'],  ['s2-dtc-sign','s4-kpi-dtcsig'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── K3: Wide aggregated KPI ─── */
+  K3: {
+    summary: 'Daily aggregated KPI data. Each KPI becomes an outcome variable for MMM.',
+    categories: ['kpi'],
+    rows: 365, days: 365,
+    columns: [
+      { id: 's1-date', name: 'date',    tag: 'dim' },
+      { id: 's1-rev',  name: 'revenue', tag: 'kpi' },
+      { id: 's1-ord',  name: 'orders',  tag: 'kpi' },
+    ],
+    md: [
+      { cat: 'kpi', integration: 'External', dataSource: 'Daily KPIs', fields: [
+        { id: 's2-rev', name: 'revenue', tag: 'kpi' },
+        { id: 's2-ord', name: 'orders',  tag: 'kpi' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-rev', name: 'Revenue' },
+        { id: 's4-kpi-ord', name: 'Orders' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-rev','s2-rev'], ['s1-ord','s2-ord'],
+      ['s2-rev','s4-kpi-rev'], ['s2-ord','s4-kpi-ord'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── K4: Wide KPI with source column ─── */
+  K4: {
+    summary: 'Daily KPI per source. Same metrics split by Amazon vs DTC to track independently.',
+    categories: ['kpi'],
+    rows: 730, days: 365,
+    columns: [
+      { id: 's1-date', name: 'date',    tag: 'dim' },
+      { id: 's1-src',  name: 'source',  tag: 'dim' },
+      { id: 's1-rev',  name: 'revenue', tag: 'kpi' },
+      { id: 's1-ord',  name: 'orders',  tag: 'kpi' },
+    ],
+    md: [
+      { cat: 'kpi', integration: 'Amazon', dataSource: 'Daily KPIs', fields: [
+        { id: 's2-amz-rev', name: 'revenue', tag: 'kpi' },
+        { id: 's2-amz-ord', name: 'orders',  tag: 'kpi' },
+      ]},
+      { cat: 'kpi', integration: 'DTC Store', dataSource: 'Daily KPIs', fields: [
+        { id: 's2-dtc-rev', name: 'revenue', tag: 'kpi' },
+        { id: 's2-dtc-ord', name: 'orders',  tag: 'kpi' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'KPIs (Outcomes)', tag: 'kpi', vars: [
+        { id: 's4-kpi-amzrev', name: 'Amazon Revenue' },
+        { id: 's4-kpi-dtcrev', name: 'DTC Revenue' },
+        { id: 's4-kpi-amzord', name: 'Amazon Orders' },
+        { id: 's4-kpi-dtcord', name: 'DTC Orders' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-rev','s2-amz-rev'], ['s1-rev','s2-dtc-rev'],
+      ['s1-ord','s2-amz-ord'], ['s1-ord','s2-dtc-ord'],
+      ['s2-amz-rev','s4-kpi-amzrev'], ['s2-dtc-rev','s4-kpi-dtcrev'],
+      ['s2-amz-ord','s4-kpi-amzord'], ['s2-dtc-ord','s4-kpi-dtcord'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── OC1: Mixed organic + contextual ─── */
+  OC1: {
+    summary: 'Mixed sheet with organic social impressions + contextual variables (holiday, temperature) across 3 channels.',
+    categories: ['organic','contextual'],
+    rows: 1095, days: 730,
+    columns: [
+      { id: 's1-date',    name: 'date',        tag: 'dim' },
+      { id: 's1-src',     name: 'source',      tag: 'dim' },
+      { id: 's1-imps',    name: 'impressions', tag: 'organic' },
+      { id: 's1-holiday', name: 'is_holiday',  tag: 'contextual' },
+      { id: 's1-temp',    name: 'temperature', tag: 'contextual' },
+    ],
+    md: [
+      { cat: 'organic', integration: 'Instagram', dataSource: 'Organic Social', fields: [
+        { id: 's2-ig-imps', name: 'organic_impressions', tag: 'organic' },
+      ]},
+      { cat: 'organic', integration: 'TikTok Ads', dataSource: 'Organic Social', fields: [
+        { id: 's2-tt-imps', name: 'organic_impressions', tag: 'organic' },
+      ]},
+      { cat: 'organic', integration: 'YouTube', dataSource: 'Organic Social', fields: [
+        { id: 's2-yt-imps', name: 'organic_impressions', tag: 'organic' },
+      ]},
+      { cat: 'contextual', integration: 'External', dataSource: 'Control Variables', fields: [
+        { id: 's2-holiday', name: 'is_holiday (binary)',      tag: 'contextual' },
+        { id: 's2-temp',    name: 'temperature (continuous)', tag: 'contextual' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'Organic Variables', tag: 'organic', vars: [
+        { id: 's4-org-ig', name: 'Instagram Impressions' },
+        { id: 's4-org-tt', name: 'TikTok Impressions' },
+        { id: 's4-org-yt', name: 'YouTube Impressions' },
+      ]},
+      { label: 'Control Variables', tag: 'contextual', vars: [
+        { id: 's4-ctx-holiday', name: 'Holiday (binary)' },
+        { id: 's4-ctx-temp',    name: 'Temperature' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-imps','s2-ig-imps'], ['s1-imps','s2-tt-imps'], ['s1-imps','s2-yt-imps'],
+      ['s1-holiday','s2-holiday'], ['s1-temp','s2-temp'],
+      ['s2-ig-imps','s4-org-ig'], ['s2-tt-imps','s4-org-tt'], ['s2-yt-imps','s4-org-yt'],
+      ['s2-holiday','s4-ctx-holiday'], ['s2-temp','s4-ctx-temp'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+
+  /* ─── OC2: Single contextual variable ─── */
+  OC2: {
+    summary: 'Single daily contextual variable (fuel price). Minimal case — one column becomes one control variable.',
+    categories: ['contextual'],
+    rows: 730, days: 730,
+    columns: [
+      { id: 's1-date',  name: 'date',  tag: 'dim' },
+      { id: 's1-value', name: 'value', tag: 'contextual' },
+    ],
+    md: [
+      { cat: 'contextual', integration: 'External', dataSource: 'Control Variables', fields: [
+        { id: 's2-fuel', name: 'fuel_price (continuous)', tag: 'contextual' },
+      ]},
+    ],
+    tactics: [],
+    dataModel: [
+      { label: 'Control Variables', tag: 'contextual', vars: [
+        { id: 's4-ctx-fuel', name: 'Fuel Price' },
+      ]},
+      { label: 'Modeling Dimensions', tag: 'dim', vars: [
+        { id: 's4-dim-date', name: 'Date' },
+      ]},
+    ],
+    edges: [
+      ['s1-value','s2-fuel'], ['s2-fuel','s4-ctx-fuel'],
+      ['s1-date','s4-dim-date'],
+    ],
+  },
+};
+
+/* ═════════════════════════════════════════════════════════════════════════
+   RENDERING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const $viewer     = document.getElementById('viewer');
+const $svg        = document.getElementById('edges-svg');
+const $stage1     = document.getElementById('stage-1');
+const $stage2     = document.getElementById('stage-2');
+const $stage3     = document.getElementById('stage-3');
+const $stage4     = document.getElementById('stage-4');
+const $summary    = document.getElementById('summary-bar');
+const $tooltip    = document.getElementById('tooltip');
+const $resetBtn   = document.getElementById('reset-btn');
+const $picker     = document.getElementById('scenario-picker');
+
+let currentScenario = 'COMBO';
+let currentHighlight = null; // node id currently highlighted
+
+function render(scenarioId) {
+  const s = SCENARIOS[scenarioId];
+  currentScenario = scenarioId;
+  clearHighlight();
+
+  /* Summary bar */
+  $summary.innerHTML = '';
+  const parts = [
+    `<span class="label">Scenario</span><span class="val">${scenarioId}</span>`,
+    `<span class="divider"></span>`,
+  ];
+  /* If multi-source, show source type breakdown instead of just categories */
+  if (s.sourceGroups && s.sourceGroups.length > 0) {
+    const typeCounts = s.sourceGroups.reduce((acc, g) => {
+      acc[g.type] = (acc[g.type] || 0) + 1;
+      return acc;
+    }, {});
+    parts.push(`<span class="label">Sources</span>`);
+    ['Native','File','DWH'].forEach(type => {
+      if (typeCounts[type]) {
+        const cls = type === 'Native' ? 'src-native' : type === 'File' ? 'src-file' : 'src-dwh';
+        parts.push(`<span class="src-type-badge ${cls}" style="margin-right:4px">${type} × ${typeCounts[type]}</span>`);
+      }
+    });
+    parts.push(`<span class="divider"></span>`);
+  }
+  parts.push(
+    `<span class="label">Categories</span>` +
+      s.categories.map(c => `<span class="cat-pill ${c}">${CATEGORY_META[c].label}</span>`).join(' '),
+    `<span class="divider"></span>`,
+    `<span class="label">Rows</span><span class="val">${s.rows.toLocaleString()}</span>`,
+    `<span class="divider"></span>`,
+    `<span class="label">Span</span><span class="val">${s.days} days</span>`,
+    `<span class="divider"></span>`,
+    `<span style="color:var(--t-secondary)">${s.summary}</span>`,
+  );
+  $summary.innerHTML = parts.join('');
+
+  /* Stage 1 — two render modes:
+     1. Multi-source (s.sourceGroups) — one card per source with type badge
+     2. Single source (s.columns)     — one card with columns
+  */
+  if (s.sourceGroups && s.sourceGroups.length > 0) {
+    $stage1.innerHTML = s.sourceGroups.map(g => {
+      const int = INTEGRATIONS[g.integration] || { color: '#6b7280', letter: g.integration[0] };
+      const textColor = int.color === '#FFFC00' ? '#000' : '#fff';
+      const srcClass = g.type === 'Native' ? 'src-native' : g.type === 'File' ? 'src-file' : 'src-dwh';
+      return `
+        <div class="input-card ${srcClass}">
+          <div class="input-card-hd">
+            <div class="int-icon" style="background:${int.color};color:${textColor}">${int.letter}</div>
+            <div>
+              <div class="int-name">${g.integration}</div>
+              <div class="ds-label">${g.label}</div>
+            </div>
+            <span class="src-type-badge ${srcClass}">${g.type}</span>
+          </div>
+          <ul class="col-list">
+            ${g.columns.map(c => `
+              <li class="col-row" data-node-id="${c.id}" data-tooltip="${g.integration} · ${g.type}">
+                <span class="col-name">${c.name}</span>
+                <span class="col-tag ${c.tag}">${c.tag === 'dim' ? 'dim' : c.tag}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `;
+    }).join('');
+  } else {
+    $stage1.innerHTML = `
+      <div class="input-card">
+        <div class="input-card-hd">Columns</div>
+        <ul class="col-list">
+          ${s.columns.map(c => `
+            <li class="col-row" data-node-id="${c.id}" data-tooltip="Column · ${c.tag}">
+              <span class="col-name">${c.name}</span>
+              <span class="col-tag ${c.tag}">${c.tag === 'dim' ? 'dim' : c.tag}</span>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  /* Stage 2 — group by category */
+  const byCategory = {};
+  s.md.forEach(group => {
+    if (!byCategory[group.cat]) byCategory[group.cat] = [];
+    byCategory[group.cat].push(group);
+  });
+  let s2Html = '';
+  ['paid','kpi','organic','contextual'].forEach(cat => {
+    if (!byCategory[cat]) return;
+    const groups = byCategory[cat];
+    const cm = CATEGORY_META[cat];
+    const fieldCount = groups.reduce((sum, g) => sum + g.fields.length, 0);
+    s2Html += `
+      <div class="md-category">
+        <div class="md-category-hd">
+          <div class="md-cat-dot" style="background:${cm.color}"></div>
+          <div class="md-cat-name">${cm.label}</div>
+          <div class="md-cat-count">${groups.length} integration${groups.length === 1 ? '' : 's'} · ${fieldCount} fields</div>
+        </div>
+    `;
+    groups.forEach(g => {
+      const int = INTEGRATIONS[g.integration] || { color: '#6b7280', letter: g.integration[0] };
+      const textColor = int.color === '#FFFC00' ? '#000' : '#fff';
+      s2Html += `
+        <div class="md-integration">
+          <div class="md-int-row">
+            <div class="md-int-icon" style="background:${int.color};color:${textColor}">${int.letter}</div>
+            <div class="md-int-name">${g.integration}</div>
+          </div>
+          <div class="md-ds-label">${g.dataSource}</div>
+          <div class="md-fields">
+            ${g.fields.map(f => `
+              <span class="md-field ${f.tag}" data-node-id="${f.id}" data-tooltip="${g.integration} · ${g.dataSource}">
+                ${f.name}
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    });
+    s2Html += '</div>';
+  });
+  $stage2.innerHTML = s2Html;
+
+  /* Stage 3 */
+  if (s.tactics.length === 0) {
+    $stage3.innerHTML = `
+      <div class="tm-card">
+        <div class="tm-empty">No campaigns — aggregated or KPI-only data</div>
+      </div>
+    `;
+  } else {
+    const rows = s.tactics.map(t => {
+      const int = INTEGRATIONS[t.source] || { color: '#6b7280' };
+      return `
+        <div class="tm-row" data-node-id="${t.id}" data-tooltip="${t.rule}">
+          <div class="tm-campaign">${t.campaign}</div>
+          <div class="tm-meta">
+            <span class="tm-source-dot" style="background:${int.color}"></span>
+            <span>${t.source}</span>
+            <span class="tm-arrow">→</span>
+            <span class="tm-tactic">${t.tactic}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    $stage3.innerHTML = `<div class="tm-card">${rows}</div>`;
+  }
+
+  /* Stage 4 */
+  const s4Html = s.dataModel.map(sec => `
+    <div class="dm-section">
+      <div class="dm-section-label">${sec.label}</div>
+      <div class="dm-vars">
+        ${sec.vars.length === 0
+          ? `<div class="dm-empty">None in this scenario</div>`
+          : sec.vars.map(v => `
+              <span class="dm-var ${sec.tag}" data-node-id="${v.id}" data-tooltip="${sec.label}">
+                ${v.name}
+              </span>
+            `).join('')
+        }
+      </div>
+    </div>
+  `).join('');
+  $stage4.innerHTML = `<div class="dm-card">${s4Html}</div>`;
+
+  /* Draw edges after DOM paints */
+  requestAnimationFrame(drawEdges);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   EDGE DRAWING — Bézier curves between node centers across stages
+   ═════════════════════════════════════════════════════════════════════════ */
+
+function drawEdges() {
+  const s = SCENARIOS[currentScenario];
+  const viewerRect = $viewer.getBoundingClientRect();
+  $svg.setAttribute('width', viewerRect.width);
+  $svg.setAttribute('height', viewerRect.height);
+  $svg.setAttribute('viewBox', `0 0 ${viewerRect.width} ${viewerRect.height}`);
+
+  /* Clear */
+  $svg.innerHTML = '';
+
+  /* For each edge, find source + target DOM nodes and draw a cubic Bézier */
+  s.edges.forEach(([fromId, toId]) => {
+    const fromEl = $viewer.querySelector(`[data-node-id="${fromId}"]`);
+    const toEl   = $viewer.querySelector(`[data-node-id="${toId}"]`);
+    if (!fromEl || !toEl) return;
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect   = toEl.getBoundingClientRect();
+
+    /* Right edge of source → left edge of target (relative to viewer) */
+    const x1 = fromRect.right - viewerRect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - viewerRect.top;
+    const x2 = toRect.left - viewerRect.left;
+    const y2 = toRect.top + toRect.height / 2 - viewerRect.top;
+
+    /* Cubic Bézier control points */
+    const dx = Math.max(40, (x2 - x1) * 0.5);
+    const c1x = x1 + dx;
+    const c1y = y1;
+    const c2x = x2 - dx;
+    const c2y = y2;
+    const d = `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+
+    /* Determine edge category from the more specific (target) node */
+    const cat = getNodeCategory(toEl) || getNodeCategory(fromEl) || 'dim';
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', `edge ${cat}`);
+    path.setAttribute('d', d);
+    path.setAttribute('data-from', fromId);
+    path.setAttribute('data-to', toId);
+    $svg.appendChild(path);
+  });
+}
+
+function getNodeCategory(el) {
+  for (const cat of ['paid','kpi','organic','contextual','dim']) {
+    if (el.classList.contains(cat)) return cat;
+  }
+  /* Fallback for Stage 1 col-row (tag is on .col-tag child) */
+  const tag = el.querySelector?.('.col-tag');
+  if (tag) {
+    for (const cat of ['paid','kpi','organic','contextual','dim']) {
+      if (tag.classList.contains(cat)) return cat;
+    }
+  }
+  return null;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   CLICK-TO-HIGHLIGHT — traverse edges forward + backward
+   ═════════════════════════════════════════════════════════════════════════ */
+
+function getConnectedNodes(startId) {
+  const s = SCENARIOS[currentScenario];
+  const visited = new Set([startId]);
+  const queue = [startId];
+
+  /* Build adjacency (bidirectional for full path highlight) */
+  const adj = new Map();
+  s.edges.forEach(([from, to]) => {
+    if (!adj.has(from)) adj.set(from, []);
+    if (!adj.has(to)) adj.set(to, []);
+    adj.get(from).push(to);
+    adj.get(to).push(from);
+  });
+
+  /* BFS from the clicked node in both directions */
+  while (queue.length > 0) {
+    const node = queue.shift();
+    const neighbors = adj.get(node) || [];
+    for (const next of neighbors) {
+      if (!visited.has(next)) {
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return visited;
+}
+
+function highlightNode(nodeId) {
+  const connected = getConnectedNodes(nodeId);
+  currentHighlight = nodeId;
+  $viewer.classList.add('has-highlight');
+
+  /* Highlight nodes */
+  $viewer.querySelectorAll('[data-node-id]').forEach(el => {
+    if (connected.has(el.getAttribute('data-node-id'))) {
+      el.classList.add('highlight');
+    } else {
+      el.classList.remove('highlight');
+    }
+  });
+
+  /* Highlight edges whose BOTH endpoints are in the connected set */
+  $svg.querySelectorAll('.edge').forEach(path => {
+    const from = path.getAttribute('data-from');
+    const to   = path.getAttribute('data-to');
+    if (connected.has(from) && connected.has(to)) {
+      path.classList.add('highlight');
+    } else {
+      path.classList.remove('highlight');
+    }
+  });
+}
+
+function clearHighlight() {
+  currentHighlight = null;
+  $viewer.classList.remove('has-highlight');
+  $viewer.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   EVENT WIRING
+   ═════════════════════════════════════════════════════════════════════════ */
+
+document.addEventListener('click', (e) => {
+  const nodeEl = e.target.closest('[data-node-id]');
+  if (nodeEl) {
+    const id = nodeEl.getAttribute('data-node-id');
+    if (currentHighlight === id) {
+      clearHighlight();
+    } else {
+      highlightNode(id);
+    }
+    e.stopPropagation();
+    return;
+  }
+  /* Clicking outside any node clears highlight */
+  if (!e.target.closest('.hdr') && !e.target.closest('.summary-bar')) {
+    clearHighlight();
+  }
+});
+
+/* Tooltip on hover */
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('[data-tooltip]');
+  if (!el) return;
+  const text = el.getAttribute('data-tooltip');
+  const name = el.querySelector('.col-name')?.textContent
+    || el.querySelector('.tm-campaign')?.textContent
+    || el.textContent.trim().split('\n')[0].trim();
+  $tooltip.innerHTML = `<div class="tt-title">${name}</div><div class="tt-desc">${text}</div>`;
+  $tooltip.classList.add('show');
+});
+document.addEventListener('mousemove', (e) => {
+  if (!$tooltip.classList.contains('show')) return;
+  const pad = 14;
+  $tooltip.style.left = (e.pageX + pad) + 'px';
+  $tooltip.style.top  = (e.pageY + pad) + 'px';
+});
+document.addEventListener('mouseout', (e) => {
+  if (!e.target.closest('[data-tooltip]')) {
+    $tooltip.classList.remove('show');
+  }
+});
+
+$picker.addEventListener('change', (e) => render(e.target.value));
+$resetBtn.addEventListener('click', clearHighlight);
+
+/* Re-draw edges on window resize */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawEdges, 100);
+});
+
+/* Initial render — default to COMBO so engineers see the combined view first */
+render('COMBO');
+</script>
+</body>
+</html>
