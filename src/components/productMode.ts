@@ -88,7 +88,7 @@ export const PRODUCT_MODE_LIST: ProductModeConfig[] = [
 /** All four pipeline steps shown in the landing page flow diagram */
 export const PIPELINE_STEPS: { tabId: TabId; label: string; description: string }[] = [
   { tabId: "integrations-monitoring", label: "Integrations", description: "Connect data sources" },
-  { tabId: "metrics-dimensions", label: "Metrics & Dimensions", description: "Define & map fields" },
+  { tabId: "metrics-dimensions", label: "Data Transformation", description: "Map source fields and build derived metrics" },
   { tabId: "tactic-mapper", label: "Taxonomy", description: "Organize marketing taxonomy" },
   { tabId: "data-models", label: "Data Models", description: "Configure output models" },
 ];

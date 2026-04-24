@@ -50,17 +50,20 @@ export function DataCategoryPicker({
   value,
   onChange,
 }: {
-  value: MetricCategory | null;
-  onChange: (v: MetricCategory) => void;
+  value: MetricCategory[];
+  onChange: (v: MetricCategory[]) => void;
 }) {
+  const toggle = (id: MetricCategory) => {
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  };
   return (
     <div className="grid grid-cols-2 gap-4">
       {CATEGORY_CARDS.map((card) => {
-        const selected = value === card.id;
+        const selected = value.includes(card.id);
         return (
           <button
             key={card.id}
-            onClick={() => onChange(card.id)}
+            onClick={() => toggle(card.id)}
             className={`relative text-left p-5 rounded-[10px] border-2 transition-all ${
               selected
                 ? "border-[#027b8e] bg-[#027b8e]/5"

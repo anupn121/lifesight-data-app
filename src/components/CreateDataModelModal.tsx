@@ -131,6 +131,8 @@ const TEMPLATE_CONFIGS: Record<"campaign_ad_level" | "aggregated", {
 export default function CreateDataModelWizard({ onSave, onBack, editModel, fields, tactics }: CreateDataModelWizardProps) {
   const isEdit = editModel !== null;
   const [templateChoice, setTemplateChoice] = useState<TemplateChoice>("scratch");
+  // "build" = section builder, "review" = read-only confirmation before save
+  const [view, setView] = useState<"build" | "review">("build");
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -534,6 +536,339 @@ export default function CreateDataModelWizard({ onSave, onBack, editModel, field
   }
 
   // ═════════════════════════════════════════════════════════════════════════
+  // REVIEW SCREEN — Read-only summary before saving
+  // ═════════════════════════════════════════════════════════════════════════
+
+  if (view === "review") {
+    const kpiField = selectedKpiField ? fields.find((f) => f.name === selectedKpiField) : null;
+    const templateInfo = templateChoice && templateChoice !== "scratch" ? TEMPLATE_CONFIGS[templateChoice] : null;
+
+    // Group selected tactics back by source for display
+    const reviewTacticsBySource: Record<string, string[]> = {};
+    Array.from(selectedTactics).forEach((t) => {
+      const sourceId = getSourceIdForTactic(t);
+      if (!reviewTacticsBySource[sourceId]) reviewTacticsBySource[sourceId] = [];
+      reviewTacticsBySource[sourceId].push(t);
+    });
+
+    // Control-variable field details (lookup displayName + source)
+    const selectedControls = Array.from(selectedControlFields)
+      .map((fn) => fields.find((f) => f.name === fn))
+      .filter(Boolean) as Field[];
+
+    const totalItems =
+      1 /* kpi */ +
+      tacticCount +
+      controlCount +
+      modelingDimensions.length;
+    void totalItems;
+
+    return (
+      <div className="flex flex-col min-h-full">
+        {/* ── Breadcrumb Header ──────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-1.5 text-sm">
+            <button onClick={onBack} className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
+              Data Models
+            </button>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
+              <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <button onClick={() => setView("build")} className="text-[var(--text-muted)] hover:text-[#027b8e] transition-colors">
+              {isEdit ? "Edit Model" : "Create Model"}
+            </button>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)] flex-shrink-0">
+              <path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="text-[var(--text-primary)] font-medium">Review</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setView("build")}
+              className="px-4 h-[28px] rounded-[6px] text-[12px] font-medium text-[var(--text-muted)] border border-[var(--border-primary)] hover:bg-[var(--hover-item)] hover:border-[var(--border-secondary)] transition-colors inline-flex items-center gap-1.5"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M6.5 1.5L3 5L6.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Back to edit
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!canSave}
+              className="px-5 h-[28px] rounded-[6px] text-[12px] font-medium bg-[#027b8e] hover:bg-[#025e6d] text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {isEdit ? "Save changes" : "Create model"}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Summary hero ───────────────────────────────────────────────── */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] overflow-hidden mb-4">
+          <div className="h-[3px] w-full bg-gradient-to-r from-[#027b8e] via-[#027b8e] to-[#012e36]" />
+          <div className="px-5 py-4 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#027b8e] to-[#012e36]">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M4 6h16M4 12h16M4 18h10" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[var(--text-primary)] text-base font-semibold">
+                {name || <span className="text-[var(--text-muted)] italic">Unnamed model</span>}
+              </div>
+              {description && (
+                <p className="text-[var(--text-muted)] text-sm mt-1 leading-relaxed">{description}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <SummaryChip color="#00bc7d" label="KPI" value={kpiField ? "1" : "0"} />
+                <SummaryChip color="#2b7fff" label="Tactics" value={String(tacticCount)} />
+                <SummaryChip color="#a78bfa" label="Controls" value={String(controlCount)} />
+                <SummaryChip color="#fe9a00" label="Dimensions" value={String(modelingDimensions.length)} />
+                <SummaryChip color="#027b8e" label="Granularity" value={granularity} />
+                {templateInfo && <SummaryChip color={templateInfo.color} label="Template" value={templateInfo.label} />}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section cards ──────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 pb-6">
+          {/* KPI */}
+          <ReviewSection label="KPI" onEdit={() => setView("build")}>
+            {kpiField ? (
+              <div className="flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: kpiField.sourceColor }} />
+                <span className="text-[var(--text-primary)] text-sm font-medium">{kpiField.displayName}</span>
+                <span className="text-[var(--text-muted)] text-xs">from</span>
+                <span className="text-[var(--text-secondary)] text-xs font-medium">{kpiField.source}</span>
+                {kpiField.kpiSubtype && (
+                  <span className="inline-flex items-center px-1.5 py-[2px] rounded-[4px] bg-[#00bc7d]/12 text-[#00bc7d] text-xs font-semibold">
+                    {kpiField.kpiSubtype}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <EmptyLine text="No KPI selected" />
+            )}
+          </ReviewSection>
+
+          {/* Tactics / Paid Marketing */}
+          <ReviewSection
+            label="Tactics & paid marketing"
+            count={tacticCount}
+            onEdit={() => setView("build")}
+          >
+            {Object.keys(reviewTacticsBySource).length === 0 && filePaidSources.filter((g) => g.fields.some((f) => selectedFileFields.has(f.name))).length === 0 ? (
+              <EmptyLine text="No tactics selected" />
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {Object.entries(reviewTacticsBySource).map(([sourceId, ts]) => {
+                  const cfg = SOURCE_CONFIGS[sourceId];
+                  if (!cfg) return null;
+                  const metrics: string[] = [];
+                  if (cfg.spendField) metrics.push("Spend");
+                  if (cfg.impressionField && sourceMetrics[sourceId]?.impressions) metrics.push("Impressions");
+                  if (cfg.clickField && sourceMetrics[sourceId]?.clicks) metrics.push("Clicks");
+                  return (
+                    <div
+                      key={sourceId}
+                      className="flex items-start gap-3 rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-card-inner)] px-3 py-2.5"
+                    >
+                      <div
+                        className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 text-xs font-semibold text-white"
+                        style={{ backgroundColor: cfg.color }}
+                      >
+                        {cfg.abbr}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[var(--text-primary)] text-sm font-semibold">{cfg.name}</div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {ts.map((t) => (
+                            <span
+                              key={t}
+                              className="inline-flex items-center px-2 py-[2px] rounded-[4px] text-xs font-medium bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)]">Metrics</span>
+                          {metrics.length > 0 ? (
+                            metrics.map((m) => (
+                              <span key={m} className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
+                                {m}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[var(--text-muted)] italic">None</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filePaidSources
+                  .filter((g) => g.fields.some((f) => selectedFileFields.has(f.name)))
+                  .map((g) => {
+                    const fieldsInGroup = g.fields.filter((f) => selectedFileFields.has(f.name));
+                    return (
+                      <div
+                        key={`file-${g.sourceId}`}
+                        className="flex items-start gap-3 rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-card-inner)] px-3 py-2.5"
+                      >
+                        <div
+                          className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 text-xs font-semibold text-white"
+                          style={{ backgroundColor: g.color }}
+                        >
+                          {g.abbr}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[var(--text-primary)] text-sm font-semibold">{g.name}</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)]">uploaded</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {fieldsInGroup.map((f) => (
+                              <span
+                                key={f.name}
+                                className="inline-flex items-center px-2 py-[2px] rounded-[4px] text-xs font-medium bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                              >
+                                {f.displayName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </ReviewSection>
+
+          {/* Control variables */}
+          <ReviewSection
+            label="Control variables"
+            count={controlCount}
+            onEdit={() => setView("build")}
+          >
+            {controlCount === 0 ? (
+              <EmptyLine text="No control variables selected" />
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {selectedControls.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1.5">
+                      From mapped fields
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedControls.map((f) => (
+                        <span
+                          key={f.name}
+                          className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-[4px] text-xs font-medium bg-[var(--bg-card-inner)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: f.sourceColor }} />
+                          {f.displayName}
+                          <span className="text-[var(--text-muted)]">· {f.source}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {customVars.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1.5">
+                      Custom variables
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {customVars.map((v, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-[4px] text-xs font-medium bg-[#a78bfa]/10 border border-[#a78bfa]/30 text-[#a78bfa]"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                            <path d="M5 1.5V8.5M1.5 5H8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                          </svg>
+                          {v}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </ReviewSection>
+
+          {/* Modeling dimensions */}
+          <ReviewSection
+            label="Modeling dimensions"
+            count={modelingDimensions.length}
+            onEdit={() => setView("build")}
+          >
+            {modelingDimensions.length === 0 ? (
+              <EmptyLine text="No dimensions added" />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {modelingDimensions.map((d, i) => (
+                  <div
+                    key={i}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-card-inner)]"
+                  >
+                    <span className="text-[var(--text-primary)] text-xs font-semibold">{d.category}</span>
+                    <span className="text-[var(--text-dim)] text-xs">·</span>
+                    <span className="text-[var(--text-secondary)] text-xs font-mono">{d.granularity}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ReviewSection>
+
+          {/* Granularity */}
+          <ReviewSection label="Time granularity" onEdit={() => setView("build")}>
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-[3px] rounded-[4px] text-xs font-semibold bg-[#027b8e]/10 text-[#027b8e] border border-[#027b8e]/30"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#027b8e]" />
+              {granularity}
+            </span>
+          </ReviewSection>
+        </div>
+
+        {/* ── Bottom confirm bar ─────────────────────────────────────────── */}
+        <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-[var(--bg-primary)]/95 backdrop-blur-sm border-t border-[var(--border-primary)] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <div className={`w-2 h-2 rounded-full ${canSave ? "bg-[#00bc7d]" : "bg-[var(--border-secondary)]"}`} />
+            <span>
+              {canSave
+                ? "Everything looks good — you're ready to save."
+                : "Complete required fields to save"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setView("build")}
+              className="px-4 h-[32px] rounded-[8px] text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+            >
+              Back to edit
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!canSave}
+              className="px-5 h-[32px] rounded-[8px] text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: canSave ? "linear-gradient(135deg, #027b8e, #012e36)" : "var(--bg-badge)" }}
+            >
+              {isEdit ? "Save changes" : "Create model"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
   // RENDER — Builder form
   // ═════════════════════════════════════════════════════════════════════════
 
@@ -559,11 +894,14 @@ export default function CreateDataModelWizard({ onSave, onBack, editModel, field
             Cancel
           </button>
           <button
-            onClick={handleSave}
+            onClick={() => canSave && setView("review")}
             disabled={!canSave}
-            className="px-5 h-[28px] rounded-[6px] text-[12px] font-medium bg-[#027b8e] hover:bg-[#025e6d] text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-5 h-[28px] rounded-[6px] text-[12px] font-medium bg-[#027b8e] hover:bg-[#025e6d] text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
           >
-            {isEdit ? "Save Changes" : "Create Model"}
+            Review
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3.5 1.5L7 5L3.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
       </div>
@@ -1098,4 +1436,61 @@ export default function CreateDataModelWizard({ onSave, onBack, editModel, field
       </div>
     </div>
   );
+}
+
+// ─── Review-screen primitives ─────────────────────────────────────────────
+
+function SummaryChip({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-[4px] text-xs font-medium border"
+      style={{ color, borderColor: `${color}40`, backgroundColor: `${color}10` }}
+    >
+      <span className="font-semibold">{value}</span>
+      <span className="opacity-80">{label}</span>
+    </span>
+  );
+}
+
+function ReviewSection({
+  label,
+  count,
+  onEdit,
+  children,
+}: {
+  label: string;
+  count?: number;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl px-5 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
+            {label}
+          </span>
+          {count !== undefined && (
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--bg-badge)] text-[var(--text-secondary)] text-xs font-semibold">
+              {count}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 text-[#027b8e] hover:text-[#02899e] text-xs font-semibold transition-colors"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M7 1.5l1.5 1.5L3 8.5H1.5V7L7 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Edit
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyLine({ text }: { text: string }) {
+  return <p className="text-[var(--text-muted)] text-xs italic">{text}</p>;
 }

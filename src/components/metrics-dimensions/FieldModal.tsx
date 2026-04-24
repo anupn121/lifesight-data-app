@@ -1,6 +1,25 @@
 "use client";
 
-import { useState, useMemo } from "react";
+// ═══════════════════════════════════════════════════════════════════════════
+//  FIELD MODAL — Unified Mapped + Derived
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  Single modal with two value-source modes:
+//
+//  • "Source column" — map a column from a connected integration; ingest
+//    transforms (SUM / CAST / currency normalization) apply automatically.
+//
+//  • "Expression" — write an arbitrary SQL-ish formula that references
+//    existing fields. Supports nested operations:
+//        ((revenue - cost) / revenue) * 100
+//
+//  Both modes share the Identity section (display name, column name, data
+//  type, currency) so users can flip between them without losing work.
+//  The right pane adapts to the active mode — sample data for source,
+//  live formula output for expression.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { useMemo, useState } from "react";
 import {
   type Field,
   type DataTypeKey,
@@ -10,521 +29,498 @@ import {
   CURRENCY_OPTIONS,
   getSourceStreamInfo,
   toColumnName,
-  sourceOptions,
 } from "../fieldsData";
+import { SampleDataPreview } from "./SampleDataPreview";
+import { buildSampleRowMap, evaluateFormulaOverSamples } from "./sampleDataMock";
+import { extractReferencedColumns } from "./StatusBadge";
+import { Combobox } from "./Combobox";
+import { ExpressionEditor } from "./ExpressionEditor";
+import {
+  getSourceColumnOptions,
+  getDisplayNameOptions,
+  getColumnNameOptions,
+  getDataTypeOptions,
+  getCurrencyOptions,
+  getSourceParentOptions,
+  getStreamOptions,
+} from "./fieldOptionLists";
 
-// --- Transformation Step Types ---
-export interface TransformStep {
-  id: string;
-  operation: string;
-  value: string;
+// ─── UI constants ─────────────────────────────────────────────────────────
+
+const SECTION_LABEL =
+  "text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]";
+const FIELD_LABEL = "text-xs font-medium text-[var(--text-secondary)] mb-1.5 block";
+const INPUT =
+  "bg-[var(--bg-card-inner)] border border-[var(--border-secondary)] rounded-[6px] text-sm text-[var(--text-primary)] px-3 py-2.5 w-full placeholder-[var(--text-dim)] focus:outline-none focus:border-[#027b8e] focus:ring-1 focus:ring-[#027b8e]/30 transition-all";
+
+type ValueMode = "source" | "expression";
+
+const DERIVED_SOURCE = "Derived";
+const DERIVED_COLOR = "#a78bfa";
+const MAPPED_ACCENT = "#027b8e";
+
+function isDerivedField(f: Field | null): boolean {
+  return !!f && f.source === DERIVED_SOURCE;
 }
 
-const AGGREGATIONS = [
-  { key: "NONE", label: "No Aggregation", icon: "\u2014", desc: "Use the raw value as-is, no math applied.", color: "border-[var(--border-secondary)] text-[var(--text-label)]" },
-  { key: "SUM", label: "Add Up All Values", icon: "\u03A3", desc: "Add up all values across rows. Good for totals like spend or revenue.", color: "border-[#00bc7d]/40 text-[#00bc7d]" },
-  { key: "AVG", label: "Calculate Average", icon: "x\u0304", desc: "Calculate the mean value. Good for rates like CTR or frequency.", color: "border-[#2b7fff]/40 text-[#60a5fa]" },
-  { key: "COUNT", label: "Count Entries", icon: "#", desc: "Count how many rows have this value. Good for counting events.", color: "border-[#fe9a00]/40 text-[#fbbf24]" },
-  { key: "MIN", label: "Find Minimum", icon: "\u2193", desc: "Find the smallest value.", color: "border-[#027b8e]/40 text-[#a78bfa]" },
-  { key: "MAX", label: "Find Maximum", icon: "\u2191", desc: "Find the largest value.", color: "border-[#027b8e]/40 text-[#a78bfa]" },
-] as const;
+// ─── Section container ────────────────────────────────────────────────────
 
-const POST_OPERATIONS = [
-  { key: "MULTIPLY", label: "Multiply the result by", icon: "\u00D7", desc: "Multiply the result by a number. Example: multiply by 100 to convert a ratio to a percentage.", placeholder: "e.g., 100", inputType: "number" as const },
-  { key: "DIVIDE_BY", label: "Divide the result by", icon: "\u00F7", desc: "Divide the result by a number or field. Safely handles division by zero.", placeholder: "e.g., 1000000 or another_field", inputType: "text" as const },
-  { key: "ROUND", label: "Round to decimal places", icon: "\u2248", desc: "Round to a specific number of decimal places.", placeholder: "e.g., 2", inputType: "number" as const },
-  { key: "COALESCE", label: "Default if empty", icon: "?", desc: "If the value is missing or null, use this fallback value instead.", placeholder: "e.g., 0", inputType: "text" as const },
-  { key: "CAST_DATE", label: "Convert to date", icon: "D", desc: "Convert text values into a proper date format for time-based analysis.", placeholder: "", inputType: "none" as const },
-  { key: "EXTRACT_PART", label: "Extract date part", icon: "E", desc: "Pull out just the year, month, or day from a date value.", placeholder: "YEAR, MONTH, or DAY", inputType: "select" as const },
-] as const;
-
-interface TransformRecipe {
-  name: string;
-  desc: string;
-  aggregation: string;
-  steps: TransformStep[];
-}
-
-const RECIPES: TransformRecipe[] = [
-  {
-    name: "Sum All Values",
-    desc: "Add up all values into one total",
-    aggregation: "SUM",
-    steps: [{ id: "r1", operation: "ROUND", value: "2" }],
-  },
-  {
-    name: "Calculate Average",
-    desc: "Find the middle value across rows",
-    aggregation: "AVG",
-    steps: [{ id: "r1", operation: "ROUND", value: "2" }],
-  },
-  {
-    name: "Divide Two Fields",
-    desc: "Calculate a ratio (e.g., CPC = spend / clicks)",
-    aggregation: "NONE",
-    steps: [{ id: "r1", operation: "DIVIDE_BY", value: "denominator" }, { id: "r2", operation: "COALESCE", value: "0" }],
-  },
-  {
-    name: "Convert to Percentage",
-    desc: "Multiply a decimal by 100",
-    aggregation: "AVG",
-    steps: [{ id: "r1", operation: "MULTIPLY", value: "100" }, { id: "r2", operation: "ROUND", value: "2" }],
-  },
-  {
-    name: "Round Numbers",
-    desc: "Round to a specific number of decimal places",
-    aggregation: "NONE",
-    steps: [{ id: "r1", operation: "ROUND", value: "2" }],
-  },
-  {
-    name: "Convert Micros",
-    desc: "Divide by 1,000,000 to get real currency values",
-    aggregation: "SUM",
-    steps: [{ id: "r1", operation: "DIVIDE_BY", value: "1000000" }, { id: "r2", operation: "ROUND", value: "2" }],
-  },
-];
-
-let stepIdCounter = 0;
-function nextStepId(): string {
-  return `step_${++stepIdCounter}`;
-}
-
-// Build formula string from aggregation + steps
-function buildFormulaFromSteps(
-  aggregation: string,
-  steps: TransformStep[],
-  sourceKey: string
-): string {
-  const col = sourceKey || "column";
-
-  let expr = col;
-  if (aggregation === "SUM") expr = `SUM(${col})`;
-  else if (aggregation === "AVG") expr = `AVG(${col})`;
-  else if (aggregation === "COUNT") expr = `COUNT(${col})`;
-  else if (aggregation === "MIN") expr = `MIN(${col})`;
-  else if (aggregation === "MAX") expr = `MAX(${col})`;
-
-  for (const step of steps) {
-    const v = step.value || "0";
-    switch (step.operation) {
-      case "MULTIPLY":
-        expr = `(${expr}) * ${v}`;
-        break;
-      case "DIVIDE_BY": {
-        const isNumber = /^\d+(\.\d+)?$/.test(v.trim());
-        expr = isNumber
-          ? `(${expr}) / ${v}`
-          : `(${expr}) / NULLIF(${v}, 0)`;
-        break;
-      }
-      case "ROUND":
-        expr = `ROUND(${expr}, ${v})`;
-        break;
-      case "COALESCE":
-        expr = `COALESCE(${expr}, ${v})`;
-        break;
-      case "CAST_DATE":
-        expr = `CAST(${expr} AS DATE)`;
-        break;
-      case "EXTRACT_PART":
-        expr = `EXTRACT(${v || "YEAR"} FROM ${expr})`;
-        break;
-    }
-  }
-
-  return expr;
-}
-
-// Describe the full pipeline in plain English
-function describeFormulaPipeline(
-  aggregation: string,
-  steps: TransformStep[],
-  sourceKey: string
-): string {
-  const col = sourceKey || "this field";
-  const parts: string[] = [];
-
-  if (aggregation === "NONE") parts.push(`Take the raw value of "${col}"`);
-  else if (aggregation === "SUM") parts.push(`Add up all "${col}" values`);
-  else if (aggregation === "AVG") parts.push(`Calculate the average of "${col}"`);
-  else if (aggregation === "COUNT") parts.push(`Count the number of "${col}" entries`);
-  else if (aggregation === "MIN") parts.push(`Find the smallest "${col}" value`);
-  else if (aggregation === "MAX") parts.push(`Find the largest "${col}" value`);
-
-  for (const step of steps) {
-    switch (step.operation) {
-      case "MULTIPLY":
-        parts.push(`multiply the result by ${step.value || "?"}`);
-        break;
-      case "DIVIDE_BY":
-        parts.push(`divide by ${step.value || "?"}`);
-        break;
-      case "ROUND":
-        parts.push(`round to ${step.value || "?"} decimal places`);
-        break;
-      case "COALESCE":
-        parts.push(`use ${step.value || "0"} if the value is empty`);
-        break;
-      case "CAST_DATE":
-        parts.push(`convert to a date`);
-        break;
-      case "EXTRACT_PART":
-        parts.push(`extract the ${(step.value || "year").toLowerCase()}`);
-        break;
-    }
-  }
-
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0] + ".";
-  return parts[0] + ", then " + parts.slice(1).join(", then ") + ".";
-}
-
-function aggregationToTransformKey(aggregation: string): string {
-  if (aggregation === "COUNT" || aggregation === "MIN" || aggregation === "MAX") return aggregation;
-  if (aggregation === "NONE") return "NONE";
-  return aggregation;
-}
-
-function parseExistingTransform(field: Field): { aggregation: string; steps: TransformStep[] } {
-  const formula = field.transformationFormula || "";
-  const agg = (["SUM", "AVG", "COUNT", "MIN", "MAX"].includes(field.transformation))
-    ? field.transformation
-    : "NONE";
-
-  if (formula) {
-    return { aggregation: agg, steps: [] };
-  }
-
-  if (field.transformation === "CAST") {
-    return { aggregation: "NONE", steps: [{ id: nextStepId(), operation: "CAST_DATE", value: "" }] };
-  }
-  if (field.transformation === "EXTRACT") {
-    return { aggregation: "NONE", steps: [{ id: nextStepId(), operation: "EXTRACT_PART", value: "YEAR" }] };
-  }
-  if (field.transformation === "DIVIDE") {
-    return { aggregation: "NONE", steps: [{ id: nextStepId(), operation: "DIVIDE_BY", value: "denominator" }] };
-  }
-
-  return { aggregation: agg, steps: [] };
-}
-
-// --- Badge component used by FieldModal ---
-
-const DataTypeBadge = ({ type }: { type: string }) => {
-  const colors: Record<string, string> = {
-    CURRENCY: "bg-[#00bc7d]/10 text-[#00bc7d] border-[#00bc7d]/20",
-    FLOAT64: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
-    NUMERIC: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-    INT64: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-    STRING: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
-    DATE: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-    BIGNUMERIC: "bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20",
-    JSON: "bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20",
-    Currency: "bg-[#00bc7d]/10 text-[#00bc7d] border-[#00bc7d]/20",
-    Percentage: "bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20",
-    Ratio: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
-    Number: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-    String: "bg-[#2b7fff]/10 text-[#60a5fa] border-[#2b7fff]/20",
-    Enum: "bg-[#027b8e]/10 text-[#a78bfa] border-[#027b8e]/20",
-    Date: "bg-[#fe9a00]/10 text-[#fbbf24] border-[#fe9a00]/20",
-  };
-  // Marketer-friendly display names
-  const friendlyNames: Record<string, string> = {
-    CURRENCY: "Currency",
-    FLOAT64: "Decimal",
-    NUMERIC: "Number",
-    INT64: "Number",
-    STRING: "Text",
-    DATE: "Date",
-    BIGNUMERIC: "Number",
-    JSON: "Object",
-  };
-  const display = friendlyNames[type] || DATA_TYPES[type as DataTypeKey]?.display || type;
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${colors[type] || "bg-[var(--hover-item)] text-[var(--text-muted)] border-[var(--border-subtle)]"}`}
-    >
-      {display}
-    </span>
-  );
-};
-
-// --- Transformation Builder Sub-component ---
-function TransformationBuilder({
-  aggregation,
-  steps,
-  sourceKey,
-  advancedFormula,
-  advancedMode,
-  onAggregationChange,
-  onStepsChange,
-  onAdvancedFormulaChange,
-  onAdvancedModeChange,
+function Section({
+  label,
+  description,
+  children,
 }: {
-  aggregation: string;
-  steps: TransformStep[];
-  sourceKey: string;
-  advancedFormula: string;
-  advancedMode: boolean;
-  onAggregationChange: (agg: string) => void;
-  onStepsChange: (steps: TransformStep[]) => void;
-  onAdvancedFormulaChange: (formula: string) => void;
-  onAdvancedModeChange: (mode: boolean) => void;
+  label: string;
+  description?: string;
+  children: React.ReactNode;
 }) {
-  const [showAddStep, setShowAddStep] = useState(false);
-
-  const formula = advancedMode
-    ? advancedFormula
-    : buildFormulaFromSteps(aggregation, steps, sourceKey);
-
-  const plainEnglish = advancedMode
-    ? ""
-    : describeFormulaPipeline(aggregation, steps, sourceKey);
-
-  const hasTransform = aggregation !== "NONE" || steps.length > 0;
-
-  const addStep = (operation: string) => {
-    const defaultValues: Record<string, string> = {
-      MULTIPLY: "100",
-      DIVIDE_BY: "1000",
-      ROUND: "2",
-      COALESCE: "0",
-      CAST_DATE: "",
-      EXTRACT_PART: "YEAR",
-    };
-    onStepsChange([...steps, { id: nextStepId(), operation, value: defaultValues[operation] || "" }]);
-    setShowAddStep(false);
-  };
-
-  const updateStep = (id: string, value: string) => {
-    onStepsChange(steps.map((s) => (s.id === id ? { ...s, value } : s)));
-  };
-
-  const removeStep = (id: string) => {
-    onStepsChange(steps.filter((s) => s.id !== id));
-  };
-
-  const applyRecipe = (recipe: TransformRecipe) => {
-    onAggregationChange(recipe.aggregation);
-    onStepsChange(recipe.steps.map((s) => ({ ...s, id: nextStepId() })));
-    onAdvancedModeChange(false);
-  };
-
   return (
     <div className="flex flex-col gap-3">
-      {/* Section header */}
-      <label className="text-xs text-[var(--text-muted)] font-medium">
-        Transformation
-      </label>
-
-      {/* Recipe cards - always visible, 2-column grid */}
-      {!advancedMode && (
-        <div className="grid grid-cols-2 gap-1.5">
-          {RECIPES.map((recipe) => (
-            <button
-              key={recipe.name}
-              onClick={() => applyRecipe(recipe)}
-              className="flex flex-col gap-0.5 text-left px-3 py-2 rounded-md bg-[var(--hover-bg)] hover:bg-[var(--hover-item)] border border-[var(--border-subtle)] transition-colors"
-            >
-              <span className="text-[var(--text-secondary)] text-xs font-medium">{recipe.name}</span>
-              <span className="text-[var(--text-label)] text-[10px]">{recipe.desc}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Advanced mode: raw formula */}
-      {advancedMode ? (
-        <div className="flex flex-col gap-2">
-          <div className="bg-[#fe9a00]/5 border border-[#fe9a00]/20 rounded-[6px] px-3 py-2">
-            <p className="text-[10px] text-[#fbbf24] leading-relaxed">
-              Advanced mode: write your formula directly. Use SQL expressions like SUM, AVG, NULLIF, CASE WHEN, etc. The source key is <code className="bg-[var(--bg-badge)] px-1 rounded text-[#a78bfa]">{sourceKey || "column"}</code>.
-            </p>
-          </div>
-          <textarea
-            value={advancedFormula}
-            onChange={(e) => onAdvancedFormulaChange(e.target.value)}
-            placeholder={`e.g., SUM(${sourceKey || "column"}) * 100 / NULLIF(denominator, 0)`}
-            rows={3}
-            className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors font-mono resize-none"
-          />
-        </div>
-      ) : (
-        <>
-          {/* Step 1: Aggregation selector */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="w-4 h-4 rounded-full bg-[#027b8e] flex items-center justify-center text-[8px] text-white font-bold">1</span>
-              <span className="text-[11px] text-[var(--text-secondary)]">How should this field be aggregated?</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {AGGREGATIONS.map((agg) => (
-                <button
-                  key={agg.key}
-                  onClick={() => onAggregationChange(agg.key)}
-                  className={`flex flex-col items-center gap-1 px-4 py-3 rounded-[6px] border transition-all text-center ${
-                    aggregation === agg.key
-                      ? `${agg.color} bg-[var(--hover-item)] border-current`
-                      : "border-[var(--border-primary)] text-[var(--text-label)] hover:border-[var(--border-secondary)] hover:text-[var(--text-muted)]"
-                  }`}
-                  title={agg.desc}
-                >
-                  <span className="text-sm font-mono leading-none">{agg.icon}</span>
-                  <span className="text-[10px] font-medium">{agg.label}</span>
-                  <span className="text-[9px] text-[var(--text-label)] leading-tight">{agg.desc.split(".")[0]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Step 2: Post-operations (chained steps) */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="w-4 h-4 rounded-full bg-[#027b8e] flex items-center justify-center text-[8px] text-white font-bold">2</span>
-              <span className="text-[11px] text-[var(--text-secondary)]">Then apply additional operations</span>
-              <span className="text-[10px] text-[var(--text-label)] ml-1">(optional)</span>
-            </div>
-
-            {/* Existing steps */}
-            {steps.length > 0 && (
-              <div className="flex flex-col gap-1.5 mb-2">
-                {steps.map((step, idx) => {
-                  const opDef = POST_OPERATIONS.find((o) => o.key === step.operation);
-                  if (!opDef) return null;
-                  return (
-                    <div key={step.id} className="flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-[6px] px-4 py-3">
-                      <span className="text-[10px] text-[var(--text-label)] font-medium min-w-[40px]">
-                        {idx === 0 ? "Then" : "And"}
-                      </span>
-                      <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
-                        <span className="text-sm">{opDef.icon}</span>
-                        <span className="font-medium">{opDef.label}</span>
-                      </span>
-                      {opDef.inputType === "number" && (
-                        <input
-                          type="number"
-                          value={step.value}
-                          onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] w-20 font-mono focus:outline-none focus:border-[#027b8e] transition-colors"
-                          placeholder={opDef.placeholder}
-                        />
-                      )}
-                      {opDef.inputType === "text" && (
-                        <input
-                          type="text"
-                          value={step.value}
-                          onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] flex-1 font-mono focus:outline-none focus:border-[#027b8e] transition-colors"
-                          placeholder={opDef.placeholder}
-                        />
-                      )}
-                      {opDef.inputType === "select" && (
-                        <select
-                          value={step.value}
-                          onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded px-2 py-1 text-xs text-[var(--text-secondary)] focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
-                        >
-                          <option value="YEAR">Year</option>
-                          <option value="MONTH">Month</option>
-                          <option value="DAY">Day</option>
-                          <option value="HOUR">Hour</option>
-                        </select>
-                      )}
-                      <button
-                        onClick={() => removeStep(step.id)}
-                        className="text-[var(--text-label)] hover:text-[#ef4444] transition-colors ml-auto p-0.5"
-                        title="Remove this step"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path d="M9 3L3 9M3 3L9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Add step button / picker */}
-            {!showAddStep ? (
-              <button
-                onClick={() => setShowAddStep(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-[6px] border border-dashed border-[var(--border-secondary)] text-[var(--text-label)] text-xs hover:border-[#027b8e] hover:text-[#a78bfa] transition-colors w-full justify-center"
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M5 2V8M2 5H8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-                Add a step
-              </button>
-            ) : (
-              <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-[6px] p-2 flex flex-col gap-1">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-[var(--text-muted)] font-medium">Pick an operation to add</p>
-                  <button onClick={() => setShowAddStep(false)} className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-0.5">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <path d="M7.5 2.5L2.5 7.5M2.5 2.5L7.5 7.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-                {POST_OPERATIONS.map((op) => (
-                  <button
-                    key={op.key}
-                    onClick={() => addStep(op.key)}
-                    className="flex items-start gap-2 px-2.5 py-2 rounded-md hover:bg-[var(--hover-item)] transition-colors text-left"
-                  >
-                    <span className="text-sm mt-0.5 w-4 text-center">{op.icon}</span>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] text-[var(--text-secondary)] font-medium">{op.label}</span>
-                      <span className="text-[10px] text-[var(--text-label)] leading-relaxed">{op.desc}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Plain English summary - always visible when there's any transform */}
-      {!advancedMode && hasTransform && plainEnglish && (
-        <div className="bg-[#00bc7d]/5 border border-[#00bc7d]/20 rounded-[6px] px-3 py-2">
-          <p className="text-[10px] text-[var(--text-label)] mb-0.5 font-medium">What this does:</p>
-          <p className="text-[11px] text-[#00bc7d] leading-relaxed">{plainEnglish}</p>
-        </div>
-      )}
-
-      {/* Generated formula - collapsed by default behind a disclosure */}
-      {hasTransform && (
-        <details className="text-xs">
-          <summary className="text-[var(--text-label)] cursor-pointer hover:text-[var(--text-muted)]">Show generated formula</summary>
-          <div className="mt-2 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md px-3 py-2 font-mono text-xs text-[#a78bfa] break-all">
-            {formula}
-          </div>
-        </details>
-      )}
-
-      {/* Advanced mode link at bottom */}
-      {!advancedMode && (
-        <button
-          onClick={() => onAdvancedModeChange(true)}
-          className="text-[10px] text-[var(--text-label)] hover:text-[var(--text-muted)] transition-colors text-left"
-        >
-          Need to write a custom formula?
-        </button>
-      )}
-      {advancedMode && (
-        <button
-          onClick={() => onAdvancedModeChange(false)}
-          className="text-[10px] text-[var(--text-label)] hover:text-[var(--text-muted)] transition-colors text-left"
-        >
-          Back to guided mode
-        </button>
-      )}
+      <div>
+        <div className={SECTION_LABEL}>{label}</div>
+        {description && (
+          <p className="text-xs text-[var(--text-muted)] mt-1">{description}</p>
+        )}
+      </div>
+      {children}
     </div>
   );
 }
 
-// --- Field Modal ---
+// ─── Formula + live-output preview ────────────────────────────────────────
+
+function FormulaPreview({ formula, sampleOutput }: { formula: string; sampleOutput: string[] }) {
+  const hasFormula = formula.trim().length > 0;
+  return (
+    <div className="rounded-[10px] bg-[var(--bg-card-inner)] border border-[var(--border-primary)] overflow-hidden relative">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-[#a78bfa] to-[#6941c6]" />
+      <div className="px-4 py-3 pl-5 border-b border-[var(--border-primary)] flex items-center gap-2">
+        <div className="w-5 h-5 rounded-[4px] bg-[#a78bfa]/15 flex items-center justify-center">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M3 3L9 6L3 9V3Z" fill="#a78bfa" />
+          </svg>
+        </div>
+        <span className={SECTION_LABEL}>Formula</span>
+      </div>
+      <div className="px-4 py-4 pl-5 flex flex-col gap-3">
+        <div className="bg-[#0a0a0f] rounded-[6px] px-3 py-2.5 font-mono text-sm text-[#a78bfa] break-all border border-[var(--border-subtle)]">
+          {hasFormula ? formula : <span className="text-[var(--text-dim)]">Your formula will appear here</span>}
+        </div>
+        {hasFormula && sampleOutput.length > 0 && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-dim)] mb-1.5 font-semibold">
+              Sample output
+            </div>
+            <div className="flex flex-col gap-1">
+              {sampleOutput.map((v, i) => (
+                <div key={i} className="font-mono text-sm text-[#00bc7d] flex items-center gap-2">
+                  <span className="text-[var(--text-dim)] text-xs w-6">#{i + 1}</span>
+                  <span>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dependencies card ────────────────────────────────────────────────────
+
+type Dependency = { label: string; columnName: string; missing: boolean };
+
+function DependenciesCard({
+  dependencies,
+  variant,
+}: {
+  dependencies: Dependency[];
+  variant: "used-by" | "references";
+}) {
+  if (dependencies.length === 0) return null;
+  return (
+    <div className="rounded-[10px] border border-[var(--border-primary)] bg-[var(--bg-card-inner)] overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border-primary)]">
+        <div className="w-5 h-5 rounded-[4px] bg-[#fe9a00]/15 flex items-center justify-center">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M4 4h4v4H4zM4 4l-2-2M8 4l2-2M8 8l2 2M4 8l-2 2"
+              stroke="#fe9a00"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <span className={SECTION_LABEL}>{variant === "used-by" ? "Used by" : "References"}</span>
+      </div>
+      <div className="px-4 py-3">
+        <div className="flex flex-wrap gap-1.5">
+          {dependencies.map((d, i) => (
+            <span
+              key={i}
+              className={`inline-flex items-center gap-1 px-2 py-[3px] rounded-[4px] text-xs font-mono border ${
+                d.missing
+                  ? "text-[#ff2056] border-[#ff2056]/30 bg-[#ff2056]/5"
+                  : "text-[var(--text-secondary)] border-[var(--border-secondary)] bg-[var(--bg-card)]"
+              }`}
+              title={d.missing ? "Not found in workspace" : d.label}
+            >
+              {d.label}
+              {d.missing && (
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                  <path d="M5 2v3m0 1.5v0.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+              )}
+            </span>
+          ))}
+        </div>
+        {variant === "used-by" && (
+          <p className="text-xs text-[var(--text-muted)] mt-2">
+            Renaming this column will require updating these metrics.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Right preview pane ───────────────────────────────────────────────────
+
+function RightPreviewPane({
+  valueMode,
+  form,
+  columnName,
+  expression,
+  allFields,
+  editField,
+}: {
+  valueMode: ValueMode;
+  form: Field;
+  columnName: string;
+  expression: string;
+  allFields: Field[];
+  editField: Field | null;
+}) {
+  // Live sample output for expressions
+  const sampleRowMap = useMemo(() => buildSampleRowMap(allFields, 5), [allFields]);
+  const sampleOutput = useMemo(() => {
+    if (valueMode !== "expression" || !expression.trim()) return [];
+    return evaluateFormulaOverSamples(expression, sampleRowMap, 5);
+  }, [valueMode, expression, sampleRowMap]);
+
+  // Dependencies — differ by mode
+  const dependencies = useMemo<Dependency[]>(() => {
+    if (valueMode === "source") {
+      if (!columnName) return [];
+      return allFields
+        .filter(
+          (f) =>
+            f.source === DERIVED_SOURCE &&
+            f !== editField &&
+            f.transformationFormula &&
+            extractReferencedColumns(f.transformationFormula).includes(columnName),
+        )
+        .map((f) => ({
+          label: f.displayName || f.columnName || f.name,
+          columnName: f.columnName,
+          missing: false,
+        }));
+    }
+    if (!expression) return [];
+    const refs = extractReferencedColumns(expression);
+    const available = new Set(allFields.map((f) => f.columnName).filter(Boolean));
+    return refs.map((r) => ({ label: r, columnName: r, missing: !available.has(r) }));
+  }, [valueMode, allFields, editField, columnName, expression]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {valueMode === "expression" ? (
+        <FormulaPreview formula={expression} sampleOutput={sampleOutput} />
+      ) : (
+        <SampleDataPreview field={form} rows={5} />
+      )}
+      <DependenciesCard
+        dependencies={dependencies}
+        variant={valueMode === "source" ? "used-by" : "references"}
+      />
+    </div>
+  );
+}
+
+// ─── Identity section (shared by both modes) ──────────────────────────────
+
+function IdentitySection({
+  form,
+  setForm,
+  columnName,
+  onColumnNameChange,
+  onColumnNameEdit,
+  columnNameError,
+  selectedCurrency,
+  onCurrencyChange,
+  workspaceFields,
+  editField,
+}: {
+  form: Field;
+  setForm: (f: Field) => void;
+  columnName: string;
+  onColumnNameChange: (v: string) => void;
+  onColumnNameEdit: () => void;
+  columnNameError: string;
+  selectedCurrency: string;
+  onCurrencyChange: (v: string) => void;
+  workspaceFields: Field[];
+  editField: Field | null;
+}) {
+  const displayNameOptions = useMemo(
+    () => getDisplayNameOptions(form.sourceKey),
+    [form.sourceKey],
+  );
+  const columnNameOptions = useMemo(
+    () => getColumnNameOptions(form.displayName, workspaceFields, editField),
+    [form.displayName, workspaceFields, editField],
+  );
+  const dataTypeOptions = useMemo(() => getDataTypeOptions(), []);
+  const currencyOptions = useMemo(() => getCurrencyOptions(), []);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Kind toggle */}
+      <div className="flex items-center gap-3">
+        <span className={SECTION_LABEL}>Type</span>
+        <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-[8px] p-1">
+          {(["metric", "dimension"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setForm({ ...form, kind: k })}
+              className={`px-4 py-1.5 rounded-[6px] text-xs font-medium transition-all ${
+                form.kind === k
+                  ? "bg-gradient-to-br from-[#027b8e] to-[#012e36] text-white shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              {k === "metric" ? "Metric" : "Dimension"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Define */}
+      <Section label="Define" description="How this field appears in your workspace.">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={FIELD_LABEL}>Display name</label>
+            <Combobox
+              value={form.displayName}
+              onChange={(v) => {
+                setForm({ ...form, displayName: v, status: v.trim() ? "Mapped" : "Unmapped" });
+                if (columnName === "" || columnName === toColumnName(form.displayName)) {
+                  onColumnNameChange(toColumnName(v));
+                }
+              }}
+              options={displayNameOptions}
+              placeholder="e.g., Total Revenue"
+              allowCustom
+            />
+          </div>
+          <div>
+            <label className={FIELD_LABEL}>Column name</label>
+            <Combobox
+              value={columnName}
+              onChange={(v) => {
+                onColumnNameChange(v);
+                onColumnNameEdit();
+              }}
+              options={columnNameOptions}
+              placeholder="e.g., total_revenue"
+              allowCustom
+              monospace
+              error={!!columnNameError}
+            />
+          </div>
+        </div>
+        {columnNameError && <p className="text-xs text-[#d4183d]">{columnNameError}</p>}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={FIELD_LABEL}>Data type</label>
+            <Combobox
+              value={form.dataType}
+              onChange={(v) => setForm({ ...form, dataType: v as DataTypeKey })}
+              options={dataTypeOptions}
+              placeholder="Select type…"
+            />
+          </div>
+          {form.dataType === "CURRENCY" && (
+            <div>
+              <label className={FIELD_LABEL}>Currency</label>
+              <Combobox
+                value={selectedCurrency}
+                onChange={onCurrencyChange}
+                options={currencyOptions}
+                placeholder="Select currency…"
+              />
+            </div>
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+// ─── Source column editor (mapped mode) ───────────────────────────────────
+
+function SourceColumnEditor({
+  form,
+  setForm,
+  selectedParent,
+  selectedStream,
+  onParentChange,
+  onStreamChange,
+  workspaceFields,
+}: {
+  form: Field;
+  setForm: (f: Field) => void;
+  selectedParent: string;
+  selectedStream: string;
+  onParentChange: (p: string) => void;
+  onStreamChange: (s: string) => void;
+  workspaceFields: Field[];
+}) {
+  const parentData = selectedParent ? SOURCE_STREAM_TABLES[selectedParent] : null;
+  const streamNames = parentData ? Object.keys(parentData.streams) : [];
+  const isDataSourceParent = DATA_SOURCE_PARENTS.has(selectedParent);
+  const isSingleStream = streamNames.length === 1;
+
+  const sourceColumnOptions = useMemo(
+    () => getSourceColumnOptions(form.source, workspaceFields),
+    [form.source, workspaceFields],
+  );
+  const sourceParentOptions = useMemo(() => getSourceParentOptions(), []);
+  const streamOptions = useMemo(() => getStreamOptions(selectedParent), [selectedParent]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={FIELD_LABEL}>Source</label>
+          <Combobox
+            value={selectedParent}
+            onChange={onParentChange}
+            options={sourceParentOptions}
+            placeholder="Select source…"
+          />
+        </div>
+        {selectedParent && (
+          <div>
+            <label className={FIELD_LABEL}>
+              {isDataSourceParent ? "Table / Sheet" : "Stream"}
+            </label>
+            {isSingleStream ? (
+              <div className={`${INPUT} text-[var(--text-muted)]`}>{streamNames[0]}</div>
+            ) : (
+              <Combobox
+                value={selectedStream}
+                onChange={onStreamChange}
+                options={streamOptions}
+                placeholder={isDataSourceParent ? "e.g., my_data_table" : "Select stream…"}
+                allowCustom={isDataSourceParent}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <div>
+        <label className={FIELD_LABEL}>Source column</label>
+        <Combobox
+          value={form.sourceKey}
+          onChange={(v) => setForm({ ...form, sourceKey: v })}
+          options={sourceColumnOptions}
+          placeholder="Select or type a column…"
+          allowCustom
+          monospace
+        />
+        <p className="text-xs text-[var(--text-muted)] mt-1.5">
+          The raw field name from the source API. Pick a suggestion or type your own.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Value source mode toggle ─────────────────────────────────────────────
+
+function ValueSourceToggle({
+  value,
+  onChange,
+}: {
+  value: ValueMode;
+  onChange: (v: ValueMode) => void;
+}) {
+  const options: { key: ValueMode; label: string; description: string; accent: string; iconPath: string }[] = [
+    {
+      key: "source",
+      label: "Source column",
+      description: "Map a column from a connected source",
+      accent: MAPPED_ACCENT,
+      iconPath: "M4 7h16M4 12h16M4 17h16",
+    },
+    {
+      key: "expression",
+      label: "Expression",
+      description: "Compute from a formula over other fields",
+      accent: DERIVED_COLOR,
+      iconPath: "M4 20l4-16m4 16l4-16M3 8h18M3 16h18",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {options.map((o) => {
+        const selected = value === o.key;
+        return (
+          <button
+            key={o.key}
+            onClick={() => onChange(o.key)}
+            className={`flex items-center gap-3 p-3 rounded-[10px] border-2 transition-all text-left ${
+              selected
+                ? "bg-[var(--bg-card-inner)]"
+                : "border-[var(--border-primary)] bg-[var(--bg-card)] hover:border-[var(--border-secondary)]"
+            }`}
+            style={selected ? { borderColor: o.accent } : {}}
+          >
+            <div
+              className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0"
+              style={{
+                background: selected
+                  ? `linear-gradient(135deg, ${o.accent}, ${o.accent}60)`
+                  : `${o.accent}18`,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d={o.iconPath} stroke={selected ? "white" : o.accent} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[var(--text-primary)] text-sm font-semibold">{o.label}</div>
+              <div className="text-[var(--text-muted)] text-xs mt-0.5">{o.description}</div>
+            </div>
+            {selected && (
+              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: o.accent }}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 6.5L5 9L9.5 3.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main modal ───────────────────────────────────────────────────────────
+
 function FieldModal({
   isOpen,
   onClose,
@@ -532,6 +528,7 @@ function FieldModal({
   editField,
   defaultKind,
   fields,
+  defaultSource,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -539,6 +536,8 @@ function FieldModal({
   editField: Field | null;
   defaultKind: "metric" | "dimension";
   fields: Field[];
+  /** Pre-fill the source parent when opening a new field (editField === null). Used by the per-integration "Add field" button. */
+  defaultSource?: string;
 }) {
   const isEdit = editField !== null;
   const emptyField: Field = {
@@ -549,7 +548,7 @@ function FieldModal({
     source: "",
     sourceColor: "#9CA3AF",
     sourceKey: "",
-    dataType: "STRING" as DataTypeKey,
+    dataType: "NUMERIC" as DataTypeKey,
     transformation: "NONE",
     status: "Unmapped",
     description: "",
@@ -558,87 +557,80 @@ function FieldModal({
     currencyConfig: undefined,
   };
 
+  const [valueMode, setValueMode] = useState<ValueMode>(
+    isDerivedField(editField) ? "expression" : "source",
+  );
   const [form, setForm] = useState<Field>(editField ?? emptyField);
   const [selectedParent, setSelectedParent] = useState("");
   const [selectedStream, setSelectedStream] = useState("");
   const [columnName, setColumnName] = useState(editField?.columnName || "");
   const [columnNameManuallyEdited, setColumnNameManuallyEdited] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState(editField?.currencyConfig?.code || "USD");
+  const [selectedCurrency, setSelectedCurrency] = useState(
+    editField?.currencyConfig?.code || "USD",
+  );
+  const [expression, setExpression] = useState<string>(editField?.transformationFormula || "");
 
-  // Transform builder state
-  const initialParsed = editField ? parseExistingTransform(editField) : { aggregation: "NONE", steps: [] };
-  const [aggregation, setAggregation] = useState(initialParsed.aggregation);
-  const [transformSteps, setTransformSteps] = useState<TransformStep[]>(initialParsed.steps);
-  const [advancedMode, setAdvancedMode] = useState(!!editField?.transformationFormula);
-  const [advancedFormula, setAdvancedFormula] = useState(editField?.transformationFormula || "");
-
+  // Re-initialize when editField or defaultSource changes (e.g., user clicks
+  // "+ Add field" on a different integration's row).
   const [prevEdit, setPrevEdit] = useState<Field | null>(null);
-  if (editField !== prevEdit) {
+  const [prevDefaultSource, setPrevDefaultSource] = useState<string>("");
+  const nextDefaultSource = defaultSource || "";
+  if (editField !== prevEdit || nextDefaultSource !== prevDefaultSource) {
     setPrevEdit(editField);
+    setPrevDefaultSource(nextDefaultSource);
     if (editField) {
       setForm(editField);
       setColumnName(editField.columnName || "");
       setColumnNameManuallyEdited(false);
       setSelectedCurrency(editField.currencyConfig?.code || "USD");
-      // Determine parent/stream from source
       const info = getSourceStreamInfo(editField.source);
       setSelectedParent(info.parent);
       setSelectedStream(info.stream);
-      const parsed = parseExistingTransform(editField);
-      setAggregation(parsed.aggregation);
-      setTransformSteps(parsed.steps);
-      setAdvancedMode(!!editField.transformationFormula);
-      setAdvancedFormula(editField.transformationFormula || "");
+      setValueMode(isDerivedField(editField) ? "expression" : "source");
+      setExpression(editField.transformationFormula || "");
     } else {
-      setForm({ ...emptyField, kind: defaultKind });
-      setSelectedParent("");
-      setSelectedStream("");
+      // Pre-fill the source context if caller passed defaultSource (from the
+      // per-integration Add field button). Collapses to the same single-source
+      // auto-resolve that handleParentChange does.
+      const pd = nextDefaultSource ? SOURCE_STREAM_TABLES[nextDefaultSource] : null;
+      const streams = pd ? Object.keys(pd.streams) : [];
+      const autoStream = streams.length === 1 ? streams[0] : "";
+      const streamData = autoStream && pd ? pd.streams[autoStream] : null;
+      const autoSourceName =
+        streamData && streamData.sources.length > 0 ? streamData.sources[0] : "";
+      setForm({
+        ...emptyField,
+        kind: defaultKind,
+        source: autoSourceName,
+        sourceColor: autoSourceName && pd ? pd.color : "#9CA3AF",
+        tables: streamData ? streamData.tables : [],
+      });
+      setSelectedParent(pd ? nextDefaultSource : "");
+      setSelectedStream(autoStream);
       setColumnName("");
       setColumnNameManuallyEdited(false);
       setSelectedCurrency("USD");
-      setAggregation("NONE");
-      setTransformSteps([]);
-      setAdvancedMode(false);
-      setAdvancedFormula("");
+      setValueMode("source");
+      setExpression("");
     }
   }
 
-  // Column name uniqueness validation
+  const columnOptions = useMemo(() => {
+    const set = new Set<string>();
+    fields.forEach((f) => {
+      if (f.columnName) set.add(f.columnName);
+    });
+    return Array.from(set).sort();
+  }, [fields]);
+
   const columnNameError = useMemo(() => {
     if (!columnName.trim()) return "";
-    const existing = fields.find(f => f.columnName === columnName && f !== editField);
-    if (existing) return `Column name "${columnName}" is already used by "${existing.displayName} (${existing.source})"`;
+    const existing = fields.find((f) => f.columnName === columnName && f !== editField);
+    if (existing)
+      return `Column name "${columnName}" is already used by "${existing.displayName} (${existing.source})"`;
     return "";
   }, [columnName, fields, editField]);
 
-  const update = (key: keyof Field, val: string) => {
-    setForm((prev) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const next = { ...prev, [key]: val } as any;
-      if (key === "source") {
-        const src = sourceOptions.find((s) => s.name === val);
-        next.sourceColor = src?.color || "#9CA3AF";
-      }
-      if (key === "displayName") {
-        next.status = val.trim() ? "Mapped" : "Unmapped";
-        if (!columnNameManuallyEdited) {
-          setColumnName(toColumnName(val));
-        }
-      }
-      return next as Field;
-    });
-  };
-
-  // Get parent source options from SOURCE_STREAM_TABLES
-  const parentSourceOptions = Object.keys(SOURCE_STREAM_TABLES);
-
-  // Get streams for selected parent
-  const parentData = selectedParent ? SOURCE_STREAM_TABLES[selectedParent] : null;
-  const streamNames = parentData ? Object.keys(parentData.streams) : [];
-  const isDataSourceParent = DATA_SOURCE_PARENTS.has(selectedParent);
-  const isSingleStream = streamNames.length === 1;
-
-  // Auto-select stream when single stream parent is selected
   const handleParentChange = (parent: string) => {
     setSelectedParent(parent);
     setSelectedStream("");
@@ -646,11 +638,10 @@ function FieldModal({
     if (pd) {
       const streams = Object.keys(pd.streams);
       if (streams.length === 1) {
-        setSelectedStream(streams[0]);
-        // Auto-set form.source
         const streamData = pd.streams[streams[0]];
+        setSelectedStream(streams[0]);
         if (streamData.sources.length > 0) {
-          setForm(prev => ({
+          setForm((prev) => ({
             ...prev,
             source: streamData.sources[0],
             sourceColor: pd.color,
@@ -663,316 +654,272 @@ function FieldModal({
 
   const handleStreamChange = (stream: string) => {
     setSelectedStream(stream);
-    if (parentData && parentData.streams[stream]) {
-      const streamData = parentData.streams[stream];
-      if (streamData.sources.length > 0) {
-        setForm(prev => ({
-          ...prev,
-          source: streamData.sources[0],
-          sourceColor: parentData.color,
-          tables: streamData.tables,
-        }));
-      }
+    const pd = SOURCE_STREAM_TABLES[selectedParent];
+    if (!pd) return;
+    const streamData = pd.streams[stream];
+    if (streamData && streamData.sources.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        source: streamData.sources[0],
+        sourceColor: pd.color,
+        tables: streamData.tables,
+      }));
     }
   };
 
+  const handleColumnNameEdit = () => setColumnNameManuallyEdited(true);
+  const handleColumnNameChange = (v: string) => setColumnName(v);
+
   const buildSaveField = (): Field => {
-    let transformation = aggregationToTransformKey(aggregation);
-    let transformationFormula = "";
-
-    if (advancedMode) {
-      transformationFormula = advancedFormula;
-      if (/^SUM\(/i.test(advancedFormula.trim())) transformation = "SUM";
-      else if (/^AVG\(/i.test(advancedFormula.trim())) transformation = "AVG";
-      else if (/^COUNT\(/i.test(advancedFormula.trim())) transformation = "COUNT";
-      else if (advancedFormula.trim()) transformation = "SUM";
-      else transformation = "NONE";
-    } else if (aggregation !== "NONE" || transformSteps.length > 0) {
-      transformationFormula = buildFormulaFromSteps(aggregation, transformSteps, form.sourceKey);
+    if (valueMode === "source") {
+      return {
+        ...form,
+        columnName,
+        transformation: "NONE",
+        transformationFormula: "",
+        currencyConfig:
+          form.dataType === "CURRENCY"
+            ? {
+                code: selectedCurrency,
+                symbol:
+                  CURRENCY_OPTIONS.find((c) => c.code === selectedCurrency)?.symbol || "$",
+              }
+            : undefined,
+      };
     }
-
+    // Expression mode — respects the user's Metric / Dimension toggle.
+    // Dimensions with expressions typically use CASE WHEN for bucketing
+    // (e.g., `CASE WHEN country IN ('US','CA') THEN 'NA' ELSE 'Other' END`).
+    const refs = extractReferencedColumns(expression);
+    const primaryRef = refs[0] || "";
     return {
       ...form,
+      source: DERIVED_SOURCE,
+      sourceColor: DERIVED_COLOR,
+      sourceKey: primaryRef,
       columnName,
-      transformation,
-      transformationFormula,
-      currencyConfig: form.dataType === "CURRENCY" ? { code: selectedCurrency, symbol: CURRENCY_OPTIONS.find(c => c.code === selectedCurrency)?.symbol || "$" } : undefined,
+      transformation: "DERIVED",
+      transformationFormula: expression,
+      status: form.displayName.trim() ? "Mapped" : "Unmapped",
+      tables: [],
+      currencyConfig:
+        form.dataType === "CURRENCY"
+          ? {
+              code: selectedCurrency,
+              symbol:
+                CURRENCY_OPTIONS.find((c) => c.code === selectedCurrency)?.symbol || "$",
+            }
+          : undefined,
     };
   };
 
-  const canSave = form.sourceKey.trim() && form.source && form.dataType && form.dataType in DATA_TYPES && !columnNameError;
+  const canSave = useMemo(() => {
+    if (columnNameError) return false;
+    if (!form.displayName.trim()) return false;
+    if (!columnName.trim()) return false;
+    if (!form.dataType || !(form.dataType in DATA_TYPES)) return false;
+    if (valueMode === "source") {
+      return !!form.sourceKey.trim() && !!form.source;
+    }
+    // Expression mode — require non-empty expression AND balanced parens
+    const trimmed = expression.trim();
+    if (!trimmed) return false;
+    const open = (trimmed.match(/\(/g) || []).length;
+    const close = (trimmed.match(/\)/g) || []).length;
+    if (open !== close) return false;
+    return true;
+  }, [columnNameError, form, columnName, valueMode, expression]);
 
   if (!isOpen) return null;
 
+  const headerAccent = valueMode === "source" ? MAPPED_ACCENT : DERIVED_COLOR;
+
+  const resetForAnother = () => {
+    setForm((prev) => ({
+      ...prev,
+      displayName: "",
+      columnName: "",
+      sourceKey: "",
+      description: "",
+      status: "Unmapped",
+      transformationFormula: "",
+    }));
+    setColumnName("");
+    setColumnNameManuallyEdited(false);
+    setExpression("");
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[12px] w-full max-w-[900px] flex flex-col">
+        className="relative bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[14px] w-full max-w-[1180px] flex flex-col overflow-hidden"
+        style={{ boxShadow: "var(--shadow-xl)", maxHeight: "calc(100vh - 48px)" }}
+      >
+        {/* Accent strip (adapts to mode) */}
+        <div
+          className="h-[3px] w-full transition-colors"
+          style={{ background: `linear-gradient(90deg, ${headerAccent}, ${headerAccent}30)` }}
+        />
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[var(--border-primary)]">
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold">
-            {isEdit ? "Edit Field" : "Add Field"}
-          </h2>
+        <div className="flex items-center justify-between px-7 pt-6 pb-5">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-[10px] flex items-center justify-center transition-colors"
+              style={{ background: `linear-gradient(135deg, ${headerAccent}, ${headerAccent}60)` }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d={valueMode === "source" ? "M4 7h16M4 12h16M4 17h16" : "M4 20l4-16m4 16l4-16M3 8h18M3 16h18"}
+                  stroke="white"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-[var(--text-primary)] text-base font-semibold leading-tight">
+                {isEdit ? "Edit field" : "Add field"}
+              </h2>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Map from a source or build a derived metric — switch any time.
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="text-[var(--text-label)] hover:text-[var(--text-primary)] transition-colors p-1"
+            className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M15 5L5 15M5 5L15 15"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
 
-        {/* Form */}
-        <div className="px-6 py-5 flex flex-col gap-4 overflow-y-auto max-h-[70vh]">
-          {/* 1. Kind toggle */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Field Type
-            </label>
-            <div className="flex items-center gap-1 bg-[var(--bg-badge)] rounded-[6px] p-0.5 w-fit">
-              <button
-                onClick={() => update("kind", "metric")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "metric" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-              >
-                Metric
-              </button>
-              <button
-                onClick={() => update("kind", "dimension")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.kind === "dimension" ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}
-              >
-                Dimension
-              </button>
-            </div>
-          </div>
+        {/* Body — two-column grid */}
+        <div className="flex-1 overflow-hidden grid grid-cols-[1fr_420px]">
+          {/* Left: form */}
+          <div className="overflow-y-auto px-7 pt-5 pb-6 border-r border-[var(--border-primary)]">
+            <div className="flex flex-col gap-6">
+              <IdentitySection
+                form={form}
+                setForm={setForm}
+                columnName={columnName}
+                onColumnNameChange={handleColumnNameChange}
+                onColumnNameEdit={handleColumnNameEdit}
+                columnNameError={columnNameError}
+                selectedCurrency={selectedCurrency}
+                onCurrencyChange={setSelectedCurrency}
+                workspaceFields={fields}
+                editField={editField}
+              />
 
-          {/* 2. Source (parent) */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Source
-            </label>
-            <select
-              value={selectedParent}
-              onChange={(e) => handleParentChange(e.target.value)}
-              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
-            >
-              <option value="">Select source...</option>
-              {parentSourceOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* 3. Stream (conditional) */}
-          {selectedParent && (
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-                {isDataSourceParent ? "Table / Sheet Name" : "Stream"}
-              </label>
-              {isDataSourceParent ? (
+              <div className="h-px bg-[var(--border-primary)]" />
+
+              {/* Value source */}
+              <Section
+                label="Value source"
+                description={
+                  valueMode === "source"
+                    ? "Pull the value directly from a connected source."
+                    : "Build the value by combining and transforming existing fields."
+                }
+              >
+                <ValueSourceToggle value={valueMode} onChange={setValueMode} />
+
+                <div className="mt-2">
+                  {valueMode === "source" ? (
+                    <SourceColumnEditor
+                      form={form}
+                      setForm={setForm}
+                      selectedParent={selectedParent}
+                      selectedStream={selectedStream}
+                      onParentChange={handleParentChange}
+                      onStreamChange={handleStreamChange}
+                      workspaceFields={fields}
+                    />
+                  ) : (
+                    <ExpressionEditor
+                      value={expression}
+                      onChange={setExpression}
+                      columnOptions={columnOptions}
+                    />
+                  )}
+                </div>
+              </Section>
+
+              <Section label="Details">
                 <input
                   type="text"
-                  value={selectedStream}
-                  onChange={(e) => {
-                    setSelectedStream(e.target.value);
-                    // For data source parents, set the source directly
-                    if (parentData) {
-                      const firstStream = Object.keys(parentData.streams)[0];
-                      const streamData = parentData.streams[firstStream];
-                      if (streamData?.sources.length > 0) {
-                        setForm(prev => ({
-                          ...prev,
-                          source: streamData.sources[0],
-                          sourceColor: parentData.color,
-                        }));
-                      }
-                    }
-                  }}
-                  placeholder="e.g., my_data_table, Sheet1"
-                  className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Brief description of this field (optional)"
+                  className={INPUT}
                 />
-              ) : isSingleStream ? (
-                <div className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-label)] px-3 py-2">
-                  {streamNames[0]}
-                </div>
-              ) : (
-                <select
-                  value={selectedStream}
-                  onChange={(e) => handleStreamChange(e.target.value)}
-                  className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
-                >
-                  <option value="">Select stream...</option>
-                  {streamNames.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              )}
+              </Section>
             </div>
-          )}
-
-          {/* 4. Source Column (sourceKey) */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Source Column
-            </label>
-            <input
-              type="text"
-              value={form.sourceKey}
-              onChange={(e) => update("sourceKey", e.target.value)}
-              placeholder="e.g., metrics.ctr, campaign.name, total_sales"
-              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors font-mono"
-            />
-            <p className="text-[10px] text-[var(--text-label)] mt-1">
-              The raw field name from the source API
-            </p>
           </div>
 
-          {/* 5. Display Name */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Display Name
-            </label>
-            <input
-              type="text"
-              value={form.displayName}
-              onChange={(e) => update("displayName", e.target.value)}
-              placeholder="e.g., Total Revenue, Campaign Name"
-              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors"
-            />
-            <p className="text-[10px] text-[var(--text-label)] mt-1">
-              Leave blank to keep unmapped
-            </p>
-          </div>
-
-          {/* 6. Column Name */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Column Name
-            </label>
-            <input
-              type="text"
-              value={columnName}
-              onChange={(e) => {
-                setColumnName(e.target.value);
-                setColumnNameManuallyEdited(true);
-              }}
-              placeholder="e.g., total_revenue"
-              className={`bg-[var(--bg-badge)] border rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none transition-colors font-mono ${
-                columnNameError ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[var(--border-secondary)] focus:border-[#027b8e]"
-              }`}
-            />
-            {columnNameError && (
-              <p className="text-[10px] text-[#ef4444] mt-1">{columnNameError}</p>
-            )}
-            {!columnNameError && (
-              <p className="text-[10px] text-[var(--text-label)] mt-1">
-                Auto-generated from display name. Edit to customize.
-              </p>
-            )}
-          </div>
-
-          {/* 7. Data Type */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Data Type
-            </label>
-            <select
-              value={form.dataType}
-              onChange={(e) => update("dataType", e.target.value)}
-              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
-            >
-              <option value="">Select type...</option>
-              {(Object.entries(DATA_TYPES) as [DataTypeKey, { display: string }][]).map(([key, val]) => (
-                <option key={key} value={key}>
-                  {val.display} ({key})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 8. Currency Code (conditional) */}
-          {form.dataType === "CURRENCY" && (
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-                Currency Code
-              </label>
-              <select
-                value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value)}
-                className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full focus:outline-none focus:border-[#027b8e] transition-colors appearance-none"
-              >
-                {CURRENCY_OPTIONS.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.symbol} {c.code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Divider */}
-          <div className="border-t border-[var(--border-primary)]" />
-
-          {/* 9. Transformation Builder */}
-          <TransformationBuilder
-            aggregation={aggregation}
-            steps={transformSteps}
-            sourceKey={form.sourceKey}
-            advancedFormula={advancedFormula}
-            advancedMode={advancedMode}
-            onAggregationChange={setAggregation}
-            onStepsChange={setTransformSteps}
-            onAdvancedFormulaChange={setAdvancedFormula}
-            onAdvancedModeChange={setAdvancedMode}
-          />
-
-          {/* Divider */}
-          <div className="border-t border-[var(--border-primary)]" />
-
-          {/* 10. Description */}
-          <div>
-            <label className="text-xs text-[var(--text-muted)] mb-1.5 block">
-              Description
-            </label>
-            <input
-              type="text"
-              value={form.description}
-              onChange={(e) => update("description", e.target.value)}
-              placeholder="Brief description of this field"
-              className="bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-md text-xs text-[var(--text-secondary)] px-3 py-2 w-full placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors"
+          {/* Right: preview pane */}
+          <div className="overflow-y-auto bg-[var(--bg-card-inner)]/40 px-6 pt-5 pb-6">
+            <RightPreviewPane
+              valueMode={valueMode}
+              form={form}
+              columnName={columnName}
+              expression={expression}
+              allFields={fields}
+              editField={editField}
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-[var(--border-primary)]">
-          <button
-            onClick={onClose}
-            className="flex-1 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-[6px] h-[28px] text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors flex items-center justify-center"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => {
-              if (canSave) onSave(buildSaveField());
-            }}
-            disabled={!canSave}
-            className="flex-1 bg-[#027b8e] hover:bg-[#025e6d] disabled:opacity-40 disabled:cursor-not-allowed rounded-[6px] h-[28px] text-[12px] text-white font-medium transition-colors flex items-center justify-center"
-          >
-            {isEdit ? "Save Changes" : "Add Field"}
-          </button>
+        <div className="flex items-center justify-between gap-3 px-7 py-4 border-t border-[var(--border-primary)] bg-[var(--bg-card-inner)]">
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <div
+              className={`w-2 h-2 rounded-full transition-colors ${
+                canSave ? "bg-[#00bc7d]" : "bg-[var(--border-secondary)]"
+              }`}
+            />
+            <span>{canSave ? "Ready to save" : "Complete required fields to continue"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 h-9 rounded-[8px] text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-item)] transition-colors"
+            >
+              Cancel
+            </button>
+            {!isEdit && (
+              <button
+                onClick={() => {
+                  if (!canSave) return;
+                  onSave(buildSaveField());
+                  resetForAnother();
+                }}
+                disabled={!canSave}
+                className="px-4 h-9 rounded-[8px] border text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[#027b8e]"
+              >
+                Save & add another
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (canSave) onSave(buildSaveField());
+              }}
+              disabled={!canSave}
+              className="px-5 h-9 rounded-[8px] text-sm font-medium text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: canSave
+                  ? `linear-gradient(135deg, ${headerAccent}, ${headerAccent}80)`
+                  : "var(--bg-badge)",
+              }}
+            >
+              {isEdit ? "Save changes" : valueMode === "source" ? "Add field" : "Add derived metric"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

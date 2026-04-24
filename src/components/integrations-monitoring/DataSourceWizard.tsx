@@ -7,8 +7,9 @@ import type { MetricCategory } from "../fieldsData";
 import { METRIC_CATEGORIES, initialFields, classifyColumn, SYSTEM_DIMENSIONS } from "../fieldsData";
 import { IntegrationIcon } from "./icons";
 import { DataCategoryPicker } from "./DataCategoryPicker";
-import { DataFormatPicker, type DataLayout } from "./DataFormatPicker";
 import { DataPreviewTable } from "./DataPreviewTable";
+import { ScopeTaggingEditor, type ScopeTaggingItem } from "../metrics-dimensions/ScopeTaggingEditor";
+import type { AccountScope } from "../metrics-dimensions/scopeTypes";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -915,6 +916,29 @@ function StepAuthorize({
 
 // ─── Select Accounts (for non-data-source integrations) ───────────────────
 
+interface MockAccount {
+  id: string;
+  name: string;
+  accountId: string;
+}
+
+function getMockAccounts(integration: CatalogIntegration): MockAccount[] {
+  // Expanded to 10 accounts so the tagging UX is realistic — matches the
+  // user's example ("10 account IDs: 3 to GAP, 4 to Banana Republic, 3 to Old Navy").
+  return [
+    { id: `${integration.name} - GAP US 1`, name: "GAP US (Prospecting)", accountId: "act_283847291" },
+    { id: `${integration.name} - GAP US 2`, name: "GAP US (Retargeting)", accountId: "act_192736485" },
+    { id: `${integration.name} - GAP US 3`, name: "GAP US (Brand)", accountId: "act_847362910" },
+    { id: `${integration.name} - BR US 1`, name: "Banana Republic US (Main)", accountId: "act_501928374" },
+    { id: `${integration.name} - BR US 2`, name: "Banana Republic US (Catalog)", accountId: "act_612837465" },
+    { id: `${integration.name} - BR US 3`, name: "Banana Republic US (Lookalike)", accountId: "act_720394857" },
+    { id: `${integration.name} - BR US 4`, name: "Banana Republic US (Retarget)", accountId: "act_839201847" },
+    { id: `${integration.name} - ON UK 1`, name: "Old Navy UK (Main)", accountId: "act_948372615" },
+    { id: `${integration.name} - ON UK 2`, name: "Old Navy UK (Seasonal)", accountId: "act_103847291" },
+    { id: `${integration.name} - ON UK 3`, name: "Old Navy UK (App Install)", accountId: "act_217384901" },
+  ];
+}
+
 function StepSelectAccounts({
   integration,
   selectedAccounts,
@@ -926,11 +950,7 @@ function StepSelectAccounts({
   onToggleAccount: (account: string) => void;
   onNext: () => void;
 }) {
-  const mockAccounts = [
-    { id: `${integration.name} - Main Account`, name: "Main Account", accountId: "act_283847291" },
-    { id: `${integration.name} - Secondary`, name: "Secondary Account", accountId: "act_192736485" },
-    { id: `${integration.name} - Testing`, name: "Testing Account", accountId: "act_847362910" },
-  ];
+  const mockAccounts = getMockAccounts(integration);
   const streams = getStreamsForIntegration(integration.name);
 
   return (
@@ -991,8 +1011,86 @@ function StepSelectAccounts({
           disabled={selectedAccounts.length === 0}
           className="px-6 h-[28px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Connect {integration.name}
+          Continue
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tag Accounts Step (optional) ─────────────────────────────────────────
+// Native ad channels get this step after account selection. The user can
+// skip entirely or tag some accounts with Brand / Product / Country / Region.
+
+function StepTagAccounts({
+  integration,
+  selectedAccounts,
+  scopes,
+  onScopesChange,
+  onComplete,
+  onSkip,
+}: {
+  integration: CatalogIntegration;
+  selectedAccounts: string[];
+  scopes: Record<string, AccountScope>;
+  onScopesChange: (next: Record<string, AccountScope>) => void;
+  onComplete: () => void;
+  onSkip: () => void;
+}) {
+  const mockAccounts = getMockAccounts(integration);
+  const items: ScopeTaggingItem[] = mockAccounts
+    .filter((a) => selectedAccounts.includes(a.id))
+    .map((a) => ({ id: a.id, name: a.name, badge: a.accountId }));
+
+  const taggedCount = Object.values(scopes).filter((s) => s && Object.keys(s).some((k) => s[k as keyof AccountScope])).length;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}18` }}>
+          <IntegrationIcon integration={integration} />
+        </div>
+        <div>
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold">Tag accounts <span className="text-[var(--text-muted)] text-sm font-normal">— optional</span></h2>
+          <p className="text-[var(--text-muted)] text-sm">
+            Associate each account with a Brand, Product, Country, and Region so you can filter and group metrics downstream.
+          </p>
+        </div>
+      </div>
+
+      {/* Inline info banner */}
+      <div className="flex items-start gap-2 px-3 py-2 bg-[#2b7fff]/5 border border-[#2b7fff]/20 rounded-[8px] mb-5 mt-4">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[#2b7fff] flex-shrink-0 mt-[2px]">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M7 9.5V6M7 4.5v0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+          <span className="font-medium text-[#2b7fff]">Tip:</span> Select multiple accounts, then use <span className="font-semibold">Apply tags to N selected</span> to tag them all at once (e.g., 3 accounts → <span className="font-mono text-[var(--text-primary)]">Brand: GAP, Country: US</span>).
+        </p>
+      </div>
+
+      <ScopeTaggingEditor kind="accounts" items={items} value={scopes} onChange={onScopesChange} />
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-6">
+        <span className="text-[var(--text-muted)] text-xs">
+          {taggedCount > 0 ? `${taggedCount}/${items.length} tagged` : "No tagging required — you can always tag later"}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onSkip}
+            className="px-4 h-[30px] rounded-[6px] border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-medium transition-colors"
+          >
+            Skip tagging
+          </button>
+          <button
+            onClick={onComplete}
+            className="px-5 h-[30px] rounded-[6px] bg-[#027b8e] hover:bg-[#02899e] text-white text-xs font-semibold transition-colors"
+          >
+            Connect {integration.name}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2283,8 +2381,8 @@ function StepDataType({
   onBack,
   onNext,
 }: {
-  value: MetricCategory | null;
-  onChange: (v: MetricCategory) => void;
+  value: MetricCategory[];
+  onChange: (v: MetricCategory[]) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -2292,7 +2390,7 @@ function StepDataType({
     <div className="max-w-3xl mx-auto">
       <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">What kind of data is this?</h2>
       <p className="text-[var(--text-muted)] text-sm mb-6">
-        This helps us route your data to the right place so you can build models and dashboards on top of it.
+        Select one or more — this helps us route your data to the right place so you can build models and dashboards on top of it.
       </p>
 
       <DataCategoryPicker value={value} onChange={onChange} />
@@ -2306,7 +2404,7 @@ function StepDataType({
         </button>
         <button
           onClick={onNext}
-          disabled={!value}
+          disabled={value.length === 0}
           className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
         >
           Continue
@@ -2321,21 +2419,12 @@ function StepDataType({
 // asks the user to pick the layout (Long/Wide) using marketer-friendly wording.
 
 function StepReviewPreview({
-  category,
-  format,
-  onFormatChange,
   onBack,
   onNext,
 }: {
-  category: MetricCategory | null;
-  format: DataLayout | null;
-  onFormatChange: (v: DataLayout) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
-  const needsFormat = category === "kpi" || category === "paid_marketing";
-  const canContinue = !needsFormat || format !== null;
-
   return (
     <div className="max-w-3xl mx-auto">
       <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Review your data</h2>
@@ -2344,17 +2433,6 @@ function StepReviewPreview({
       </p>
 
       <DataPreviewTable />
-
-      {needsFormat && (
-        <>
-          <div className="h-px bg-[var(--border-primary)] my-8" />
-          <h3 className="text-[var(--text-primary)] text-base font-semibold mb-2">How is your data laid out?</h3>
-          <p className="text-[var(--text-muted)] text-sm mb-5">
-            Pick the layout that matches your file. This helps us understand your column structure so metrics land in the right place.
-          </p>
-          <DataFormatPicker value={format} onChange={onFormatChange} />
-        </>
-      )}
 
       <div className="flex items-center justify-between mt-8">
         <button
@@ -2365,8 +2443,7 @@ function StepReviewPreview({
         </button>
         <button
           onClick={onNext}
-          disabled={!canContinue}
-          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
+          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors"
         >
           Continue
         </button>
@@ -2374,7 +2451,7 @@ function StepReviewPreview({
     </div>
   );
 }
-const STANDARD_STEPS = ["Authenticate", "Select Accounts"];
+const STANDARD_STEPS = ["Authenticate", "Select Accounts", "Tag Accounts"];
 
 // ─── Main Wizard Component ─────────────────────────────────────────────────
 
@@ -2411,8 +2488,7 @@ export default function DataSourceWizard({
   const [dsConnected, setDsConnected] = useState(false);
   const [stdConnected, setStdConnected] = useState(false);
   const [dsAuthValues, setDsAuthValues] = useState<Record<string, string>>(savedCredentials || {});
-  const [dataCategory, setDataCategory] = useState<MetricCategory | null>(null);
-  const [dataFormat, setDataFormat] = useState<DataLayout | null>(null);
+  const [dataCategory, setDataCategory] = useState<MetricCategory[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<DataCategory[]>([]);
   const [dedupStrategy, setDedupStrategy] = useState<DedupStrategy>("upsert");
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("daily");
@@ -2421,6 +2497,7 @@ export default function DataSourceWizard({
   const [refreshMinute, setRefreshMinute] = useState("00");
   const [refreshAmPm, setRefreshAmPm] = useState<"AM" | "PM">("AM");
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [accountScopes, setAccountScopes] = useState<Record<string, AccountScope>>({});
   const [mappings, setMappings] = useState<ColumnMapping[]>(() => {
     if (!isDataSource) return [];
     const cols = MOCK_COLUMNS[integration.name] || MOCK_COLUMNS["BigQuery"];
@@ -2586,9 +2663,6 @@ export default function DataSourceWizard({
             )}
             {step === 4 && (
               <StepReviewPreview
-                category={dataCategory}
-                format={dataFormat}
-                onFormatChange={setDataFormat}
                 onBack={() => setStep(3)}
                 onNext={() => advanceStep(5)}
               />
@@ -2639,7 +2713,17 @@ export default function DataSourceWizard({
                 integration={integration}
                 selectedAccounts={selectedAccounts}
                 onToggleAccount={toggleAccount}
-                onNext={handleComplete}
+                onNext={() => advanceStep(3)}
+              />
+            )}
+            {step === 3 && (
+              <StepTagAccounts
+                integration={integration}
+                selectedAccounts={selectedAccounts}
+                scopes={accountScopes}
+                onScopesChange={setAccountScopes}
+                onComplete={handleComplete}
+                onSkip={handleComplete}
               />
             )}
           </>

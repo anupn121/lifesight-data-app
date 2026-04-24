@@ -8,7 +8,8 @@ import {
   getSourceStreamInfo,
 } from "../fieldsData";
 import { SearchIcon } from "./badges";
-import { TABLE_GRID, NewFieldRow, FieldTableHeader } from "./FieldTable";
+import { FieldTableShell, fieldKey } from "./FieldTable";
+import BulkActionBar from "./BulkActionBar";
 import type { DetailKindFilter, StatusFilter } from "./types";
 
 interface PlatformDetailViewProps {
@@ -16,6 +17,7 @@ interface PlatformDetailViewProps {
   fields: Field[];
   onBack: () => void;
   onEditField: (field: Field) => void;
+  onFieldsChange: (fields: Field[]) => void;
 }
 
 export default function PlatformDetailView({
@@ -23,12 +25,15 @@ export default function PlatformDetailView({
   fields,
   onBack,
   onEditField,
+  onFieldsChange,
 }: PlatformDetailViewProps) {
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<DetailKindFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [showSamples, setShowSamples] = useState(false);
 
-  // Get all fields for this platform
+  // Fields for this platform
   const platformFields = useMemo(() => {
     return fields.filter((f) => {
       const info = getSourceStreamInfo(f.source);
@@ -36,7 +41,6 @@ export default function PlatformDetailView({
     });
   }, [fields, platform]);
 
-  // Get platform info
   const platformInfo = useMemo(() => {
     if (platformFields.length === 0) return { color: "#9CA3AF", categories: [] as MetricCategory[] };
     const info = getSourceStreamInfo(platformFields[0].source);
@@ -47,7 +51,6 @@ export default function PlatformDetailView({
     return { color: info.color, categories: Array.from(cats) };
   }, [platformFields]);
 
-  // Apply filters
   const filteredFields = useMemo(() => {
     return platformFields.filter((f) => {
       if (kindFilter === "metrics" && f.kind !== "metric") return false;
@@ -67,45 +70,47 @@ export default function PlatformDetailView({
     });
   }, [platformFields, kindFilter, statusFilter, search]);
 
+  // Counts
   const totalFields = platformFields.length;
   const mappedCount = platformFields.filter((f) => f.status === "Mapped").length;
   const unmappedCount = totalFields - mappedCount;
-  const metricCount = platformFields.filter((f) => f.kind === "metric").length;
-  const dimensionCount = platformFields.filter((f) => f.kind === "dimension").length;
+  const derivedCount = platformFields.filter((f) => f.source === "Derived").length;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {/* Back button */}
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs hover:text-[var(--text-primary)] transition-colors w-fit"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M7.5 9.5L4 6L7.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M7.5 9.5L4 6L7.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        Back to Metrics & Dimensions
+        Back to Data Transformation
       </button>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <span
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: platformInfo.color }}
+      <div className="flex items-center gap-4">
+        <div
+          className="w-12 h-12 rounded-[12px] flex items-center justify-center flex-shrink-0"
+          style={{ background: `linear-gradient(135deg, ${platformInfo.color}, ${platformInfo.color}99)` }}
         >
-          <span className="text-sm text-white font-bold">{platform[0]}</span>
-        </span>
-        <div className="flex flex-col gap-1">
-          <h2 className="text-[var(--text-primary)] text-lg font-semibold">{platform}</h2>
-          <div className="flex items-center gap-1.5">
+          <span className="text-base text-white font-bold">{platform[0]}</span>
+        </div>
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <h2 className="text-[var(--text-primary)] text-lg font-semibold truncate">{platform}</h2>
+          <div className="flex items-center gap-1.5 flex-wrap">
             {platformInfo.categories.map((cat) => (
               <span
                 key={cat}
-                className="text-[10px] font-medium px-1.5 py-0.5 rounded-[4px]"
+                className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-[2px] rounded-[4px] border"
                 style={{
-                  backgroundColor: `${METRIC_CATEGORIES[cat].color}15`,
+                  backgroundColor: `${METRIC_CATEGORIES[cat].color}12`,
                   color: METRIC_CATEGORIES[cat].color,
+                  borderColor: `${METRIC_CATEGORIES[cat].color}30`,
                 }}
               >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: METRIC_CATEGORIES[cat].color }} />
                 {METRIC_CATEGORIES[cat].label}
               </span>
             ))}
@@ -115,33 +120,20 @@ export default function PlatformDetailView({
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3">
-          <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider block mb-1">Total Fields</span>
-          <span className="text-[var(--text-primary)] text-xl font-bold">{totalFields}</span>
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3">
-          <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider block mb-1">Mapped</span>
-          <span className="text-[#00bc7d] text-xl font-bold">{mappedCount}</span>
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3">
-          <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider block mb-1">Unmapped</span>
-          <span className={`text-xl font-bold ${unmappedCount > 0 ? "text-[#fe9a00]" : "text-[var(--text-primary)]"}`}>{unmappedCount}</span>
-        </div>
-        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-4 py-3">
-          <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider block mb-1">Categories</span>
-          <span className="text-[var(--text-primary)] text-xl font-bold">{platformInfo.categories.length}</span>
-        </div>
+        <SummaryCard label="Total fields" value={totalFields} tone="neutral" />
+        <SummaryCard label="Mapped" value={mappedCount} tone="green" />
+        <SummaryCard label="Unmapped" value={unmappedCount} tone={unmappedCount > 0 ? "orange" : "neutral"} />
+        <SummaryCard label="Derived" value={derivedCount} tone={derivedCount > 0 ? "blue" : "neutral"} />
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3">
-        {/* Kind toggle */}
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-0.5 bg-[var(--bg-badge)] rounded-[6px] p-0.5">
           {(["all", "metrics", "dimensions"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setKindFilter(k)}
-              className={`px-2.5 py-1 rounded-[4px] text-[11px] font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors ${
                 kindFilter === k
                   ? "bg-[#027b8e] text-white"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -152,7 +144,6 @@ export default function PlatformDetailView({
           ))}
         </div>
 
-        {/* Search */}
         <div className="relative flex-1 max-w-sm">
           <SearchIcon />
           <input
@@ -164,7 +155,6 @@ export default function PlatformDetailView({
           />
         </div>
 
-        {/* Status dropdown */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -174,21 +164,88 @@ export default function PlatformDetailView({
           <option value="mapped">Mapped</option>
           <option value="unmapped">Unmapped</option>
         </select>
+
+        <button
+          onClick={() => setShowSamples((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-xs font-medium border transition-colors ${
+            showSamples
+              ? "border-[#027b8e] bg-[#027b8e]/10 text-[#027b8e]"
+              : "border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M1.5 5.5H12.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M4 2.5V11.5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+          {showSamples ? "Hide samples" : "Show samples"}
+        </button>
       </div>
 
       {/* Field table */}
-      <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
-        <FieldTableHeader />
-        {filteredFields.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-[var(--text-label)] text-xs">No fields match your filters</p>
-          </div>
-        ) : (
-          filteredFields.map((field) => (
-            <NewFieldRow key={`${field.source}-${field.sourceKey}`} field={field} onEdit={onEditField} />
-          ))
-        )}
-      </div>
+      {filteredFields.length === 0 ? (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] px-6 py-12 text-center">
+          <p className="text-[var(--text-label)] text-sm mb-1">No fields match your filters</p>
+          <p className="text-[var(--text-dim)] text-xs">
+            {search ? `No results matching "${search}"` : "Try adjusting the kind or status filter."}
+          </p>
+        </div>
+      ) : (
+        <FieldTableShell
+          fields={filteredFields}
+          allFields={fields}
+          selected={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+          onEdit={onEditField}
+          showSamples={showSamples}
+        />
+      )}
+
+      {/* Bulk action bar */}
+      <BulkActionBar
+        selected={fields.filter((f) => selectedKeys.has(fieldKey(f)))}
+        allFields={fields}
+        onApply={(updated) => {
+          const map = new Map(updated.map((f) => [fieldKey(f), f] as const));
+          onFieldsChange(fields.map((f) => map.get(fieldKey(f)) ?? f));
+        }}
+        onClear={() => setSelectedKeys(new Set())}
+        onDelete={(toDelete) => {
+          const keys = new Set(toDelete.map(fieldKey));
+          onFieldsChange(fields.filter((f) => !keys.has(fieldKey(f))));
+          setSelectedKeys(new Set());
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Summary card ──────────────────────────────────────────────────────────
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "green" | "orange" | "blue" | "neutral";
+}) {
+  const toneColor = {
+    green: "#00bc7d",
+    orange: "#fe9a00",
+    blue: "#2b7fff",
+    neutral: "var(--text-primary)",
+  }[tone];
+
+  return (
+    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[10px] px-4 py-3">
+      <span className="text-[var(--text-label)] text-[10px] font-semibold uppercase tracking-wider block mb-1">
+        {label}
+      </span>
+      <span className="text-xl font-bold" style={{ color: toneColor }}>
+        {value}
+      </span>
     </div>
   );
 }

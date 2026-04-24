@@ -61,6 +61,8 @@ export interface Account {
   metrics: Record<string, string>;
   earliestDate?: string;
   latestDate?: string;
+  /** Business tags set via the Tag Accounts step in the wizard. Optional — when left unset, the account is "untagged". */
+  scope?: import("./metrics-dimensions/scopeTypes").AccountScope;
 }
 
 export type DataCategory = "kpi" | "paid_marketing" | "organic" | "contextual";

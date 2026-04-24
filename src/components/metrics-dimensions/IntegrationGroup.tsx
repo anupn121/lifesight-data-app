@@ -4,294 +4,224 @@
 //  INTEGRATION GROUP
 // ═══════════════════════════════════════════════════════════════════════════
 //
-//  Wraps a set of DataSourceCards under an integration header. Layouts:
+//  Collapsible row following the Integrations-tab row grammar:
+//  • Gradient icon tile (brand color)
+//  • Integration name + field-count label
+//  • Stacked mini progress bar (mapped / suggested / unmapped)
+//  • Status pill ("Ready" / "In progress" / "Needs mapping" / "Suggestions")
+//  • Chevron to expand
 //
-//  • Single data source (common for Paid Marketing where all streams are
-//    consolidated into "Ad Insights"): show a SingleSourceIntegrationCard
-//    that merges the integration header into the data source card itself.
-//    Avoids redundant "Facebook → Ad Insights" labels.
-//
-//  • Multiple data sources (common for KPI/Organic where Shopify has Orders,
-//    Customers, etc.): show the integration header above a 2-column grid of
-//    DataSourceCards.
+//  Expanded state renders the data sources as a responsive grid of
+//  DataSourceCards. Single-source integrations (most Paid Marketing after
+//  consolidation) skip the extra header and show the card directly.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { useMemo, useState } from "react";
 import type { IntegrationGroup as IntegrationGroupData } from "./useFieldData";
+import type { Field } from "../fieldsData";
 import DataSourceCard from "./DataSourceCard";
+import { ScopeBreakdown } from "./ScopeBreakdown";
+import type { ScopeDimension, ScopeFilter } from "./scopeTypes";
 
 interface IntegrationGroupProps {
   group: IntegrationGroupData;
   categoryColor: string;
   onViewAll: (dataSourceRawName: string) => void;
+  defaultExpanded?: boolean;
+  scopeFilter?: ScopeFilter;
+  onToggleScopeFilter?: (dimension: ScopeDimension, value: string) => void;
+  /** Called when the user clicks the "+ Add field" button on this integration's row. */
+  onAddField?: (integration: string) => void;
 }
 
 export default function IntegrationGroup({
   group,
   categoryColor,
   onViewAll,
+  defaultExpanded = false,
+  scopeFilter,
+  onToggleScopeFilter,
+  onAddField,
 }: IntegrationGroupProps) {
-  const { name, color, dataSources } = group;
+  const { name, color, dataSources, totalFields, mappedFields, progress } = group;
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
-  // ─── Single data source: compact merged card ─────────────────────────
-  if (dataSources.length === 1) {
-    return (
-      <div className="mb-4 last:mb-0">
-        <SingleSourceIntegrationCard
-          integrationName={name}
-          integrationColor={color}
-          dataSource={dataSources[0]}
-          categoryColor={categoryColor}
-          onViewAll={() => onViewAll(dataSources[0].rawName)}
-        />
-      </div>
-    );
-  }
-
-  // ─── Multiple data sources: header + grid ────────────────────────────
-  const { totalFields, mappedFields, progress } = group;
-
-  return (
-    <div className="mb-6 last:mb-0">
-      {/* Integration header */}
-      <div className="flex items-center gap-3 mb-3 px-1">
-        <span
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: color }}
-        >
-          <span className="text-xs text-white font-bold">
-            {name[0]?.toUpperCase()}
-          </span>
-        </span>
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-[var(--text-primary)] text-sm font-semibold">
-            {name}
-          </span>
-          <span className="text-[var(--text-muted)] text-xs">
-            · {dataSources.length} data sources
-          </span>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[var(--text-muted)] text-xs">
-            {mappedFields}/{totalFields} mapped
-          </span>
-          <div className="w-20">
-            <div className="h-1 w-full bg-[var(--bg-card-inner)] rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${progress}%`,
-                  backgroundColor: progress === 100 ? "#00bc7d" : categoryColor,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Data source cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {dataSources.map((ds) => (
-          <DataSourceCard
-            key={ds.rawName}
-            dataSource={ds}
-            categoryColor={categoryColor}
-            onViewAll={() => onViewAll(ds.rawName)}
-          />
-        ))}
-      </div>
-    </div>
+  const allFields = useMemo<Field[]>(
+    () => dataSources.flatMap((ds) => ds.fields),
+    [dataSources],
   );
-}
 
-// ─── Single-source compact card ────────────────────────────────────────────
-// Used when an integration has exactly one data source (most paid marketing
-// platforms after consolidation). Merges the integration header into the
-// data source card so we don't show "Facebook → Ad Insights" redundantly.
-
-function SingleSourceIntegrationCard({
-  integrationName,
-  integrationColor,
-  dataSource,
-  categoryColor,
-  onViewAll,
-}: {
-  integrationName: string;
-  integrationColor: string;
-  dataSource: import("./useFieldData").DataSourceGroup;
-  categoryColor: string;
-  onViewAll: () => void;
-}) {
-  const {
-    topMetrics,
-    topDimensions,
-    metrics,
-    dimensions,
-    mappedFields,
-    mappedMetrics,
-    mappedDimensions,
-    totalFields,
-    progress,
-  } = dataSource;
-
-  const isComplete = progress === 100;
+  const isComplete = progress === 100 && totalFields > 0;
+  const mappedPct = totalFields ? (mappedFields / totalFields) * 100 : 0;
 
   return (
-    <div className="bg-[var(--bg-card-inner)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden hover:border-[var(--border-secondary)] transition-colors">
-      {/* Header: integration icon + name + progress */}
-      <div className="px-4 py-3.5 border-b border-[var(--border-subtle)] flex items-center gap-3">
-        <span
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: integrationColor }}
+    <div className="rounded-[10px] border border-[var(--border-primary)] bg-[var(--bg-card)] overflow-hidden mb-3 last:mb-0">
+      {/* ─── Row header ─────────────────────────────────────────────────── */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--hover-item)] transition-colors text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#027b8e]/40"
+      >
+        {/* Chevron */}
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          className={`text-[var(--text-muted)] transition-transform duration-200 flex-shrink-0 ${expanded ? "rotate-90" : ""}`}
         >
-          <span className="text-xs text-white font-bold">
-            {integrationName[0]?.toUpperCase()}
-          </span>
-        </span>
+          <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+
+        {/* Gradient icon tile */}
+        <div
+          className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0"
+          style={{ background: `linear-gradient(135deg, ${color}, ${color}99)` }}
+        >
+          <span className="text-sm text-white font-bold">{name[0]?.toUpperCase()}</span>
+        </div>
+
+        {/* Name + count */}
         <div className="min-w-0 flex-1">
-          <div className="text-[var(--text-primary)] text-sm font-semibold truncate">
-            {integrationName}
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--text-primary)] text-sm font-semibold truncate">{name}</span>
+            <span className="text-[var(--text-dim)] text-xs flex-shrink-0">
+              · {totalFields} field{totalFields === 1 ? "" : "s"}
+              {dataSources.length > 1 && ` · ${dataSources.length} sources`}
+            </span>
           </div>
-          <div className="text-[var(--text-muted)] text-xs mt-0.5 flex items-center gap-1.5">
-            <span>
+
+          {/* Progress bar */}
+          <div className="mt-2 flex items-center gap-3">
+            <div className="flex h-1 w-full max-w-[280px] rounded-full overflow-hidden bg-[var(--bg-card-inner)]">
+              <div style={{ width: `${mappedPct}%`, backgroundColor: "#00bc7d" }} className="h-full transition-all duration-500" />
+            </div>
+            <span className="text-[var(--text-muted)] text-xs flex-shrink-0">
               {mappedFields}/{totalFields} mapped
             </span>
-            {isComplete && (
-              <span className="inline-flex items-center gap-1 text-[#00bc7d] font-medium">
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-                  <path
-                    d="M2 8.5L6 12.5L14 4.5"
-                    stroke="#00bc7d"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Complete
-              </span>
-            )}
           </div>
         </div>
-        <div className="w-24 flex-shrink-0">
-          <div className="h-1.5 w-full bg-[var(--bg-card)] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${progress}%`,
-                backgroundColor: isComplete ? "#00bc7d" : categoryColor,
-              }}
-            />
-          </div>
+
+        {/* Add field button (pre-fills this integration as the source) */}
+        {onAddField && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddField(name);
+            }}
+            className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-[6px] border border-transparent text-[var(--text-muted)] hover:text-[#027b8e] hover:bg-[#027b8e]/8 hover:border-[#027b8e]/30 transition-colors text-xs font-semibold flex-shrink-0"
+            title={`Add a field to ${name}`}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M6 2V10M2 6H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Add field
+          </button>
+        )}
+
+        {/* Status pill */}
+        <div className="flex-shrink-0">
+          {isComplete ? (
+            <StatusPill label="Ready" tone="green" />
+          ) : mappedFields > 0 ? (
+            <StatusPill label="In progress" tone="orange" />
+          ) : (
+            <StatusPill label="Needs mapping" tone="grey" />
+          )}
         </div>
       </div>
 
-      {/* Body: side-by-side metrics / dimensions */}
-      <div className="grid grid-cols-2 divide-x divide-[var(--border-subtle)]">
-        <CompactFieldColumn
-          label="Metrics"
-          count={mappedMetrics}
-          total={metrics.length}
-          accentColor={categoryColor}
-          fields={topMetrics}
-          emptyText="No metrics yet"
-        />
-        <CompactFieldColumn
-          label="Dimensions"
-          count={mappedDimensions}
-          total={dimensions.length}
-          accentColor="#6b7280"
-          fields={topDimensions}
-          emptyText="No dimensions yet"
-        />
-      </div>
+      {/* ─── Scope breakdown chips (per integration) ───────────────────── */}
+      <ScopeBreakdownRow
+        fields={allFields}
+        scopeFilter={scopeFilter}
+        onToggleScopeFilter={onToggleScopeFilter}
+      />
 
-      {/* Footer */}
-      <div className="px-4 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--bg-card)] flex items-center justify-between">
-        <span className="text-[var(--text-dim)] text-xs">
-          {totalFields} {totalFields === 1 ? "field" : "fields"} available
-        </span>
-        <button
-          onClick={onViewAll}
-          className="text-[#027b8e] hover:text-[#02899e] text-xs font-semibold flex items-center gap-1 transition-colors"
-        >
-          View all fields
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path
-              d="M3.5 1.5L7 5L3.5 8.5"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      {/* ─── Expanded body ──────────────────────────────────────────────── */}
+      {expanded && (
+        <div className="border-t border-[var(--border-primary)] bg-[var(--bg-card-inner)] px-4 py-4">
+          {dataSources.length === 1 ? (
+            // Single source — full-width card
+            <DataSourceCard
+              dataSource={dataSources[0]}
+              categoryColor={categoryColor}
+              onViewAll={() => onViewAll(dataSources[0].rawName)}
             />
-          </svg>
-        </button>
-      </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {dataSources.map((ds) => (
+                <DataSourceCard
+                  key={ds.rawName}
+                  dataSource={ds}
+                  categoryColor={categoryColor}
+                  onViewAll={() => onViewAll(ds.rawName)}
+                    />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function CompactFieldColumn({
-  label,
-  count,
-  total,
-  accentColor,
+// ─── Scope breakdown (rendered only when fields carry scope tags) ─────────
+
+function ScopeBreakdownRow({
   fields,
-  emptyText,
+  scopeFilter,
+  onToggleScopeFilter,
+}: {
+  fields: Field[];
+  scopeFilter?: ScopeFilter;
+  onToggleScopeFilter?: (dimension: ScopeDimension, value: string) => void;
+}) {
+  // Quick check — if no field in this integration has any scope, skip entirely
+  const anyScope = fields.some((f) => f.accountScope && Object.keys(f.accountScope).some((k) => f.accountScope![k as keyof typeof f.accountScope]));
+  if (!anyScope) return null;
+
+  return (
+    <div className="px-4 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-card-inner)]">
+      <ScopeBreakdown
+        fields={fields}
+        filter={scopeFilter}
+        onToggleFilter={onToggleScopeFilter}
+      />
+    </div>
+  );
+}
+
+// ─── Status pill (shared grammar) ──────────────────────────────────────────
+
+function StatusPill({
+  label,
+  tone,
 }: {
   label: string;
-  count: number;
-  total: number;
-  accentColor: string;
-  fields: { name: string; displayName: string; status: string }[];
-  emptyText: string;
+  tone: "green" | "blue" | "orange" | "grey";
 }) {
-  return (
-    <div className="px-4 py-3.5">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-label)]">
-          {label}
-        </span>
-        <span
-          className="text-[11px] font-semibold px-1.5 py-[1px] rounded-[3px]"
-          style={{
-            backgroundColor: `${accentColor}15`,
-            color: accentColor,
-          }}
-        >
-          {count}/{total}
-        </span>
-      </div>
+  const map = {
+    green: { color: "#00bc7d", bg: "transparent" },
+    blue: { color: "#2b7fff", bg: "rgba(43,127,255,0.06)" },
+    orange: { color: "#fe9a00", bg: "rgba(254,154,0,0.06)" },
+    grey: { color: "#71717a", bg: "transparent" },
+  }[tone];
 
-      {fields.length === 0 ? (
-        <div className="text-[var(--text-dim)] text-xs italic py-1">{emptyText}</div>
-      ) : (
-        <ul className="space-y-1.5">
-          {fields.map((f) => {
-            const isMapped = f.status === "Mapped";
-            return (
-              <li
-                key={f.name}
-                className="flex items-center gap-2 text-xs truncate leading-tight"
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{
-                    backgroundColor: isMapped ? accentColor : "#44445a",
-                  }}
-                />
-                <span
-                  className={`truncate ${
-                    isMapped
-                      ? "text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)]"
-                  }`}
-                >
-                  {f.displayName}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-[4px] border text-[10px] font-semibold uppercase tracking-wide"
+      style={{ color: map.color, borderColor: `${map.color}30`, backgroundColor: map.bg }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: map.color }} />
+      {label}
+    </span>
   );
 }

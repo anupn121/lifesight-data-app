@@ -60,6 +60,10 @@ export interface Field {
   variableType?: VariableType;
   kpiSubtype?: KpiSubtype;
   paidMarketingMetricType?: PaidMarketingMetricType;
+  /** User confirmed the sample data looks right in the editor. Renders as `Validated`. */
+  validated?: boolean;
+  /** Which account / sheet / table this field ultimately came from, scoped by business tags (Brand / Product / Country / Region). */
+  accountScope?: import("./metrics-dimensions/scopeTypes").AccountScope;
 }
 
 interface RawField {
@@ -588,7 +592,42 @@ function migrateField(raw: RawField): Field {
   };
 }
 
-export const initialFields: Field[] = rawFields.map(migrateField);
+// Seed example account scopes across mock data so the filter + breakdown UI
+// has something to render. In a real app, each field's accountScope would be
+// set by the tagging step in the integration wizard.
+const DEMO_SCOPE_ROTATION: Record<string, import("./metrics-dimensions/scopeTypes").AccountScope[]> = {
+  Facebook: [
+    { brand: "GAP", product: "Apparel", country: "US", region: "California" },
+    { brand: "Banana Republic", product: "Apparel", country: "US", region: "New York" },
+    { brand: "Old Navy", product: "Apparel", country: "UK", region: "London" },
+  ],
+  Google: [
+    { brand: "GAP", product: "Apparel", country: "US", region: "US East" },
+    { brand: "Banana Republic", product: "Apparel", country: "US", region: "US West" },
+    { brand: "Old Navy", product: "Footwear", country: "UK", region: "London" },
+  ],
+  TikTok: [
+    { brand: "GAP", product: "Apparel", country: "US", region: "US West" },
+    { brand: "Old Navy", product: "Footwear", country: "US", region: "US East" },
+  ],
+  Snapchat: [{ brand: "Banana Republic", product: "Apparel", country: "US", region: "California" }],
+  Pinterest: [{ brand: "Old Navy", product: "Footwear", country: "UK", region: "APAC" }],
+  Shopify: [{ brand: "GAP", product: "Apparel", country: "US", region: "US East" }],
+};
+
+function applyDemoScopes(fields: Field[]): Field[] {
+  const counters: Record<string, number> = {};
+  return fields.map((f) => {
+    const info = getSourceStreamInfo(f.source);
+    const rotation = DEMO_SCOPE_ROTATION[info.parent];
+    if (!rotation || rotation.length === 0) return f;
+    const i = (counters[info.parent] ?? 0) % rotation.length;
+    counters[info.parent] = (counters[info.parent] ?? 0) + 1;
+    return { ...f, accountScope: rotation[i] };
+  });
+}
+
+export const initialFields: Field[] = applyDemoScopes(rawFields.map(migrateField));
 
 // --- Source options for dropdowns ---
 export const sourceOptions = [

@@ -9,11 +9,18 @@ import {
 } from "./fieldsData";
 import FieldModal from "./metrics-dimensions/FieldModal";
 import { SearchIcon } from "./metrics-dimensions/badges";
-import { NewFieldRow, FieldTableHeader } from "./metrics-dimensions/FieldTable";
+import { FieldTableShell, fieldKey } from "./metrics-dimensions/FieldTable";
 import type { ViewMode, DetailKindFilter, StatusFilter } from "./metrics-dimensions/types";
-import ActionRequiredSection from "./metrics-dimensions/ActionRequiredSection";
+import SetupHero from "./metrics-dimensions/SetupHero";
 import CategoryHierarchySection from "./metrics-dimensions/CategoryHierarchySection";
 import PlatformDetailView from "./metrics-dimensions/PlatformDetailView";
+import BulkActionBar from "./metrics-dimensions/BulkActionBar";
+import { ScopeFilterBar } from "./metrics-dimensions/ScopeFilterBar";
+import {
+  type ScopeFilter,
+  scopeMatchesFilter,
+  countActiveFilters,
+} from "./metrics-dimensions/scopeTypes";
 import {
   useMandatoryMetrics,
   useHierarchicalFieldData,
@@ -41,15 +48,28 @@ export default function MetricsDimensionsTab({
   const [detailKind, setDetailKind] = useState<DetailKindFilter>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editField, setEditField] = useState<Field | null>(null);
+  // When the user clicks "+ Add field" on a specific integration's row, this
+  // carries that integration name into the modal so Source is pre-filled.
+  const [addFieldSource, setAddFieldSource] = useState<string>("");
   const [flowKind, setFlowKind] = useState<"metric" | "dimension">("metric");
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [showSamples, setShowSamples] = useState(false);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>({});
 
-  const { actionItems, totalActionItems } = useMandatoryMetrics(fields);
-  const hierarchyData = useHierarchicalFieldData(fields);
+  // Fields restricted to the current scope filter. All downstream logic
+  // (hierarchy, action items, detail lists) uses this filtered slice.
+  const scopedFields = useMemo(() => {
+    if (countActiveFilters(scopeFilter) === 0) return fields;
+    return fields.filter((f) => scopeMatchesFilter(f.accountScope, scopeFilter));
+  }, [fields, scopeFilter]);
 
-  // Detail view: filtered fields for selected category
+  const { actionItems, totalActionItems } = useMandatoryMetrics(scopedFields);
+  const hierarchyData = useHierarchicalFieldData(scopedFields);
+
+  // Detail view: filtered fields for selected category (respects scope filter)
   const detailFields = useMemo(() => {
     if (view !== "detail" || !detailCategory) return [];
-    return fields.filter((f) => {
+    return scopedFields.filter((f) => {
       if (f.metricCategory !== detailCategory) return false;
       if (detailKind === "metrics" && f.kind !== "metric") return false;
       if (detailKind === "dimensions" && f.kind !== "dimension") return false;
@@ -68,13 +88,13 @@ export default function MetricsDimensionsTab({
       }
       return true;
     });
-  }, [fields, view, detailCategory, detailKind, statusFilter, sourceFilter, search]);
+  }, [scopedFields, view, detailCategory, detailKind, statusFilter, sourceFilter, search]);
 
   const detailSources = useMemo(() => {
     if (view !== "detail" || !detailCategory) return [];
-    const sources = new Set(fields.filter((f) => f.metricCategory === detailCategory).map((f) => f.source));
+    const sources = new Set(scopedFields.filter((f) => f.metricCategory === detailCategory).map((f) => f.source));
     return Array.from(sources).sort();
-  }, [fields, view, detailCategory]);
+  }, [scopedFields, view, detailCategory]);
 
   const openDetail = (cat: MetricCategory) => {
     setDetailCategory(cat);
@@ -95,7 +115,20 @@ export default function MetricsDimensionsTab({
 
   const handleEdit = (field: Field) => {
     setEditField(field);
+    setAddFieldSource("");
     setIsModalOpen(true);
+  };
+
+  const handleAddField = (integrationName?: string) => {
+    setEditField(null);
+    setAddFieldSource(integrationName ?? "");
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditField(null);
+    setAddFieldSource("");
   };
 
   const handleSave = (field: Field) => {
@@ -151,17 +184,19 @@ export default function MetricsDimensionsTab({
       <div className="flex flex-col gap-5">
         <PlatformDetailView
           platform={selectedPlatform}
-          fields={fields}
+          fields={scopedFields}
           onBack={goBack}
           onEditField={handleEdit}
+          onFieldsChange={onFieldsChange}
         />
         <FieldModal
           isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setEditField(null); }}
+          onClose={closeModal}
           onSave={handleSave}
           editField={editField}
           defaultKind="metric"
           fields={fields}
+          defaultSource={addFieldSource}
         />
       </div>
     );
@@ -182,7 +217,7 @@ export default function MetricsDimensionsTab({
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M7.5 9.5L4 6L7.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              Metrics & Dimensions
+              Data Transformation
             </button>
             <span className="text-[var(--text-label)] text-xs">/</span>
             <div className="flex items-center gap-2">
@@ -191,7 +226,7 @@ export default function MetricsDimensionsTab({
             </div>
           </div>
           <button
-            onClick={() => { setEditField(null); setIsModalOpen(true); }}
+            onClick={() => handleAddField()}
             className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-1.5 px-3 h-[28px] text-[12px] font-medium transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2.5V9.5M2.5 6H9.5" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -200,10 +235,10 @@ export default function MetricsDimensionsTab({
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-0.5 bg-[var(--bg-badge)] rounded-[6px] p-0.5">
             {(["all", "metrics", "dimensions"] as const).map((k) => (
-              <button key={k} onClick={() => setDetailKind(k)} className={`px-2.5 py-1 rounded-[4px] text-[11px] font-medium transition-colors ${detailKind === k ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}>
+              <button key={k} onClick={() => setDetailKind(k)} className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors ${detailKind === k ? "bg-[#027b8e] text-white" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}>
                 {k === "all" ? "All" : k === "metrics" ? "Metrics" : "Dimensions"}
               </button>
             ))}
@@ -221,25 +256,61 @@ export default function MetricsDimensionsTab({
             <option value="all">All Sources</option>
             {detailSources.map((src) => (<option key={src} value={src}>{src}</option>))}
           </select>
+          <button
+            onClick={() => setShowSamples((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-xs font-medium border transition-colors ${
+              showSamples
+                ? "border-[#027b8e] bg-[#027b8e]/10 text-[#027b8e]"
+                : "border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M1.5 5.5H12.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4 2.5V11.5" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+            {showSamples ? "Hide samples" : "Show samples"}
+          </button>
         </div>
+
+        {/* Scope filter — respects workspace-level tagging */}
+        <ScopeFilterBar fields={fields} filter={scopeFilter} onChange={setScopeFilter} compact />
 
         {/* Tables */}
         {(detailKind === "all" || detailKind === "metrics") && dMetrics.length > 0 && (
           <div>
-            {detailKind === "all" && <div className="flex items-center gap-2 mb-2"><span className="text-[var(--text-primary)] text-xs font-semibold">Metrics</span><span className="text-[var(--text-label)] text-[10px]">({dMetrics.length})</span></div>}
-            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
-              <FieldTableHeader />
-              {dMetrics.map((field, idx) => (<NewFieldRow key={`m-${field.source}-${field.sourceKey}-${idx}`} field={field} onEdit={handleEdit} />))}
-            </div>
+            {detailKind === "all" && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[var(--text-primary)] text-xs font-semibold uppercase tracking-wider">Metrics</span>
+                <span className="text-[var(--text-dim)] text-xs">({dMetrics.length})</span>
+              </div>
+            )}
+            <FieldTableShell
+              fields={dMetrics}
+              allFields={fields}
+              selected={selectedKeys}
+              onSelectionChange={setSelectedKeys}
+              onEdit={handleEdit}
+              showSamples={showSamples}
+            />
           </div>
         )}
         {(detailKind === "all" || detailKind === "dimensions") && dDimensions.length > 0 && (
           <div>
-            {detailKind === "all" && <div className="flex items-center gap-2 mb-2"><span className="text-[var(--text-primary)] text-xs font-semibold">Dimensions</span><span className="text-[var(--text-label)] text-[10px]">({dDimensions.length})</span></div>}
-            <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-[8px] overflow-hidden">
-              <FieldTableHeader />
-              {dDimensions.map((field, idx) => (<NewFieldRow key={`d-${field.source}-${field.sourceKey}-${idx}`} field={field} onEdit={handleEdit} />))}
-            </div>
+            {detailKind === "all" && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[var(--text-primary)] text-xs font-semibold uppercase tracking-wider">Dimensions</span>
+                <span className="text-[var(--text-dim)] text-xs">({dDimensions.length})</span>
+              </div>
+            )}
+            <FieldTableShell
+              fields={dDimensions}
+              allFields={fields}
+              selected={selectedKeys}
+              onSelectionChange={setSelectedKeys}
+              onEdit={handleEdit}
+              showSamples={showSamples}
+            />
           </div>
         )}
         {detailFields.length === 0 && (
@@ -248,7 +319,23 @@ export default function MetricsDimensionsTab({
             <p className="text-[var(--text-dim)] text-xs">{search ? `No results matching "${search}"` : `No ${detailKind === "all" ? "fields" : detailKind} in ${config.label} yet.`}</p>
           </div>
         )}
-        <FieldModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditField(null); }} onSave={handleSave} editField={editField} defaultKind="metric" fields={fields} />
+        <FieldModal isOpen={isModalOpen} onClose={closeModal} onSave={handleSave} editField={editField} defaultKind="metric" fields={fields} defaultSource={addFieldSource} />
+
+        {/* Bulk action bar */}
+        <BulkActionBar
+          selected={fields.filter((f) => selectedKeys.has(fieldKey(f)))}
+          allFields={fields}
+          onApply={(updated) => {
+            const map = new Map(updated.map((f) => [fieldKey(f), f] as const));
+            onFieldsChange(fields.map((f) => map.get(fieldKey(f)) ?? f));
+          }}
+          onClear={() => setSelectedKeys(new Set())}
+          onDelete={(toDelete) => {
+            const keys = new Set(toDelete.map(fieldKey));
+            onFieldsChange(fields.filter((f) => !keys.has(fieldKey(f))));
+            setSelectedKeys(new Set());
+          }}
+        />
       </div>
     );
   }
@@ -275,11 +362,34 @@ export default function MetricsDimensionsTab({
   }
 
   // ---------- OVERVIEW ----------
+  const handleMapColumnAsDate = (integration: string, dataSource: string, columnName: string) => {
+    onFieldsChange(
+      fields.map((f) => {
+        if (f.columnName !== columnName && f.name !== columnName) return f;
+        return {
+          ...f,
+          kind: "dimension",
+          status: "Mapped",
+          dataType: f.dataType === "DATE" ? f.dataType : "DATE",
+        };
+      }),
+    );
+  };
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Top action bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+    <div className="flex flex-col gap-5">
+      {/* Setup Hero — replaces the old Action Required section */}
+      <SetupHero
+        fields={scopedFields}
+        items={actionItems}
+        onMapNow={(integration) => openPlatformDetail(integration)}
+        onMapColumnAsDate={handleMapColumnAsDate}
+        onAddField={() => handleAddField()}
+      />
+
+      {/* Scope filter + search */}
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="relative w-full max-w-sm">
           <SearchIcon />
           <input
             type="text"
@@ -289,38 +399,7 @@ export default function MetricsDimensionsTab({
             className="w-full pl-9 pr-3 py-1.5 bg-[var(--bg-badge)] border border-[var(--border-secondary)] rounded-[6px] text-xs text-[var(--text-secondary)] placeholder-[#475467] focus:outline-none focus:border-[#027b8e] transition-colors"
           />
         </div>
-        <div className="flex-1" />
-        <button
-          onClick={() => { setEditField(null); setIsModalOpen(true); }}
-          className="bg-[#027b8e] hover:bg-[#025e6d] text-white rounded-[6px] flex items-center gap-1.5 px-3 h-[28px] text-[12px] font-medium transition-colors"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2.5V9.5M2.5 6H9.5" stroke="currentColor" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          Add Field
-        </button>
-      </div>
-
-      {/* Action Required section */}
-      <div id="action-required-section">
-        <ActionRequiredSection
-          items={actionItems}
-          onMapNow={(integration) => openPlatformDetail(integration)}
-          onMapColumnAsDate={(integration, dataSource, columnName) => {
-            // Mark the chosen column as a date dimension in the fields list
-            onFieldsChange(
-              fields.map((f) => {
-                if (f.columnName !== columnName && f.name !== columnName) return f;
-                // Only update if this field belongs to the target data source
-                // (matched by parent integration via source)
-                return {
-                  ...f,
-                  kind: "dimension",
-                  status: "Mapped",
-                  dataType: f.dataType === "DATE" ? f.dataType : "DATE",
-                };
-              }),
-            );
-          }}
-        />
+        <ScopeFilterBar fields={fields} filter={scopeFilter} onChange={setScopeFilter} />
       </div>
 
       {/* Category hierarchy sections */}
@@ -332,17 +411,29 @@ export default function MetricsDimensionsTab({
           onViewDataSource={(integrationName) => openPlatformDetail(integrationName)}
           onViewCategory={() => openDetail(cat.category)}
           onConnectSource={onNavigateToIntegrations}
+          scopeFilter={scopeFilter}
+          onToggleScopeFilter={(dim, val) => {
+            const next = { ...scopeFilter };
+            const cur = new Set(next[dim] ?? []);
+            if (cur.has(val)) cur.delete(val);
+            else cur.add(val);
+            if (cur.size === 0) delete next[dim];
+            else next[dim] = cur;
+            setScopeFilter(next);
+          }}
+          onAddField={handleAddField}
         />
       ))}
 
       {/* Modals */}
       <FieldModal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setEditField(null); }}
+        onClose={closeModal}
         onSave={handleSave}
         editField={editField}
         defaultKind="metric"
         fields={fields}
+        defaultSource={addFieldSource}
       />
     </div>
   );

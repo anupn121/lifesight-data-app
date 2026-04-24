@@ -13,7 +13,7 @@ interface TabBarProps {
 
 const allTabs: { id: TabId; label: string }[] = [
   { id: "integrations-monitoring", label: "Integrations" },
-  { id: "metrics-dimensions", label: "Metrics & Dimensions" },
+  { id: "metrics-dimensions", label: "Data Transformation" },
   { id: "tactic-mapper", label: "Taxonomy" },
   { id: "data-models", label: "Data Models" },
 ];

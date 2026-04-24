@@ -5,8 +5,9 @@ import type { CatalogIntegration } from "../monitoringData";
 import type { MetricCategory } from "../fieldsData";
 import { IntegrationIcon } from "./icons";
 import { DataCategoryPicker } from "./DataCategoryPicker";
-import { DataFormatPicker, type DataLayout } from "./DataFormatPicker";
 import { DataPreviewTable } from "./DataPreviewTable";
+import { ScopeTaggingEditor, type ScopeTaggingItem } from "../metrics-dimensions/ScopeTaggingEditor";
+import type { AccountScope } from "../metrics-dimensions/scopeTypes";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ type RefreshDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "
 
 const STEPS = [
   "Name & Connect",
+  "Tag Source",
   "Data Type",
   "Review",
   "Schedule",
@@ -500,8 +502,8 @@ function StepDataType({
   onBack,
   onNext,
 }: {
-  value: MetricCategory | null;
-  onChange: (v: MetricCategory) => void;
+  value: MetricCategory[];
+  onChange: (v: MetricCategory[]) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -509,7 +511,7 @@ function StepDataType({
     <div className="max-w-3xl mx-auto">
       <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">What kind of data is this?</h2>
       <p className="text-[var(--text-muted)] text-sm mb-6">
-        This helps us route your data to the right place so you can build models and dashboards on top of it.
+        Select one or more — this helps us route your data to the right place so you can build models and dashboards on top of it.
       </p>
 
       <DataCategoryPicker value={value} onChange={onChange} />
@@ -523,7 +525,7 @@ function StepDataType({
         </button>
         <button
           onClick={onNext}
-          disabled={!value}
+          disabled={value.length === 0}
           className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
         >
           Continue
@@ -533,22 +535,97 @@ function StepDataType({
   );
 }
 
-function StepReviewPreview({
-  category,
-  format,
-  onFormatChange,
+// ─── Tag Source Step (optional) ─────────────────────────────────────────
+// Shown between Name & Connect and Data Type. For files/spreadsheets, a
+// single "source" is picked (sheet, bucket, file) — so the editor usually
+// renders one row. For Google Sheets with multiple sheets selected later,
+// the list would grow.
+
+function StepTagSource({
+  integration,
+  selectedSource,
+  aliasName,
+  fileName,
+  scopes,
+  onScopesChange,
   onBack,
   onNext,
 }: {
-  category: MetricCategory | null;
-  format: DataLayout | null;
-  onFormatChange: (v: DataLayout) => void;
+  integration: CatalogIntegration;
+  selectedSource: string;
+  aliasName: string;
+  fileName: string;
+  scopes: Record<string, AccountScope>;
+  onScopesChange: (next: Record<string, AccountScope>) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
-  const needsFormat = category === "kpi" || category === "paid_marketing";
-  const canContinue = !needsFormat || format !== null;
+  const kind = integration.name === "CSV" || integration.name === "Excel Upload" ? "table" : integration.name === "Google Sheets" ? "sheet" : "table";
+  const items: ScopeTaggingItem[] = useMemo(() => {
+    const name = selectedSource || fileName || aliasName;
+    if (!name) return [];
+    return [
+      {
+        id: name,
+        name,
+        subtitle: `From ${integration.name}`,
+      },
+    ];
+  }, [selectedSource, fileName, aliasName, integration.name]);
 
+  const taggedCount = Object.values(scopes).filter((s) => s && Object.keys(s).some((k) => s[k as keyof AccountScope])).length;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">
+        Tag source <span className="text-[var(--text-muted)] text-base font-normal">— optional</span>
+      </h2>
+      <p className="text-[var(--text-muted)] text-sm mb-5">
+        Associate this {kind} with a Brand, Product, Country, and Region so you can filter and group metrics in Data Transformation later.
+      </p>
+
+      <div className="flex items-start gap-2 px-3 py-2 bg-[#2b7fff]/5 border border-[#2b7fff]/20 rounded-[8px] mb-5">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[#2b7fff] flex-shrink-0 mt-[2px]">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M7 9.5V6M7 4.5v0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+          <span className="font-medium text-[#2b7fff]">Tip:</span> This step is entirely optional. If your data already contains brand or country columns, you can skip tagging and use those columns directly.
+        </p>
+      </div>
+
+      <ScopeTaggingEditor kind={kind === "sheet" ? "sheets" : "tables"} items={items} value={scopes} onChange={onScopesChange} />
+
+      <div className="flex items-center justify-between mt-6">
+        <button
+          onClick={onBack}
+          className="px-4 py-2.5 rounded-xl border border-[var(--border-primary)] hover:border-[var(--border-secondary)] text-[var(--text-secondary)] text-sm font-medium transition-colors"
+        >
+          Back
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[var(--text-muted)] text-xs">
+            {taggedCount > 0 ? `${taggedCount}/${items.length} tagged` : "Optional — skip if not needed"}
+          </span>
+          <button
+            onClick={onNext}
+            className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors"
+          >
+            {taggedCount > 0 ? "Continue" : "Skip"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepReviewPreview({
+  onBack,
+  onNext,
+}: {
+  onBack: () => void;
+  onNext: () => void;
+}) {
   return (
     <div className="max-w-3xl mx-auto">
       <h2 className="text-[var(--text-primary)] text-xl font-semibold mb-2">Review your data</h2>
@@ -557,17 +634,6 @@ function StepReviewPreview({
       </p>
 
       <DataPreviewTable />
-
-      {needsFormat && (
-        <>
-          <div className="h-px bg-[var(--border-primary)] my-8" />
-          <h3 className="text-[var(--text-primary)] text-base font-semibold mb-2">How is your data laid out?</h3>
-          <p className="text-[var(--text-muted)] text-sm mb-5">
-            Pick the layout that matches your file. This helps us understand your column structure so metrics land in the right place.
-          </p>
-          <DataFormatPicker value={format} onChange={onFormatChange} />
-        </>
-      )}
 
       <div className="flex items-center justify-between mt-8">
         <button
@@ -578,8 +644,7 @@ function StepReviewPreview({
         </button>
         <button
           onClick={onNext}
-          disabled={!canContinue}
-          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#027b8e]"
+          className="px-6 py-2.5 rounded-xl bg-[#027b8e] hover:bg-[#02899e] text-white text-sm font-medium transition-colors"
         >
           Continue
         </button>
@@ -881,8 +946,8 @@ export default function FileIntegrationWizard({
   const [refreshMinute, setRefreshMinute] = useState("00");
   const [refreshAmPm, setRefreshAmPm] = useState<"AM" | "PM">("AM");
   const [refreshMonthDay, setRefreshMonthDay] = useState("1");
-  const [dataCategory, setDataCategory] = useState<MetricCategory | null>(null);
-  const [dataFormat, setDataFormat] = useState<DataLayout | null>(null);
+  const [dataCategory, setDataCategory] = useState<MetricCategory[]>([]);
+  const [sourceScopes, setSourceScopes] = useState<Record<string, AccountScope>>({});
 
   const currentStepName = STEPS[step - 1];
 
@@ -959,6 +1024,18 @@ export default function FileIntegrationWizard({
             onChangeIntegrationType={onChangeIntegrationType}
           />
         )}
+        {currentStepName === "Tag Source" && (
+          <StepTagSource
+            integration={integration}
+            selectedSource={selectedSource}
+            aliasName={aliasName}
+            fileName={fileName}
+            scopes={sourceScopes}
+            onScopesChange={setSourceScopes}
+            onBack={() => setStep(step - 1)}
+            onNext={() => setStep(step + 1)}
+          />
+        )}
         {currentStepName === "Data Type" && (
           <StepDataType
             value={dataCategory}
@@ -969,9 +1046,6 @@ export default function FileIntegrationWizard({
         )}
         {currentStepName === "Review" && (
           <StepReviewPreview
-            category={dataCategory}
-            format={dataFormat}
-            onFormatChange={setDataFormat}
             onBack={() => setStep(step - 1)}
             onNext={() => setStep(step + 1)}
           />

@@ -10,12 +10,10 @@ import MetricsDimensionsTab from "@/components/MetricsDimensionsTab";
 import MapperTab from "@/components/MapperTab";
 import DataModelsTab from "@/components/DataModelsTab";
 import IntegrationsMonitoringTab, { type IntMonView } from "@/components/integrations-monitoring";
-import LandingPage from "@/components/LandingPage";
-import { type ProductMode, PRODUCT_MODES } from "@/components/productMode";
+import { type ProductMode } from "@/components/productMode";
 import { initialFields, type Field } from "@/components/fieldsData";
 import { sampleDataModels, type DataModel } from "@/components/dataModelsData";
 
-const LS_KEY = "lifesight_product_mode";
 
 const INITIAL_TACTICS = [
   "Meta MOF",
@@ -32,9 +30,13 @@ const INITIAL_TACTICS = [
   "TikTok Awareness",
 ];
 
+// Locked to the full suite — no picker, no landing page. Previously users
+// saw a "Choose your measurement use case" landing screen; now every tab is
+// available from the start.
+const LOCKED_PRODUCT_MODE: ProductMode = "mta_mmm_experiments";
+
 export default function DataPage() {
-  const [productMode, setProductMode] = useState<ProductMode | null>(null);
-  const [showLanding, setShowLanding] = useState(true);
+  const [productMode] = useState<ProductMode>(LOCKED_PRODUCT_MODE);
   const [activeTab, setActiveTab] = useState<TabId>("integrations-monitoring");
   const [fields, setFields] = useState<Field[]>(initialFields);
   const [tactics, setTactics] = useState<string[]>(INITIAL_TACTICS);
@@ -77,32 +79,7 @@ export default function DataPage() {
     setTactics((prev) => Array.from(new Set([...prev, ...newTactics])));
   }, []);
 
-  // Hydrate product mode from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LS_KEY);
-      if (stored && stored in PRODUCT_MODES) {
-        setProductMode(stored as ProductMode);
-        setShowLanding(false);
-        setActiveTab(PRODUCT_MODES[stored as ProductMode].visibleTabs[0]);
-      }
-    } catch {
-      // localStorage unavailable
-    }
-  }, []);
-
-  const handleSelectMode = useCallback((mode: ProductMode) => {
-    setProductMode(mode);
-    setShowLanding(false);
-    setActiveTab(PRODUCT_MODES[mode].visibleTabs[0]);
-    try { localStorage.setItem(LS_KEY, mode); } catch { /* noop */ }
-  }, []);
-
-  const handleChangeMode = useCallback(() => {
-    setProductMode(null);
-    setShowLanding(true);
-    try { localStorage.removeItem(LS_KEY); } catch { /* noop */ }
-  }, []);
+  // Product mode is locked to the full suite; no picker, no persistence.
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -131,10 +108,6 @@ export default function DataPage() {
     }
   };
 
-  const modeConfig = productMode ? PRODUCT_MODES[productMode] : null;
-
-  // Show landing page when no mode is selected
-  const isLanding = showLanding && !productMode;
   const inSubview = activeTab === "integrations-monitoring" && (intMonView === "catalog" || intMonView === "data-wizard" || intMonView === "custom-source-picker");
 
   return (
@@ -143,13 +116,7 @@ export default function DataPage() {
       <div className="flex-1 flex flex-col min-h-screen">
         <TopNav />
         <main className="flex-1 overflow-y-auto px-[16px] pt-5">
-          {isLanding ? (
-            /* ─── Landing Page ───────────────────────────────────────────── */
-            <div className="pt-8">
-              <LandingPage onSelectMode={handleSelectMode} />
-            </div>
-          ) : (
-            <>
+          <>
               {/* Page Title -- hidden when in catalog/wizard subviews */}
               {!inSubview && (
                 <div className="mb-4 flex items-center justify-between">
@@ -157,22 +124,6 @@ export default function DataPage() {
                     <h1 className="text-[var(--text-primary)] text-[20px] font-semibold tracking-[-0.3px]">Data</h1>
                   </div>
                   <div className="flex items-center gap-3">
-                    {/* Product mode badge + change button */}
-                    {modeConfig && (
-                      <button
-                        onClick={handleChangeMode}
-                        className="flex items-center gap-2 px-3 h-[28px] rounded-[6px] border border-[var(--border-primary)] hover:border-[var(--border-secondary)] bg-[var(--bg-card)] text-[12px] transition-all duration-150"
-                      >
-                        <span
-                          className="w-[7px] h-[7px] rounded-full"
-                          style={{ background: modeConfig.color }}
-                        />
-                        <span className="text-[var(--text-secondary)]">{modeConfig.shortLabel}</span>
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-[var(--text-dim)]">
-                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    )}
                     {activeTab === "integrations-monitoring" && intMonView === "main" && (
                       <button
                         onClick={() => setIntMonView("catalog")}
@@ -204,7 +155,6 @@ export default function DataPage() {
                 {renderTabContent()}
               </div>
             </>
-          )}
         </main>
       </div>
       {isDemoMode && (
